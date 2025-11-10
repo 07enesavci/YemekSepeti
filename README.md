@@ -30,7 +30,7 @@ Bu döküman, projemizde yer alan temel dosya ve klasör yapısını ve 5 kişil
             * `search.css` - 'Satıcı Bul' sayfasının 2 sütunlu yerleşimi.
             * `seller-profile.css` - Satıcı vitrininin (menü) stilleri.
             * `seller-dashboard.css` - Satıcı paneli ana sayfa stilleri.
-    * **`js/`** - (JavaScript dosyaları - **SİZİN EKİBİNİZİN ALANI**)
+    * **`js/`** - (JavaScript dosyaları)
         * `main.js` - Global script: Header/Footer yükleyici, mobil menü.
         * `auth.js` - Giriş/Kayıt formlarının doğrulaması, şifre kontrolü.
         * `api.js` - **(SAHTE BACKEND)** Tüm sahte veriler ve fonksiyonlar.
