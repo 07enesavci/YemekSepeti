@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kurye Paneli - Dashboard</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../assets/css/main.css">
+    <link rel="stylesheet" href="../../assets/css/components.css">
+    <link rel="stylesheet" href="../../assets/css/pages/seller-dashboard.css"> <link rel="stylesheet" href="../../assets/css/pages/courier-dashboard.css"> </head>
+<body class="bg-color">
+
+    <div class="panel-layout">
+        
+        <aside>
+            <div class="panel-sidebar">
+                <div class="panel-logo">
+                    <a href="dashboard.html">Kurye Paneli</a>
+                </div>
+                <nav class="panel-nav">
+                    <ul>
+                        <li>
+                            <a href="dashboard.html" class="active">
+                                <span>🗺️</span> Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="available.html">
+                                <span>📋</span> Alınabilir Siparişler
+                            </a>
+                        </li>
+                        <li>
+                            <a href="history.html">
+                                <span>✅</span> Teslimat Geçmişi
+                            </a>
+                        </li>
+                        <li>
+                            <a href="profile.html">
+                                <span>👤</span> Profilim
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="panel-footer">
+                    <a href="../../index.html" class="btn btn-secondary btn-full">Siteye Geri Dön</a>
+                    <a href="../../index.html" id="courier-logout-btn">Çıkış Yap</a>
+                </div>
+            </div>
+        </aside>
+
+        <main class="panel-content">
+            
+            <h1 class="panel-title">Dashboard</h1>
+            <p class="panel-subtitle">Hoş geldin, Kurye! İşte anlık görev durumun.</p>
+
+            <div class="card">
+                <div class="card-content">
+                    <h3 class="checkout-card-title">Aktif Görev: #1052</h3>
+                    
+                    <div class="map-placeholder">
+                        <p>Harita Alanı</p>
+                        <span>(Kurye -> Satıcı -> Alıcı rotası)</span>
+                    </div>
+
+                    <div class="task-details">
+                        <div class="task-step active">
+                            <strong>1. Adım (Alış):</strong> Ayşe'nin Mutfağı (Kadıköy)
+                        </div>
+                        <div class="task-step">
+                            <strong>2. Adım (Teslim):</strong> E*** S. (Çerkezköy)
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                        Görevi Tamamladım
+                    </button>
+                </div>
+            </div>
+
+            <div class="stat-grid" style="margin-top: 2rem;">
+                <div class="card stat-card">
+                    <span class="stat-icon">💰</span>
+                    <span class="stat-label">Bugünkü Kazanç</span>
+                    <strong class="stat-value">120 TL</strong>
+                </div>
+                <div class="card stat-card">
+                    <span class="stat-icon">✅</span>
+                    <span class="stat-label">Bugünkü Teslimat</span>
+                    <strong class="stat-value">5</strong>
+                </div>
+            </div>
+
+        </main> </div> <script src="../../assets/js/main.js"></script>
+    </body>
+</html>

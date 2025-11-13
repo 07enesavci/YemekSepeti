@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sepetim - Ev Lezzetleri</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../assets/css/main.css">
+    <link rel="stylesheet" href="../../assets/css/layout.css">
+    <link rel="stylesheet" href="../../assets/css/components.css">
+    <link rel="stylesheet" href="../../assets/csspages/cart.css"> </head>
+<body class="bg-color"> <header class="site-header">
+        <div class="header-content container"> 
+            <a href="../../index.html" class="logo">Ev Lezzetleri</a>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="../../index.html">Ana Sayfa</a></li>
+                    <li><a href="search.html">Satıcı Bul</a></li>
+                    <li><a href="../common/login.html">Giriş Yap</a></li>
+                    <li><a href="../common/register.html" class="btn btn-secondary">Kayıt Ol</a></li>
+                    <li><a href="cart.html" class="btn btn-primary">Sepet (2)</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="container section-padding">
+            <h1 class="section-title">Sepetim</h1>
+
+            <div id="cart-layout" class="cart-layout">
+                
+                <div class="cart-items-list">
+                    
+                    <div class="card cart-item">
+                        <img src="https://via.placeholder.com/100" alt="Yemek Resmi" class="cart-item-image">
+                        <div class="cart-item-details">
+                            <h3 class="card-title">Ev Mantısı (Porsiyon)</h3>
+                            <p class="card-text">Satıcı: Ayşe'nin Mutfağı</p>
+                        </div>
+                        <div class="cart-item-quantity">
+                            <button class="quantity-btn">-</button>
+                            <input type="text" value="1" class="quantity-input" readonly>
+                            <button class="quantity-btn">+</button>
+                        </div>
+                        <div class="cart-item-price">
+                            110.00 TL
+                        </div>
+                        <button class="cart-item-remove" title="Sepetten Çıkar">×</button>
+                    </div>
+
+                    <div class="card cart-item">
+                        <img src="https://via.placeholder.com/100" alt="Yemek Resmi" class="cart-item-image">
+                        <div class="cart-item-details">
+                            <h3 class="card-title">Fırın Sütlaç</h3>
+                            <p class="card-text">Satıcı: Ayşe'nin Mutfağı</p>
+                        </div>
+                        <div class="cart-item-quantity">
+                            <button class="quantity-btn">-</button>
+                            <input type="text" value="2" class="quantity-input" readonly>
+                            <button class="quantity-btn">+</button>
+                        </div>
+                        <div class="cart-item-price">
+                            120.00 TL
+                        </div>
+                        <button class="cart-item-remove" title="Sepetten Çıkar">×</button>
+                    </div>
+                    
+                </div> <aside class="order-summary">
+                    <div class="card">
+                        <div class="card-content">
+                            <h3 class="card-title">Sipariş Özeti</h3>
+                            
+                            <div class="summary-row">
+                                <span>Ara Toplam</span>
+                                <span id="summary-subtotal">230.00 TL</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Teslimat Ücreti</span>
+                                <span id="summary-delivery">29.99 TL</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="coupon" class="form-label">Kupon Kodu</label>
+                                <div class="coupon-form">
+                                    <input type="text" id="coupon" class="form-input" placeholder="Kuponu girin...">
+                                    <button class="btn btn-secondary">Uygula</button>
+                                </div>
+                            </div>
+                            
+                            <hr class="divider"> <div class="summary-row total-row">
+                                <span>Toplam Tutar</span>
+                                <strong id="summary-total" class="total-price">259.99 TL</strong>
+                            </div>
+
+                            <a href="pages/buyer/checkout.html" class="btn btn-primary btn-full">
+                                Ödemeye Geç
+                            </a>
+                        </div>
+                    </div>
+                </aside>
+
+            </div> <div id="cart-empty" class="text-center" style="display: none;">
+                <div class="card" style="padding: 3rem;">
+                    <h2>Sepetiniz Boş</h2>
+                    <p>Görünüşe göre henüz bir şey eklememişsiniz.</p>
+                    <a href="pages/buyer/search.html" class="btn btn-primary">Hemen Satıcı Bul</a>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-content container"> 
+            <p>&copy; 2025 Ev Lezzetleri Projesi. Tüm hakları saklıdır.</p>
+            <p>Bu proje, Prof. Dr. Mustafa YAĞCI'nın Web Programlama dersi için hazırlanmıştır.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
