@@ -1,0 +1,171 @@
+/* ==================================== */
+/* SATICI PANELİ (pages/seller-dashboard.css) */
+/* ==================================== */
+/* BU DOSYA, TÜM SELLER/ VE COURIER/ 
+   SAYFALARININ ANA YERLEŞİMİNİ KONTROL EDER */
+
+/* 1. Panel Ana Yerleşimi
+-------------------------------------- */
+.panel-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* 2. Sol Sütun (Sidebar)
+   (components/dashboard-sidebar.html'i stillendirir)
+-------------------------------------- */
+.panel-sidebar {
+    flex-basis: 260px; /* Sabit genişlik */
+    flex-shrink: 0;
+    background-color: var(--card-bg);
+    box-shadow: var(--card-shadow-hover);
+    display: flex;
+    flex-direction: column; /* İçerik dikey hizalansın */
+    height: 100vh;
+    position: sticky;
+    top: 0;
+}
+
+.panel-logo {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.panel-logo a {
+    font-family: var(--font-family-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.panel-nav {
+    flex-grow: 1; /* Menünün kalan boşluğu doldurmasını sağla */
+    padding: 1rem;
+}
+.panel-nav ul {
+    list-style: none;
+}
+.panel-nav li a {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    text-decoration: none;
+    color: var(--secondary-color-light);
+    font-weight: 500;
+    font-size: 1rem;
+    border-radius: var(--border-radius);
+    transition: all 0.3s ease;
+}
+.panel-nav li a:hover {
+    background-color: var(--bg-color);
+    color: var(--secondary-color);
+}
+.panel-nav li a.active {
+    background-color: var(--primary-color);
+    color: #FFFFFF;
+    font-weight: 700;
+}
+
+.panel-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+.panel-footer a {
+    text-align: center;
+    display: block;
+}
+.panel-footer #seller-logout-btn {
+    font-size: 0.9rem;
+    color: #E74C3C;
+    margin-top: 1rem;
+    font-weight: 500;
+}
+
+/* 3. Sağ Sütun (Ana İçerik)
+-------------------------------------- */
+.panel-content {
+    flex-grow: 1;
+    padding: 2.5rem;
+    /* Kaydırma çubuğu ana içerikte olsun */
+    overflow-y: auto; 
+    height: 100vh;
+}
+
+.panel-title {
+    font-family: var(--font-family-heading);
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+.panel-subtitle {
+    font-size: 1.1rem;
+    color: var(--secondary-color-light);
+    margin-bottom: 2rem;
+}
+
+/* 4. Dashboard Özel Stilleri
+-------------------------------------- */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+.stat-card {
+    padding: 1.5rem;
+}
+.stat-card .stat-icon {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+.stat-card .stat-label {
+    font-size: 1rem;
+    color: var(--secondary-color-light);
+}
+.stat-card .stat-value {
+    font-family: var(--font-family-heading);
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    display: block;
+}
+
+/* Son Siparişler Listesi */
+.order-list-item {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.order-list-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.order-list-item:first-child {
+    padding-top: 0;
+}
+
+.order-info { flex-grow: 1; }
+.order-info strong { display: block; }
+.order-info span { font-size: 0.9rem; color: var(--secondary-color-light); }
+
+/* 'orders.css'den stilleri ödünç alıyoruz */
+.order-status {
+    font-family: var(--font-family-body);
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    color: #FFF;
+}
+.order-status.preparing { background-color: #FFA000; }
+.order-status.delivered { background-color: #4CAF50; }
+
+.order-price {
+    font-weight: 700;
+    font-size: 1.1rem;
+    min-width: 100px;
+    text-align: right;
+}
