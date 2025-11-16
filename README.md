@@ -55,6 +55,7 @@ Bu döküman, projemizde yer alan temel dosya ve klasör yapısını ve 5 kişil
         * `forgot-password.html` - Şifre sıfırlama sayfası.
         * `about.html` - Hakkımızda sayfası.
         * `contact.html` - İletişim sayfası.
+        * `terms.html` - Kullanım koşulları sayfası.
     * **`buyer/`** - (**ALICI ROLÜ** - Müşteri Akışı)
         * `search.html` - Satıcı arama ve filtreleme sayfası.
         * `seller-profile.html` - Satıcı vitrini (Menü listesi).
