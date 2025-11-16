@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ev Lezzetleri - Ana Sayfa</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="assets/css/main.css">
+    <link rel="stylesheet" href="assets/css/layout.css">
+    <link rel="stylesheet" href="assets/css/components.css">
+    <link rel="stylesheet" href="assets/css/pages/home.css">
+
+</head>
+<body class="bg-color"> <header class="site-header">
+        <div class="header-content container"> <a href="index.html" class="logo">Ev Lezzetleri</a>
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.html">Ana Sayfa</a></li>
+                    <li><a href="pages/buyer/search.html">Satıcı Bul</a></li>
+                    <li><a href="pages/common/login.html">Giriş Yap</a></li>
+                    <li><a href="pages/common/register.html" class="btn btn-secondary">Kayıt Ol</a></li>
+                    <li><a href="pages/buyer/cart.html" class="btn btn-primary">Sepet (<span id="cart-count">0</span>)</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero-section">
+            <div class="hero-content container">
+                <h1>Mahallenizdeki En Lezzetli Ev Yemekleri</h1>
+                <p>Güvenilir aşçılardan, taze ve sağlıklı ev yemeklerini keşfedin.</p>
+                <div class="hero-search">
+                    <input type="text" class="form-input" placeholder="Yemek veya mutfak arayın...">
+                    <button class="btn btn-primary">Bul</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="container section-padding">
+            <h2 class="section-title">Öne Çıkan Mutfaklar</h2>
+            
+            <div class="featured-grid">
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Ayşe'nin+Mutfağı" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Ayşe'nin Mutfağı</h3>
+                        <p class="card-text">Zeytinyağlılar ve Ev Yapımı Mantı</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Fatma'nın+Tatlıları" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Fatma'nın Tatlıları</h3>
+                        <p class="card-text">Sütlü tatlılar, baklava ve kurabiyeler.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Ali'nin+Kebapları" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Ali'nin Kebapları</h3>
+                        <p class="card-text">Sadece evlere özel lahmacun ve kebap.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Zeynep'in+Sofrası" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Zeynep'in Sofrası</h3>
+                        <p class="card-text">Ege ve Akdeniz Mezeleri.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Karadeniz+Esintisi" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Karadeniz Esintisi</h3>
+                        <p class="card-text">Mıhlama, Hamsi Tava ve Laz Böreği.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Vegan+Lezzetler" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Vegan Lezzetler</h3>
+                        <p class="card-text">%100 Bitkisel ve Sağlıklı Seçenekler.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Mehmet'in+Yeri" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Mehmet'in Yeri</h3>
+                        <p class="card-text">Ev Usulü Döner ve İskender.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Sağlıklı+Kaseler" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Sağlıklı Kaseler</h3>
+                        <p class="card-text">Fit ve Hafif Öğünler, Smoothie Bowl.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Hamur+İşi" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Hamur İşi</h3>
+                        <p class="card-text">Gözleme, Börek ve Çiğ Börek.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Sokak+Lezzetleri" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Sokak Lezzetleri</h3>
+                        <p class="card-text">Evde Islak Hamburger ve Kokoreç.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=İtalyan+Dokunuşu" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">İtalyan Dokunuşu</h3>
+                        <p class="card-text">Ev Yapımı Taze Makarnalar ve Pizza.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <img src="https://via.placeholder.com/400x200.png?text=Sulu+Yemekler" alt="Yemek Resmi" class="card-image">
+                    <div class="card-content">
+                        <h3 class="card-title">Sulu Yemekler</h3>
+                        <p class="card-text">Günlük Tencere Yemekleri ve Çorbalar.</p>
+                        <a href="pages/buyer/seller-profile.html" class="btn btn-secondary btn-full">Menüyü Gör</a>
+                    </div>
+                </div>
+                
+                </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-content container">
+            <p>&copy; 2025 Ev Lezzetleri Projesi. Tüm hakları saklıdır.</p>
+            <p>Bu proje, Prof. Dr. Mustafa YAĞCI'nın Web Programlama dersi için hazırlanmıştır.</p>
+        </div>
+    </footer>ü
+    </footer>
+
+    <script src="assets/js/api.js"></script>
+    <script src="assets/js/modules/cart.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satıcı Paneli - Menü Yönetimi</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../assets/css/main.css">
+    <link rel="stylesheet" href="../../assets/css/components.css">
+    <link rel="stylesheet" href="../../assets/css/pages/seller-dashboard.css"> <link rel="stylesheet" href="../../assets/css/pages/seller-menu.css">    </head>
+<body class="bg-color">
+
+    <div class="panel-layout">
+        
+        <aside id="sidebar-placeholder"></aside>
+
+        <main class="panel-content">
+            
+            <div class="panel-header">
+                <h1 class="panel-title">Menü Yönetimi</h1>
+                <button id="add-new-meal-btn" class="btn btn-primary">Yeni Yemek Ekle</button>
+            </div>
+
+            <div class="card">
+                <div class="card-content">
+                    <div class="menu-list">
+                        
+                        <div class="menu-list-item">
+                            <img src="https://via.placeholder.com/100" alt="Yemek Resmi" class="menu-item-image">
+                            <div class="menu-item-info">
+                                <strong>Ev Mantısı (Porsiyon)</strong>
+                                <span>Ana Yemekler</span>
+                            </div>
+                            <div class="menu-item-status">
+                                <span class="status-dot active">Satışta</span>
+                            </div>
+                            <div class="menu-item-price">
+                                110.00 TL
+                            </div>
+                            <div class="menu-item-actions">
+                                <button class="btn btn-secondary btn-sm">Düzenle</button>
+                                <button class="btn btn-danger btn-sm">Sil</button>
+                            </div>
+                        </div>
+                        
+                        <div class="menu-list-item">
+                            <img src="https://via.placeholder.com/100" alt="Yemek Resmi" class="menu-item-image">
+                            <div class="menu-item-info">
+                                <strong>Kuru Fasulye</strong>
+                                <span>Ana Yemekler</span>
+                            </div>
+                            <div class="menu-item-status">
+                                <span class="status-dot active">Satışta</span>
+                            </div>
+                            <div class="menu-item-price">
+                                85.00 TL
+                            </div>
+                            <div class="menu-item-actions">
+                                <button class="btn btn-secondary btn-sm">Düzenle</button>
+                                <button class="btn btn-danger btn-sm">Sil</button>
+                            </div>
+                        </div>
+                        
+                        <div class="menu-list-item">
+                            <img src="https://via.placeholder.com/100" alt="Yemek Resmi" class="menu-item-image">
+                            <div class="menu-item-info">
+                                <strong>Fırın Sütlaç</strong>
+                                <span>Tatlılar</span>
+                            </div>
+                            <div class="menu-item-status">
+                                <span class="status-dot inactive">Stokta Yok</span>
+                            </div>
+                            <div class="menu-item-price">
+                                60.00 TL
+                            </div>
+                            <div class="menu-item-actions">
+                                <button class="btn btn-secondary btn-sm">Düzenle</button>
+                                <button class="btn btn-danger btn-sm">Sil</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </main> </div> <script src="../../assets/js/main.js"></script>
+    <script src="../../assets/js/modules/seller.js"></script>
+
+</body>
+</html>

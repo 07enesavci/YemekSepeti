@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satıcı Paneli - Dükkan Profili</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../assets/css/main.css">
+    <link rel="stylesheet" href="../../assets/css/components.css">
+    <link rel="stylesheet" href="../../assets/css/pages/seller-dashboard.css"> <link rel="stylesheet" href="../../assets/css/pages/seller-profile-admin.css"> </head>
+<body class="bg-color">
+
+    <div class="panel-layout">
+        
+        <aside id="sidebar-placeholder"></aside>
+
+        <main class="panel-content">
+            
+            <h1 class="panel-title">Dükkan Profili Yönetimi</h1>
+            
+            <div class="card">
+                <div class="card-content">
+                    
+                    <form id="seller-profile-form">
+                        
+                        <div class="form-group profile-images">
+                            <div class="image-uploader">
+                                <label for="logo-upload" class="form-label">Dükkan Logosu</label>
+                                <img src="https://via.placeholder.com/120" alt="Logo" id="logo-preview" class="logo-preview">
+                                <input type="file" id="logo-upload" class="file-input">
+                                <label for="logo-upload" class="btn btn-secondary btn-sm">Resim Seç</label>
+                            </div>
+                            <div class="image-uploader">
+                                <label for="banner-upload" class="form-label">Dükkan Banner (Kapak Resmi)</label>
+                                <img src="https://via.placeholder.com/400x100" alt="Banner" id="banner-preview" class="banner-preview">
+                                <input type="file" id="banner-upload" class="file-input">
+                                <label for="banner-upload" class="btn btn-secondary btn-sm">Resim Seç</label>
+                            </div>
+                        </div>
+
+                        <hr class="divider">
+
+                        <div class="form-group">
+                            <label for="shop-name" class="form-label">Dükkan Adı</label>
+                            <input type="text" id="shop-name" class="form-input" value="Ayşe'nin Mutfağı" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="shop-description" class="form-label">Dükkan Açıklaması (Alıcılar görecek)</label>
+                            <textarea id="shop-description" class="form-input" rows="3">Zeytinyağlılar ve Ev Yapımı Mantı</textarea>
+                        </div>
+
+                        <hr class="divider">
+                        
+                        <div class="form-row"> <div class="form-group">
+                                <label for="shop-location" class="form-label">Konum (İlçe)</label>
+                                <input type="text" id="shop-location" class="form-input" value="Kadıköy">
+                            </div>
+                            <div class="form-group">
+                                <label for="shop-hours" class="form-label">Çalışma Saatleri</label>
+                                <input type="text" id="shop-hours" class="form-input" value="Hafta içi 09:00 - 21:00">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Profili Güncelle</button>
+                    </form>
+
+                </div>
+            </div>
+
+        </main> </div> <script src="../../assets/js/main.js"></script>
+    <script src="../../assets/js/modules/seller.js"></script>
+
+</body>
+</html>
