@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satıcı Paneli - Siparişler</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../assets/css/main.css">
+    <link rel="stylesheet" href="../../assets/css/components.css">
+    <link rel="stylesheet" href="../../assets/css/pages/seller-dashboard.css"> <link rel="stylesheet" href="../../assets/css/pages/seller-orders.css">  </head>
+<body class="bg-color">
+
+    <div class="panel-layout">
+        
+        <aside id="sidebar-placeholder"></aside>
+
+        <main class="panel-content">
+            
+            <h1 class="panel-title">Sipariş Yönetimi</h1>
+            
+            <div class="tabs">
+                <button class="tab-link active" data-tab="new">Yeni Siparişler (3)</button>
+                <button class="tab-link" data-tab="preparing">Hazırlananlar (2)</button>
+                <button class="tab-link" data-tab="history">Geçmiş Siparişler</button>
+            </div>
+
+            <div id="new" class="tab-content active">
+                
+                <div class="card seller-order-card">
+                    <div class="order-card-header">
+                        <div>
+                            <strong>#1052 - E*** S.</strong>
+                            <span class="order-date">12 Kasım 2025, 21:00</span>
+                        </div>
+                        <span class="order-price">280.00 TL</span>
+                    </div>
+                    <div class="order-card-body">
+                        <p><strong>Ürünler:</strong> 2 x Ev Mantısı, 1 x Sütlaç</p>
+                        <p><strong>Adres:</strong> Çerkezköy, Tekirdağ</p>
+                    </div>
+                    <div class="order-card-actions">
+                        <button class="btn btn-secondary">Reddet</button>
+                        <button class="btn btn-primary">Onayla ve Hazırlamaya Başla</button>
+                    </div>
+                </div>
+                </div> <div id="preparing" class="tab-content" style="display: none;">
+                <div class="card seller-order-card">
+                    <div class="order-card-header">
+                        <div>
+                            <strong>#1050 - M*** Y.</strong>
+                            <span class="order-date">12 Kasım 2025, 20:45</span>
+                        </div>
+                        <span class="order-price">110.00 TL</span>
+                    </div>
+                    <div class="order-card-body">
+                        <p><strong>Ürünler:</strong> 1 x Kuru Fasulye, 1 x Pilav</p>
+                    </div>
+                    <div class="order-card-actions">
+                        <button class="btn btn-primary">Kuryeye Hazır Olduğunu Bildir</button>
+                    </div>
+                </div>
+            </div> <div id="history" class="tab-content" style="display: none;">
+                <div class="card seller-order-card delivered">
+                    <div class="order-card-header">
+                        <div>
+                            <strong>#1051 - A*** K.</strong>
+                            <span class="order-date">12 Kasım 2025, 20:30</span>
+                        </div>
+                        <span class="order-price">85.00 TL</span>
+                    </div>
+                    <div class="order-card-body">
+                        <p><strong>Durum:</strong> Teslim Edildi</p>
+                    </div>
+                </div>
+            </div> </main> </div> <script src="../../assets/js/main.js"></script>
+    <script src="../../assets/js/modules/seller.js"></script>
+
+</body>
+</html>
