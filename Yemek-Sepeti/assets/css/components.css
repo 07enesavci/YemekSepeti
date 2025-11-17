@@ -1,0 +1,301 @@
+/* ==================================== */
+/* BİLEŞENLER (components.css)         */
+/* ==================================== */
+
+/* 1. BUTONLAR (Buttons)
+-------------------------------------- */
+.btn {
+    display: inline-block;
+    padding: 0.65rem 1.25rem;
+    font-family: var(--font-family-body);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase; /* Buton yazıları büyük harf */
+    letter-spacing: 0.5px;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+/* Ana Buton (Turuncu) */
+.btn-primary {
+    background-color: var(--primary-color);
+    color: #FFFFFF;
+    box-shadow: 0 4px 15px rgba(255, 111, 0, 0.2);
+}
+.btn-primary:hover {
+    background-color: var(--primary-color-dark);
+    color: #FFFFFF;
+    box-shadow: 0 6px 20px rgba(255, 111, 0, 0.3);
+    transform: translateY(-2px);
+}
+
+/* İkincil Buton (Beyaz/Çerçeveli) */
+.btn-secondary {
+    background-color: var(--card-bg);
+    color: var(--primary-color);
+    border: 2px solid var(--primary-color);
+}
+.btn-secondary:hover {
+    background-color: var(--primary-color);
+    color: #FFFFFF;
+    transform: translateY(-2px);
+}
+
+/* Tam genişlikte buton */
+.btn-full {
+    display: block;
+    width: 100%;
+}
+
+/* 2. KARTLAR (Cards)
+-------------------------------------- */
+.featured-grid {
+    display: grid;
+    /* Responsive Grid: 
+      En az 300px'lik kartları sığdır, sığmazsa alt satıra at.
+    */
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem; /* Kartlar arası boşluk */
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden; /* Resmin köşeleri taşırmasını engeller */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--card-shadow-hover);
+}
+
+.card-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover; /* Resmin kırpılarak sığmasını sağlar */
+}
+
+.card-content {
+    padding: 1.5rem;
+}
+
+.card-title {
+    font-family: var(--font-family-heading);
+    font-size: 1.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-text {
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+    min-height: 45px; /* Kart içeriğinin hizalı durması için */
+}
+
+/* 3. FORMLAR (Forms)
+-------------------------------------- */
+.form-input {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    font-family: var(--font-family-body);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--card-bg);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.15);
+}
+/* ======================================== */
+/* components.css'e EKLENECEK YENİ KODLAR */
+/* (Form Stilleri)                          */
+/* ======================================== */
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+}
+
+.form-group-inline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-check label,
+.form-link {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    margin: 0;
+}
+
+.form-link:hover {
+    color: var(--primary-color);
+}
+
+.text-center {
+    text-align: center;
+}
+/* ========================================= */
+/* components.css'e EKLENECEK YENİ KODLAR  */
+/* (Yemek Kartı ve Küçük Buton)          */
+/* ========================================= */
+
+/* Küçük Buton (Sepete Ekle için) */
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+}
+
+/* Yemek Kartı Stilleri */
+.meal-card .card-text {
+    /* index.html'deki kartlarla aynı yükseklikte
+       olması için min-height veriyoruz */
+    min-height: 45px; 
+    margin-bottom: 1rem;
+}
+
+.meal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.meal-price {
+    font-family: var(--font-family-body);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+/* ========================================= */
+/* components.css'e EKLENECEK YENİ KODLAR  */
+/* (Order Summary ve Radio Box Stilleri)   */
+/* ========================================= */
+
+/* SİPARİŞ ÖZETİ BİLEŞENİ 
+  (cart.css ve checkout.css'de ortak) 
+*/
+.order-summary {
+    flex-basis: 380px; /* Sabit genişlik */
+    flex-shrink: 0;
+    position: sticky; /* Sayfa kayarken takip etsin */
+    top: 100px; /* Header yüksekliği + boşluk */
+}
+
+.order-summary .card-title {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+}
+.summary-row span:last-child {
+    font-weight: 700;
+}
+
+.total-row {
+    margin-top: 1.5rem;
+    font-size: 1.2rem;
+}
+.total-price {
+    font-family: var(--font-family-heading);
+    font-size: 1.8rem;
+    color: var(--primary-color);
+}
+
+/* Kupon Formu (cart.css'de) */
+.coupon-form {
+    display: flex;
+    gap: 0.5rem;
+}
+.coupon-form .form-input {
+    flex-grow: 1;
+}
+
+/* ROL/ADRES/KART SEÇİCİ BİLEŞENİ
+  (register.css ve checkout.css'de ortak)
+*/
+.divider {
+    border: none;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 1.5rem 0;
+}
+
+.role-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem; 
+}
+
+.form-check-radio label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.form-check-radio label .icon {
+    font-size: 1.5rem;
+}
+
+.form-check-radio label strong {
+    color: var(--secondary-color);
+    flex-grow: 1;
+}
+
+.form-check-radio label span {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+
+.form-check-radio input[type="radio"] {
+    display: none; /* Label'ı tıklanabilir yaptık */
+}
+
+.form-check-radio input[type="radio"]:checked + label {
+    border-color: var(--primary-color);
+    background-color: #FFF7F0; /* Turuncunun çok açığı */
+    box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.15);
+}
+
+.form-check-radio label:hover {
+    border-color: var(--primary-color-dark);
+}
