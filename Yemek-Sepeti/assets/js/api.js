@@ -1,6 +1,7 @@
 /* ==================================== */
-/* SAHTE BACKEND (Mock API)             */
+/* SAHTE BACKEND (Mock API) - TAM SÜRÜM */
 /* assets/js/api.js                     */
+/* Görev: Enes (SİZ)                     */
 /* ==================================== */
 /*
   Bu dosya, sunucu hazır olana kadar tüm ekibe
@@ -17,7 +18,8 @@ const NETWORK_DELAY = 500;
 /* ==================================== */
 
 // --- Alıcıların Göreceği Veriler ---
-const MOCK_SELLERS = [
+// HATA DÜZELTMESİ: 'const' yerine 'let' kullanıldı (Silme işlemi için)
+let MOCK_SELLERS = [
     { 
         id: 1, 
         name: "Ayşe'nin Mutfağı", 
@@ -59,8 +61,12 @@ const MOCK_MENUS = {
     "3": [], // Vegan Lezzetler (henüz menü eklememiş)
 };
 
+//kuponlar burada tutulacak
+let MOCK_COUPONS = [];
+
 // --- Kullanıcı (Alıcı/Satıcı/Kurye) Verileri ---
-const MOCK_USERS = [
+// HATA DÜZELTMESİ: 'const' yerine 'let' kullanıldı (Silme işlemi için)
+let MOCK_USERS = [
     { id: 1, email: "enes@mail.com", password: "123", role: "buyer", fullname: "Enes Avcı" },
     { id: 2, email: "ahmet@mail.com", password: "123", role: "buyer", fullname: "Ahmet Eren" },
     { id: 3, email: "satici@mail.com", password: "123", role: "seller", fullname: "Ayşe Satıcı", shopId: 1 },
@@ -68,7 +74,8 @@ const MOCK_USERS = [
 ];
 
 // --- Alıcıya Özel Veriler (Halit'in modülü için) ---
-const MOCK_ORDERS = [
+// HATA DÜZELTMESİ: 'const' yerine 'let' kullanıldı (Silme işlemi için)
+let MOCK_ORDERS = [
     { id: 1052, userId: 1, sellerName: "Ayşe'nin Mutfağı", date: "12 Kasım 2025, 21:00", total: 259.99, status: "preparing", items: "1 x Ev Mantısı, 2 x Fırın Sütlaç" },
     { id: 1051, userId: 1, sellerName: "Ali'nin Kebapları", date: "10 Kasım 2025, 12:15", total: 85.00, status: "delivered", items: "1 x Adana Kebap" },
     { id: 1050, userId: 2, sellerName: "Vegan Lezzetler", date: "9 Kasım 2025, 17:30", total: 60.00, status: "cancelled", items: "1 x Vegan Burger" },
@@ -86,7 +93,8 @@ const MOCK_ORDERS = [
 function mockFetch(data, delay = NETWORK_DELAY) {
     return new Promise((resolve) => {
         setTimeout(() => {
-            resolve(data);
+            // Veriyi kopyalayarak gönder (referans sorunu olmasın)
+            resolve(JSON.parse(JSON.stringify(data)));
         }, delay);
     });
 }
@@ -227,3 +235,183 @@ function getAvailableDeliveries() {
 }
 
 // TODO: Şükrü için addMeal(), updateMeal(), getCourierHistory() vb. fonksiyonları buraya ekleyin.
+
+
+
+/* ==================================== */
+/* 5. GÖREV: ADMİN PANELİ (Enes)        */
+/* (admin.js'in ihtiyaç duyduğu kodlar)   */
+/* ==================================== */
+
+// --- Admin için Ek Sahte Veritabanı ---
+// Not: MOCK_USERS ve MOCK_SELLERS dizileri zaten yukarıda tanımlı,
+// onları yeniden kullanacağız. Sadece admin kullanıcısını ekliyoruz.
+
+MOCK_USERS.push({ 
+    id: 999, 
+    email: "admin@mail.com", 
+    password: "admin123", 
+    role: "admin", 
+    fullname: "Sistem Yöneticisi" 
+});
+
+// Satıcı ve Kuryelere 'status' özelliği ekleyelim
+MOCK_USERS.forEach(user => {
+    if (user.role === 'seller' || user.role === 'courier') {
+        user.status = 'active'; // Varsayılan olarak herkes aktif
+    }
+});
+// Birini örnek olarak donduralım
+MOCK_USERS[3].status = 'suspended'; // Şükrü Kurye donduruldu
+
+
+// --- Admin Fonksiyonları ---
+
+/**
+ * Tüm satıcıları ve kuryeleri getirir (Kullanıcı Yönetimi sayfası için).
+ */
+function getAllUsers() {
+    // Sadece satıcı ve kuryeleri döndür
+    const users = MOCK_USERS.filter(u => u.role === 'seller' || u.role === 'courier');
+    return mockFetch(users);
+}
+
+/**
+ * Tüm satıcıları getirir (Kupon Yönetimi sayfası için).
+ */
+function getAllSellers() {
+    // MOCK_SELLERS dizisi yukarıda tanımlı
+    return mockFetch(MOCK_SELLERS);
+}
+
+/**
+ * Adminin yeni kullanıcı (satıcı/kurye) eklemesini simüle eder.
+ * @param {object} userData - { fullname, email, password, role }
+ */
+function adminAddUser(userData) {
+    var newId = Date.now(); // Sahte ID
+    userData.id = newId;
+    userData.status = 'active'; // Yeni kullanıcı aktif başlasın
+    
+    MOCK_USERS.push(userData);
+    console.log("Admin tarafından kullanıcı eklendi, yeni liste:", MOCK_USERS);
+    return mockFetch({ success: true, user: userData });
+}
+
+/**
+ * Bir kullanıcının hesabını dondurur veya aktif eder.
+ * @param {string|number} userId 
+ */
+function adminSuspendUser(userId) {
+    var userFound = false;
+    for(let i=0; i < MOCK_USERS.length; i++) {
+        if (MOCK_USERS[i].id == userId) {
+            MOCK_USERS[i].status = (MOCK_USERS[i].status === 'active') ? 'suspended' : 'active';
+            console.log(`Kullanıcı ${userId} durumu güncellendi: ${MOCK_USERS[i].status}`);
+            userFound = true;
+            break;
+        }
+    }
+    if (userFound) {
+        return mockFetch({ success: true });
+    } else {
+        return mockError("Dondurulacak kullanıcı bulunamadı.");
+    }
+}
+
+/**
+ * Bir kullanıcıyı siler.
+ * @param {string|number} userId 
+ */
+function adminDeleteUser(userId) {
+    // 'filter' kullanarak diziden çıkartma
+    // HATA DÜZELTMESİ: 'MOCK_USERS' 'let' ile tanımlı olduğu için bu satır artık ÇALIŞIR
+    MOCK_USERS = MOCK_USERS.filter(function(user) {
+        return user.id != userId;
+    });
+    console.log(`Kullanıcı ${userId} silindi.`);
+    return mockFetch({ success: true });
+}
+
+/**
+ * Seçilen satıcılara yeni kupon tanımlar.
+ * @param {object} couponData - { code, amount, sellerIds }
+ */
+function adminAddCoupon(couponData) {
+    // 'uygulama2.docx' stilinde ID üretme
+    var newId = Date.now(); 
+    couponData.id = newId;
+
+    // 'admin.js'den gelen satıcı ID'lerini, 
+    // 'MOCK_SELLERS' dizisinden isimlerine dönüştürelim.
+    var sellerNames = couponData.sellerIds.map(function(id) {
+        // MOCK_SELLERS dizisi yukarıda 'let' ile tanımlı
+        const seller = MOCK_SELLERS.find(s => s.id == id);
+        return seller ? seller.name : 'Bilinmeyen Satıcı';
+    });
+    
+    // Dizide saklanacak son obje
+    const newCoupon = {
+        id: newId,
+        code: couponData.code,
+        amount: couponData.amount,
+        sellers: sellerNames // İsimleri sakla
+    };
+
+    MOCK_COUPONS.push(newCoupon); // Kuponu veritabanına ekle
+    console.log("Kupon eklendi, yeni kupon listesi:", MOCK_COUPONS);
+    return mockFetch({ success: true, coupon: newCoupon });
+}
+
+/**
+ * Tüm tanımlı kuponları getirir.
+ */
+function getCoupons() {
+    return mockFetch(MOCK_COUPONS);
+}
+
+/**
+ * Bir kuponu siler.
+ * @param {string|number} couponId 
+ */
+function adminDeleteCoupon(couponId) {
+    MOCK_COUPONS = MOCK_COUPONS.filter(function(coupon) {
+        // ID'ler number/string karışık olabileceğinden '==' kullanmak daha güvenli
+        return coupon.id != couponId;
+    });
+    console.log(`Kupon ${couponId} silindi.`);
+    return mockFetch({ success: true });
+}
+
+
+/* ================================================ */
+/* FONKSİYONLARI GLOBAL YAPMA (window'a Ekleme)   */
+/* ================================================ */
+/*
+  Diğer JS dosyalarının (auth.js, admin.js vb.) bu 
+  fonksiyonlara erişebilmesi için 'window' objesine ekliyoruz.
+*/
+
+// --- Alıcı / Ortak Fonksiyonlar ---
+window.loginUser = loginUser;
+window.searchSellers = searchSellers;
+window.getSellerDetails = getSellerDetails;
+window.getSellerMenu = getSellerMenu;
+window.createOrder = createOrder;
+window.getActiveOrders = getActiveOrders;
+window.getPastOrders = getPastOrders;
+
+// --- Satıcı / Kurye Fonksiyonları ---
+window.getRecentOrders = getRecentOrders;
+window.getSellerOrders = getSellerOrders;
+window.getAvailableDeliveries = getAvailableDeliveries;
+
+// --- ADMİN PANELİ FONKSİYONLARI ---
+window.getAllUsers = getAllUsers;
+window.adminAddUser = adminAddUser;
+window.adminSuspendUser = adminSuspendUser;
+window.adminDeleteUser = adminDeleteUser;
+window.getAllSellers = getAllSellers;
+window.adminAddCoupon = adminAddCoupon;
+window.getCoupons = getCoupons;
+window.adminDeleteCoupon = adminDeleteCoupon;
