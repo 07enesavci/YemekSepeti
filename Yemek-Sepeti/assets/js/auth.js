@@ -1,122 +1,121 @@
-//login html ---------------------------------
+// auth.js – Temiz, düzenli ve her sayfada sorunsuz çalışır
 
-const loginForm = document.getElementById('login-form');
-loginForm.addEventListener('submit',yenileme);
+document.addEventListener("DOMContentLoaded", function () {
 
-function yenileme(e)
-{
-    e.preventDefault();
-}
+    // ==================== GİRİŞ SAYFASI ====================
+    const loginForm = document.getElementById("login-form");
+    if (loginForm) {
+        loginForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
 
-const eMail=document.getElementById('email').value;
-const password=document.getElementById('password').value;
+            const email    = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value;
 
-if(eMail == "" || password == "")
-{
-    alert("Lütfen tüm alanları doldurun.");
-    return;
-}
-try
-{
-    const result=await loginUser(eMail,password);
+            if (!email || !password) {
+                alert("Lütfen e-posta ve şifrenizi girin.");
+                return;
+            }
 
-    if(result.success)
-    {
-        alert("Giriş başarılı! Hoşgeldiniz, " + result.user.name);
-        window.location.href = "index.html";
+            const btn = this.querySelector("button[type=submit]");
+            const oldText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Giriş yapılıyor...";
+
+            try {
+                const result = await loginUser(email, password);
+                if (result.success) {
+                    localStorage.setItem("user", JSON.stringify(result.user));
+                    window.location.href = "../../index.html";
+                } else {
+                    alert(result.message || "E-posta veya şifre hatalı.");
+                }
+            } catch {
+                alert("Bir hata oluştu, tekrar deneyin.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = oldText;
+            }
+        });
     }
-    else
-    {
-        alert("Giriş başarısız: " + result.message);
+
+    // ==================== KAYIT SAYFASI ====================
+    const registerForm = document.getElementById("register-form");
+    if (registerForm) {
+        registerForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const fullname      = document.getElementById("fullname").value.trim();
+            const email         = document.getElementById("email").value.trim();
+            const password      = document.getElementById("password").value;
+            const confirm       = document.getElementById("confirm-password").value;
+            const role          = document.querySelector("input[name='user-role']:checked")?.value;
+            const terms         = document.getElementById("terms").checked;
+
+            if (!fullname || !email || !password || !confirm || !role || !terms) {
+                alert("Tüm alanları doldurun ve şartları kabul edin.");
+                return;
+            }
+            if (password !== confirm) {
+                alert("Şifreler eşleşmiyor.");
+                return;
+            }
+            if (password.length < 6) {
+                alert("Şifre en az 6 karakter olmalı.");
+                return;
+            }
+
+            const btn = this.querySelector("button[type=submit]");
+            const oldText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Kayıt oluşturuluyor...";
+
+            try {
+                const result = await registerUser({ fullname, email, password, role });
+                if (result.success) {
+                    alert("Kayıt başarılı! Şimdi giriş yapabilirsin.");
+                    window.location.href = "login.html";
+                } else {
+                    alert(result.message || "Bu e-posta zaten kayıtlı.");
+                }
+            } catch {
+                alert("Kayıt sırasında hata oluştu.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = oldText;
+            }
+        });
     }
-}
-catch(error)
-{
-    alert("Bir hata oluştu: " + error.message);
-}
 
-//register html ---------------------------------
+    // ==================== ŞİFREMİ UNUTTUM ====================
+    const forgotForm = document.getElementById("forgot-password-form");
+    if (forgotForm) {
+        forgotForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
 
-const registerForm=document.getElementById('register-form');
-registerForm.addEventListener('submit',yenileme);
+            const email = document.getElementById("email").value.trim();
 
-const fullname = document.getElementById('fullname').value.trim();
-const email = document.getElementById('reg-email').value.trim();
-const regPassword = document.getElementById('reg-password').value;
-const confirmPassword = document.getElementById('confirm-password').value;
-const role = document.getElementById('role').value;
-const term = document.getElementById('terms').checked;
+            if (!email || !email.includes("@")) {
+                alert("Geçerli bir e-posta adresi girin.");
+                return;
+            }
 
-if(fullname === "" || email === "" || regPassword === "" || confirmPassword === "")
-{
-    alert("Lütfen tüm alanları doldurun.");
-    return;
-}
-if(regPassword !== confirmPassword)
-{
-    alert("Şifreler eşleşmiyor.");
-    return;
-}
-if(regPassword.length < 6)
-{
-    alert("Şifre en az 6 karakter olmalıdır.");
-    return;
-}
+            const btn = this.querySelector("button[type=submit]");
+            const oldText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Gönderiliyor...";
 
-try
-{
-    const result = await registerUser({fullname, email, regPassword, role});
-
-    if(result.success)
-    {
-        alert("Kayıt başarılı! Giriş yapabilirsiniz.");
-        window.location.href = "login.html";
+            try {
+                const result = await forgotPassword(email);
+                alert(result?.success 
+                    ? "Şifre sıfırlama linki gönderildi ✓" 
+                    : result?.message || "Bu e-posta kayıtlı değil."
+                );
+            } catch {
+                alert("Bir hata oluştu, tekrar deneyin.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = oldText;
+            }
+        });
     }
-    else
-    {
-        alert("Kayıt başarısız: " + result.message);
-    }
-}
-
-catch(error)
-{
-    alert("Bir hata oluştu: " + error.message);
-}
-
-//forgot password html ---------------------------------
-
-const forgotForm=document.getElementById('forgot-form');
-forgotForm.addEventListener('submit',yenileme);
-
-const forgotEmail=document.getElementById('forgot-email').value.trim();
-
-if(forgotEmail === "" || forgotEmail.includes("@"))
-{
-    alert("Lütfen geçerli bir e-posta adresi girin.");
-    return;
-}
-const forgotbtn=e.target.querySelector('button');
-forgotbtn.disabled=true;
-forgotbtn.innerText="Gönderiliyor...";
-
-try
-{
-    const result=await sendPasswordResetEmail(forgotEmail);
-    if(result.success)
-    {
-        alert("Şifre sıfırlama talimatları e-posta adresinize gönderildi.");
-    }
-    else
-    {
-        alert("İşlem başarısız: " + result.message);
-    }
-}
-catch(error)
-{
-    alert("Bir hata oluştu: " + error.message);
-}
-finally
-{
-    forgotbtn.disabled=false;
-    forgotbtn.innerText="Gönder";
-}
+});
