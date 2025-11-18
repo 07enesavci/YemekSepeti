@@ -1,0 +1,121 @@
+/* ==================================== */
+/* ADMIN PANELİ ÖZEL STİLLERİ           */
+/* assets/css/pages/admin.css           */
+/* ==================================== */
+
+/* --- Kullanıcı ve Kupon Listesi --- */
+.admin-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-list-item, 
+.coupon-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    transition: background-color 0.2s;
+}
+
+.admin-list-item:last-child,
+.coupon-list-item:last-child {
+    border-bottom: none;
+}
+
+.admin-list-item:hover,
+.coupon-list-item:hover {
+    background-color: #f9f9f9;
+}
+
+/* --- Bilgi Alanları --- */
+.user-info, 
+.coupon-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-info strong,
+.coupon-info strong {
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+}
+
+.user-info span,
+.coupon-info span {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+
+/* --- Durum Noktası (Aktif/Dondurulmuş) --- */
+.user-status {
+    display: flex;
+    align-items: center;
+}
+
+.status-dot {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-dot.active {
+    background-color: #E8F5E9;
+    color: #2E7D32; /* Yeşil */
+}
+
+.status-dot.suspended {
+    background-color: #FFEBEE;
+    color: #C62828; /* Kırmızı */
+}
+
+/* --- Buton Grubu --- */
+.user-actions,
+.coupon-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* --- Satıcı Seçim Listesi (Kupon Sayfası) --- */
+.seller-checkbox-list {
+    max-height: 200px; /* Çok fazla satıcı olursa uzamasın */
+    overflow-y: auto;  /* Kaydırma çubuğu çıksın */
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: #FAFAFA;
+}
+
+.seller-checkbox-list .form-check {
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.seller-checkbox-list label {
+    margin-left: 0.5rem;
+    cursor: pointer;
+}
+
+/* --- Kupon Sayfasındaki Satıcı Etiketleri --- */
+.coupon-sellers {
+    flex-grow: 1; /* Ortadaki boşluğu kapla */
+    padding: 0 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.seller-tag {
+    background-color: #FFF3E0; /* Açık turuncu */
+    color: #E65100; /* Koyu turuncu */
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
