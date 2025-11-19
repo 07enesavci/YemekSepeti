@@ -1,21 +1,16 @@
-// assets/js/modules/profile.js
 
-// (MOCK_API ve formatTL fonksiyonları aynı kalır)
-
-// api.js dosyasından gelmesi beklenen mock (sahte) veriler ve fonksiyonlar
 const MOCK_API = {
-    // Profil bilgisi güncelleme simülasyonu
+
     updateProfileInfo: (name, email) => {
         return new Promise(resolve => {
             setTimeout(() => {
                 console.log(`[MOCK API] Profil güncellendi: Ad: ${name}, E-posta: ${email}`);
-                // Sahte başarılı yanıt döndür
+       
                 resolve({ success: true, message: "Profil bilgileriniz başarıyla güncellendi." });
-            }, 1000); // 1 saniye gecikme
+            }, 1000);
         });
     },
 
-    // Sahte Adres Verisi
     getAddresses: () => {
         return {
             success: true,
@@ -26,7 +21,7 @@ const MOCK_API = {
         };
     },
     
-    // Yeni adres ekleme simülasyonu (eklendi)
+ 
     addAddress: (newAddressData) => {
          return new Promise(resolve => {
             setTimeout(() => {
@@ -36,12 +31,12 @@ const MOCK_API = {
         });
     },
 
-    // Sahte Cüzdan ve Kupon Verisi
+
     getWalletAndCoupons: () => {
         return {
             success: true,
             data: {
-                balance: 42.75, // TL
+                balance: 42.75,
                 coupons: [
                     { code: "HOSGELDIN10", description: "10 TL Hoş geldin indirimi (30 TL ve üzeri)" },
                     { code: "YAZ25", description: "Seçili ürünlerde %25 indirim (50 TL ve üzeri)" },
@@ -51,7 +46,7 @@ const MOCK_API = {
     }
 };
 
-// Yardımcı fonksiyon: TL formatında para birimini döndürür
+
 const formatTL = (amount) => {
     return (amount || 0).toLocaleString('tr-TR', {
         style: 'currency',
@@ -61,7 +56,6 @@ const formatTL = (amount) => {
     });
 };
 
-// Yeni Adres Ekleme Formu HTML'i (Gizli başlangıç için)
 const NEW_ADDRESS_FORM_HTML = `
     <div id="new-address-form-container" style="display: none;">
         <h5 class="mt-4 mb-3">Yeni Adres Bilgileri</h5>
@@ -95,16 +89,13 @@ const NEW_ADDRESS_FORM_HTML = `
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elementlerini Seç
+   
     const profileNavLinks = document.querySelectorAll('.profile-nav a');
     const profileSections = document.querySelectorAll('.profile-section');
     const profileInfoForm = document.getElementById('profile-info-form');
     const addressesSection = document.getElementById('adreslerim');
     const walletCouponsSection = document.getElementById('cuzdan-kuponlar');
-    
-    // ==========================================================
-    // 1. Sidebar Navigasyonunu Yazmak (Sekme Değiştirme)
-    // ==========================================================
+ 
 
     function showSection(targetId) {
         profileSections.forEach(section => {
@@ -124,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetLink.classList.add('active');
             }
 
-            // Sekme gösterildiğinde ilgili veriyi yükle
             if (targetId === '#adreslerim') {
                 renderAddresses();
             } else if (targetId === '#cuzdan-kuponlar') {
@@ -148,18 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Varsayılan olarak ilk sekmeyi aç
     const initialSectionHref = document.querySelector('.profile-nav a.active')?.getAttribute('href') || '#profil-bilgileri';
     showSection(initialSectionHref);
 
 
-    // ==========================================================
-    // 2. "Profil Bilgileri" Formunu Bağlamak (Aynı kalır)
-    // ==========================================================
-
     profileInfoForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // ... (Form gönderimi mantığı aynı kalır)
+
         const nameInput = document.getElementById('profile-name');
         const emailInput = document.getElementById('profile-email');
         const updateButton = profileInfoForm.querySelector('button[type="submit"]');
@@ -193,26 +178,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ==========================================================
-    // 3. Sahte Veri ile "Adreslerim" Sekmesini Doldurmak
-    // ==========================================================
     
     function renderAddresses() {
         const addressData = MOCK_API.getAddresses().data;
         const addressContainer = addressesSection.querySelector('.role-selector');
-        
-        // 1. Statik "Yeni Adres Ekle" öğesinin HTML'ini al ve container'ı temizle
+
         const newAddressItem = addressContainer.querySelector('#address-new')?.closest('.form-check-radio')?.outerHTML || '';
         addressContainer.innerHTML = ''; 
-        
-        // 2. Yeni Adres Ekleme Formunu (Gizli) ekle
+
         if(!document.getElementById('new-address-form-container')) {
             addressesSection.insertAdjacentHTML('beforeend', NEW_ADDRESS_FORM_HTML);
-            // Form gönderim olayını burada bir kere bağla
+
             document.getElementById('new-address-form').addEventListener('submit', handleNewAddressSubmit);
         }
 
-        // 3. Adresleri Ekle
         addressData.forEach((address) => {
             const isChecked = address.isDefault ? 'checked' : '';
             
@@ -229,17 +208,14 @@ document.addEventListener('DOMContentLoaded', () => {
             addressContainer.insertAdjacentHTML('beforeend', addressHtml);
         });
 
-        // 4. "Yeni Adres Ekle" öğesini tekrar ekle ve dinleyiciyi ata
         if (newAddressItem) {
              addressContainer.insertAdjacentHTML('beforeend', newAddressItem);
         }
-        
-        // Adres radyo butonlarına dinleyici ata
+
         addressContainer.querySelectorAll('input[type="radio"][name="address"]').forEach(radio => {
             radio.addEventListener('change', handleAddressSelectionChange);
         });
 
-        // Düzenle butonlarına tıklama olayı ekle (opsiyonel)
         addressesSection.querySelectorAll('.btn-edit').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -247,8 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert(`Adres ID: ${addressId} düzenleniyor...`);
             });
         });
-        
-        // Formu gizle/göster (Sayfa ilk açıldığında 'Yeni Adres Ekle' seçili değilse gizli kalmalı)
+   
         const newAddressRadio = document.getElementById('address-new');
         if (newAddressRadio && newAddressRadio.checked) {
              document.getElementById('new-address-form-container').style.display = 'block';
@@ -257,24 +232,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * Adres radyo butonu seçimi değiştiğinde çalışır (Yeni Adres Formunu Göster/Gizle)
-     */
+
     function handleAddressSelectionChange(e) {
         const formContainer = document.getElementById('new-address-form-container');
         if (!formContainer) return;
 
         if (e.target.id === 'address-new' && e.target.checked) {
             formContainer.style.display = 'block';
-            formContainer.scrollIntoView({ behavior: 'smooth' }); // Forma kaydır
+            formContainer.scrollIntoView({ behavior: 'smooth' }); 
         } else {
             formContainer.style.display = 'none';
         }
     }
-    
-    /**
-     * Yeni Adres Formu gönderildiğinde çalışır (Sahte API çağrısı)
-     */
+/
     async function handleNewAddressSubmit(e) {
         e.preventDefault();
         
@@ -301,10 +271,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.success) {
                 alert(response.message);
-                form.reset(); // Formu temizle
-                document.getElementById('address-new').checked = false; // Seçimi kaldır
-                document.getElementById('new-address-form-container').style.display = 'none'; // Formu gizle
-                showSection('#adreslerim'); // Listeyi yenile (API mock olduğu için bu aşamada liste yenilenmez, gerçek API'de yenilenmeli)
+                form.reset();
+                document.getElementById('address-new').checked = false;
+                document.getElementById('new-address-form-container').style.display = 'none';
+                showSection('#adreslerim'); 
             } else {
                  alert(`Kaydetme başarısız: ${response.message}`);
             }
@@ -317,10 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
-    // ==========================================================
-    // 3. Sahte Veri ile "Cüzdan & Kuponlar" Sekmesini Doldurmak (Aynı kalır)
-    // ==========================================================
 
     function renderWalletAndCoupons() {
         const data = MOCK_API.getWalletAndCoupons().data;
@@ -345,4 +311,5 @@ document.addEventListener('DOMContentLoaded', () => {
             couponList.innerHTML = '<div class="coupon-item"><p>Henüz kullanabileceğiniz kupon bulunmamaktadır.</p></div>';
         }
     }
+
 });
