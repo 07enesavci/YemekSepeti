@@ -1,0 +1,84 @@
+/* ==================================== */
+/* SİPARİŞLERİM SAYFASI (pages/orders.css) */
+/* ==================================== */
+/* NOT: .profile-layout, .profile-sidebar, .profile-content
+   gibi ana yerleşim stilleri 'profile.css' dosyasından gelmektedir.
+*/
+
+/* Sipariş Kartı Ana Yapısı */
+.order-card {
+    /* .card stilini (gölge, bg) components.css'den alır */
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.order-status {
+    font-family: var(--font-family-body);
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    color: #FFF;
+    margin-right: 0.75rem;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+/* Sipariş Durum Renkleri */
+.order-status.preparing { background-color: #FFA000; } /* Turuncu */
+.order-status.delivered { background-color: #4CAF50; } /* Yeşil */
+.order-status.cancelled { background-color: #E74C3C; } /* Kırmızı */
+
+.order-date {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    display: block;
+}
+
+.order-total {
+    text-align: right;
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    flex-shrink: 0; /* Küçülmesin */
+    margin-left: 1rem;
+}
+.order-total strong {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.order-seller {
+    font-family: var(--font-family-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 1rem 0;
+}
+
+.order-items {
+    padding: 0.75rem 1rem;
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+}
+.order-items p {
+    margin-bottom: 0;
+}
+
+.order-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end; /* Butonları sağa yasla */
+    padding-top: 1rem;
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
