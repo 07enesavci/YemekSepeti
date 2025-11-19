@@ -1,126 +1,120 @@
-document.addEventListener("DOMContentLoaded", function() {
-    
-    // 1. GEREKLİ ELEMENTLERİ SEÇME
-    const userListPage = document.getElementById("user-list");
-    const addUserForm = document.getElementById("add-user-form");
+/* ==================================== */
+/* ADMİN PANELİ JAVASCRIPT (GÜVENLİ SON)*/
+/* assets/js/modules/admin.js           */
+/* ==================================== */
+// Bu sürümde global element seçimleri kaldırılarak hatalı NULL atamaları önlenmiştir.
 
-    const couponPage = document.getElementById("coupon-form");
-    const selectAllCheckbox = document.getElementById("select-all-sellers");
-    const sellerCheckboxList = document.getElementById("seller-checkbox-list");
-    const couponListContainer = document.getElementById("coupon-list-container"); // YENİ
-
-    // --- Aktif Menü Linkini Ayarlama ---
-    const page = window.location.pathname;
-    if (page.includes("user-management.html")) {
-        document.getElementById("nav-users")?.classList.add("active");
-    } else if (page.includes("coupons.html")) {
-        document.getElementById("nav-coupons")?.classList.add("active");
-    }
-
-    // 2. SAYFA KONTROLÜ VE İLK YÜKLEME
-    
-    // Eğer 'user-management.html' sayfasındaysak:
-    if (userListPage) {
-        loadAndRenderUsers();
-        addUserForm.addEventListener("submit", handleAddUser);
-        userListPage.addEventListener("click", handleUserListClick);
-    }
-
-    // Eğer 'coupons.html' sayfasındaysak:
-    if (couponPage) {
-        loadAndRenderSellers(); // Satıcı checkbox'larını yükle
-        loadAndRenderCoupons(); // YENİ: Mevcut kuponları yükle
-        
-        couponPage.addEventListener("submit", handleAddCoupon);
-        selectAllCheckbox.addEventListener("change", handleSelectAllSellers);
-        
-        // YENİ: Kupon listesindeki silme butonları için dinleyici
-        couponListContainer.addEventListener("click", handleCouponListClick);
-    }
-});
+// Global fonksiyonları al (Bu blok değişmez)
+var kullanicilariGetir = window.getAllUsers;
+var kullaniciEkle = window.adminAddUser;
+var kullaniciDondur = window.adminSuspendUser;
+var kullaniciSil = window.adminDeleteUser;
+var saticilariGetir = window.getAllSellers;
+var kuponEkle = window.adminAddCoupon;
+var kuponlariGetir = window.getCoupons;
+var kuponSil = window.adminDeleteCoupon;
 
 /* ==================================== */
-/* YARDIMCI FONKSİYONLAR                */
+/* YARDIMCI VE İŞLEM FONKSİYONLARI      */
 /* ==================================== */
+
 function yeniId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-/* ==================================== */
-/* KULLANICI YÖNETİMİ FONKSİYONLARI     */
-/* ==================================== */
+// ... (Diğer helper ve kullanıcı yönetimi fonksiyonları değişmez) ...
 
-function loadAndRenderUsers() {
-    if (typeof getAllUsers !== 'function') return; // API yüklenmediyse dur
-    getAllUsers().then(renderUserList).catch(err => console.error("Kullanıcılar yüklenemedi", err));
+function kullanicilariYukleVeListele() {
+    if (typeof kullanicilariGetir !== 'function') return; 
+    
+    kullanicilariGetir()
+        .then(kullaniciListesiniCiz)
+        .catch(hata => console.error("Kullanıcılar yüklenemedi", hata));
 }
 
-function renderUserList(users) {
-    const userListElement = document.getElementById("user-list");
-    userListElement.innerHTML = "";
-    if (users.length === 0) {
-        userListElement.innerHTML = "<p>Gösterilecek kullanıcı yok.</p>";
+function kullaniciListesiniCiz(kullanicilar) {
+    // Güvenli Seçim: Elementi burada seçiyoruz
+    const kullaniciListesiElementi = document.getElementById("user-list");
+    
+    if (!kullaniciListesiElementi) return;
+    // ... (Kalan çizim mantığı devam eder) ...
+    
+    kullaniciListesiElementi.innerHTML = "";
+    
+    if (kullanicilar.length === 0) {
+        kullaniciListesiElementi.innerHTML = "<p>Gösterilecek kullanıcı yok.</p>";
         return;
     }
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < users.length; i++) {
-        frag.appendChild(kullaniciSatiriOlustur(users[i]));
+
+    const belgeParcasi = document.createDocumentFragment();
+    for (let i = 0; i < kullanicilar.length; i++) {
+        belgeParcasi.appendChild(kullaniciSatiriOlustur(kullanicilar[i]));
     }
-    userListElement.appendChild(frag);
+    
+    kullaniciListesiElementi.appendChild(belgeParcasi);
 }
 
-function kullaniciSatiriOlustur(user) {
-    const suspended = user.status === 'suspended';
+function kullaniciSatiriOlustur(kullanici) {
+    const dondurulmus = kullanici.status === 'suspended';
     const itemDiv = document.createElement('div');
     itemDiv.className = 'admin-list-item';
+    
+    var durumYazisi = dondurulmus ? 'Donduruldu' : 'Aktif';
+    var butonYazisi = dondurulmus ? 'Aktif Et' : 'Dondur';
+    var durumSinifi = dondurulmus ? 'suspended' : 'active';
+    
     itemDiv.innerHTML = `
         <div class="user-info">
-            <strong>${user.fullname}</strong>
-            <span>${user.email} - (Rol: ${user.role})</span>
+            <strong>${kullanici.fullname}</strong>
+            <span>${kullanici.email} - (Rol: ${kullanici.role})</span>
         </div>
         <div class="user-status">
-            <span class="status-dot ${suspended ? 'suspended' : 'active'}">
-                ${suspended ? 'Donduruldu' : 'Aktif'}
+            <span class="status-dot ${durumSinifi}">
+                ${durumYazisi}
             </span>
         </div>
         <div class="user-actions">
-            <button class="btn btn-secondary btn-sm btn-suspend" data-id="${user.id}">
-                ${suspended ? 'Aktif Et' : 'Dondur'}
+            <button class="btn btn-secondary btn-sm btn-suspend" data-id="${kullanici.id}">
+                ${butonYazisi}
             </button>
-            <button class="btn btn-danger btn-sm btn-delete" data-id="${user.id}">Sil</button>
+            <button class="btn btn-danger btn-sm btn-delete" data-id="${kullanici.id}">Sil</button>
         </div>
     `;
     return itemDiv;
 }
 
-function handleAddUser(e) {
+function kullaniciEkleIslemi(e) {
     e.preventDefault(); 
-    const fullname = document.getElementById("new-fullname").value;
-    const email = document.getElementById("new-email").value;
-    const password = document.getElementById("new-password").value;
-    const role = document.getElementById("new-role").value;
+    
+    var fullname = document.getElementById("new-fullname").value;
+    var email = document.getElementById("new-email").value;
+    var password = document.getElementById("new-password").value;
+    var role = document.getElementById("new-role").value;
+
     if (!fullname || !email || !password) {
         alert("Lütfen tüm alanları doldurun."); return;
     }
-    const yeniKullanici = { id: yeniId(), fullname, email, password, role, status: 'active' };
-    adminAddUser(yeniKullanici).then(() => {
-        alert(`${yeniKullanici.role} başarıyla eklendi!`);
-        loadAndRenderUsers(); 
-        document.getElementById("add-user-form").reset(); 
-    }).catch(err => alert(err.message));
+
+    var yeniKullanici = { id: yeniId(), fullname: fullname, email: email, password: password, role: role, status: 'active' };
+
+    kullaniciEkle(yeniKullanici).then(function() {
+        alert("Kullanıcı başarıyla eklendi!");
+        kullanicilariYukleVeListele(); 
+        document.getElementById("add-user-form")?.reset();
+    }).catch(hata => alert(hata.message));
 }
 
-function handleUserListClick(e) {
-    const target = e.target;
-    const suspendButton = target.closest('.btn-suspend');
-    if (suspendButton) {
-        adminSuspendUser(suspendButton.dataset.id).then(loadAndRenderUsers);
+function kullaniciListesiTiklamaIslemi(e) {
+    var hedef = e.target;
+    
+    if (hedef.classList.contains('btn-suspend')) {
+        kullaniciDondur(hedef.dataset.id).then(kullanicilariYukleVeListele);
         return;
     }
-    const deleteButton = target.closest('.btn-delete');
-    if (deleteButton) {
+
+    if (hedef.classList.contains('btn-delete')) {
         if (confirm("Bu kullanıcıyı silmek istediğinizden emin misiniz?")) {
-            adminDeleteUser(deleteButton.dataset.id).then(loadAndRenderUsers);
+            kullaniciSil(hedef.dataset.id).then(kullanicilariYukleVeListele);
         }
     }
 }
@@ -129,139 +123,180 @@ function handleUserListClick(e) {
 /* KUPON YÖNETİMİ FONKSİYONLARI         */
 /* ==================================== */
 
-function loadAndRenderSellers() {
-    const listElement = document.getElementById("seller-checkbox-list");
+function saticilariYukleVeListele() {
+    // Güvenli Seçim: Elementi burada seçiyoruz
+    const listeElementi = document.getElementById("seller-checkbox-list");
+    
+    if (!listeElementi) return; // HATA KORUMASI: Element yoksa dur
+    
     if (typeof getAllSellers !== 'function') {
-        listElement.innerHTML = "<p style='color:red;'>Hata: Satıcı verisi alınamadı.</p>";
+        listeElementi.innerHTML = "<p style='color:red;'>Hata: Satıcı verisi alınamadı.</p>";
         return;
     }
-    listElement.innerHTML = "<p>Satıcılar yükleniyor...</p>";
-    getAllSellers().then(sellers => {
-        listElement.innerHTML = "";
-        sellers.forEach(function(seller) {
-            const sellerHtml = `
-                <div class="form-check">
-                    <input type="checkbox" class="seller-checkbox" id="seller-${seller.id}" value="${seller.id}">
-                    <label for="seller-${seller.id}">${seller.name}</label>
-                </div>
-            `;
-            listElement.insertAdjacentHTML('beforeend', sellerHtml);
-        });
-    }).catch(err => listElement.innerHTML = "<p style='color:red;'>Satıcılar yüklenemedi.</p>");
+
+    listeElementi.innerHTML = "<p>Satıcılar yükleniyor...</p>";
+
+    saticilariGetir().then(function(saticilar) {
+        var html = "";
+        for (var i = 0; i < saticilar.length; i++) {
+            var s = saticilar[i];
+            html += '<div class="form-check">';
+            html +=   '<input type="checkbox" class="seller-checkbox" id="seller-' + s.id + '" value="' + s.id + '">';
+            html +=   '<label for="seller-' + s.id + '">' + s.name + '</label>';
+            html += '</div>';
+        }
+        listeElementi.innerHTML = html;
+    }).catch(hata => listeElementi.innerHTML = "<p style='color:red;'>Satıcılar yüklenemedi.</p>");
 }
 
-// YENİ EKLENDİ
-function loadAndRenderCoupons() {
-    const listContainer = document.getElementById("coupon-list-container");
+function kuponlariYukleVeListele() {
+    // Güvenli Seçim: Elementi burada seçiyoruz
+    const listeKonteyneri = document.getElementById("coupon-list-container");
+    
+    if (!listeKonteyneri) return; // HATA KORUMASI: Element yoksa dur
+    
     if (typeof getCoupons !== 'function') {
-        listContainer.innerHTML = "<p style='color:red;'>Hata: Kupon verisi alınamadı.</Gereksiz detayp>";
+        listeKonteyneri.innerHTML = "<p style='color:red;'>Hata: Kupon verisi alınamadı.</p>";
         return;
     }
-    listContainer.innerHTML = "<p>Kuponlar yükleniyor...</p>";
+    
+    listeKonteyneri.innerHTML = "<p>Kuponlar yükleniyor...</p>";
 
-    getCoupons().then(coupons => {
-        listContainer.innerHTML = ""; // Temizle
-        if (coupons.length === 0) {
-            listContainer.innerHTML = "<p>Henüz tanımlanmış kupon yok.</p>";
+    kuponlariGetir().then(function(kuponlar) {
+        var html = "";
+        if (kuponlar.length === 0) {
+            html = "<p>Henüz tanımlanmış kupon yok.</p>";
+            listeKonteyneri.innerHTML = html;
             return;
         }
-        const frag = document.createDocumentFragment();
-        for (let i = 0; i < coupons.length; i++) {
-            frag.appendChild(kuponSatiriOlustur(coupons[i]));
+
+        for (var i = 0; i < kuponlar.length; i++) {
+            var k = kuponlar[i];
+            
+            var saticilarHtml = "";
+            if (k.sellers && k.sellers.length > 0) {
+                for (var j = 0; j < k.sellers.length; j++) {
+                    saticilarHtml += '<span class="seller-tag">' + k.sellers[j] + '</span> ';
+                }
+            } else {
+                saticilarHtml = '<span class="seller-tag">Tüm Satıcılar</span>';
+            }
+
+            html += '<div class="coupon-list-item">';
+            html +=   '<div class="coupon-info"><strong>' + k.code + '</strong><span>İndirim: ' + k.amount + ' TL</span></div>';
+            html +=   '<div class="coupon-sellers">' + saticilarHtml + '</div>';
+            html +=   '<div class="coupon-actions">';
+            html +=     '<button class="btn btn-danger btn-sm btn-delete-coupon" data-id="' + k.id + '">Sil</button>';
+            html +=   '</div>';
+            html += '</div>';
         }
-        listContainer.appendChild(frag);
-    }).catch(err => listContainer.innerHTML = "<p style='color:red;'>Kuponlar yüklenemedi.</p>");
+        listeKonteyneri.innerHTML = html;
+    }).catch(hata => listeKonteyneri.innerHTML = "<p style='color:red;'>Kuponlar yüklenemedi.</p>");
 }
 
-// YENİ EKLENDİ
-function kuponSatiriOlustur(coupon) {
-    const itemDiv = document.createElement('div');
-    itemDiv.className = 'coupon-list-item';
-
-    // Satıcıları 'seller-tag' HTML'ine dönüştür
-    let sellersHtml = '';
-    if (coupon.sellers && coupon.sellers.length > 0) {
-        sellersHtml = coupon.sellers.map(function(name) {
-            return `<span class="seller-tag">${name}</span>`;
-        }).join(' ');
-    } else {
-        sellersHtml = '<span class="seller-tag">Tüm Satıcılar</span>';
-    }
-
-    itemDiv.innerHTML = `
-        <div class="coupon-info">
-            <strong>${coupon.code}</strong>
-            <span>İndirim: ${coupon.amount} TL</span>
-        </div>
-        <div class="coupon-sellers">
-            ${sellersHtml}
-        </div>
-        <div class="coupon-actions">
-            <button class="btn btn-danger btn-sm btn-delete-coupon" data-id="${coupon.id}">Sil</button>
-        </div>
-    `;
-    return itemDiv;
+function kuponSatiriOlustur(kupon) {
+    // Bu fonksiyon artık kullanılmıyor, yukarıdaki fonksiyonlar tarafından direkt HTML üretiliyor
 }
 
-function handleSelectAllSellers(e) {
-    const isChecked = e.target.checked;
-    const allCheckboxes = document.querySelectorAll(".seller-checkbox");
-    for (let i = 0; i < allCheckboxes.length; i++) {
-        allCheckboxes[i].checked = isChecked;
+function tumSaticilariSecIslemi(e) {
+    var secildiMi = e.target.checked;
+    var tumKutular = document.querySelectorAll(".seller-checkbox");
+    
+    for (let i = 0; i < tumKutular.length; i++) {
+        tumKutular[i].checked = secildiMi;
     }
 }
 
-function handleAddCoupon(e) {
+function kuponEkleIslemi(e) {
     e.preventDefault();
-    const code = document.getElementById("coupon-code").value;
-    const amount = document.getElementById("coupon-amount").value;
-    const selectedSellerIds = [];
-    const allCheckboxes = document.querySelectorAll(".seller-checkbox:checked");
-    const selectAll = document.getElementById("select-all-sellers").checked;
 
-    // Eğer "Tümünü Seç" işaretliyse, ID göndermeye gerek yok (veya 'all' gönder)
-    // Şimdilik, 'Tümünü Seç' işaretliyse ID listesini boş bırakıyoruz.
-    if (!selectAll) {
-        for (let i = 0; i < allCheckboxes.length; i++) {
-            selectedSellerIds.push(allCheckboxes[i].value);
+    var kod = document.getElementById("coupon-code").value;
+    var miktar = document.getElementById("coupon-amount").value;
+    
+    var secilenIdler = [];
+    var secilenKutular = document.querySelectorAll(".seller-checkbox:checked");
+    var tumuSecili = document.getElementById("select-all-sellers").checked;
+
+    if (!tumuSecili) {
+        for (var i = 0; i < secilenKutular.length; i++) {
+            secilenIdler.push(secilenKutular[i].value);
         }
-        if (selectedSellerIds.length === 0) {
-            alert("Lütfen en az bir satıcı seçin veya 'Tüm Satıcıları Seç'i işaretleyin.");
+        if (secilenIdler.length === 0) {
+            alert("Lütfen en az bir satıcı seçin.");
             return;
         }
     }
     
-    if (!code || !amount) {
+    if (!kod || !miktar) {
         alert("Lütfen kupon kodu ve indirim miktarını girin.");
         return;
     }
 
-    // api.js'e 'sellerIds: []' (boş dizi) giderse, 'Tüm Satıcılar' anlamına gelsin
-    adminAddCoupon({ code, amount, sellerIds: selectedSellerIds })
-        .then(function(response) {
-            alert(`Kupon başarıyla eklendi!`);
-            document.getElementById("coupon-form").reset();
-            
-            // Checkbox'ları temizle
-            document.getElementById("select-all-sellers").checked = false;
-            allCheckboxes.forEach(cb => cb.checked = false);
-            
-            // YENİ: Listeyi yenile
-            loadAndRenderCoupons();
-        });
+    var veri = { code: kod, amount: miktar, sellerIds: secilenIdler };
+
+    kuponEkle(veri).then(function() {
+        alert("Kupon başarıyla eklendi!");
+        document.getElementById("coupon-form")?.reset();
+        
+        document.getElementById("select-all-sellers").checked = false;
+        var kutular = document.querySelectorAll(".seller-checkbox");
+        for (var k = 0; k < kutular.length; k++) {
+            kutular[k].checked = false;
+        }
+
+        kuponlariYukleVeListele();
+    });
 }
 
-// YENİ EKLENDİ
-function handleCouponListClick(e) {
-    const deleteButton = e.target.closest('.btn-delete-coupon');
-    if (deleteButton) {
-        const couponId = deleteButton.dataset.id;
+function kuponListesiTiklamaIslemi(e) {
+    var hedef = e.target;
+    var silButonu = hedef.closest('.btn-delete-coupon');
+    
+    if (silButonu) {
+        var id = silButonu.getAttribute("data-id");
         if (confirm("Bu kuponu silmek istediğinizden emin misiniz?")) {
-            // ENES (SİZİN) GÖREVİNİZ: 'api.js'e 'adminDeleteCoupon' eklemelisiniz
-            adminDeleteCoupon(couponId).then(() => {
-                alert("Kupon silindi.");
-                loadAndRenderCoupons(); // Listeyi yenile
+            kuponSil(id).then(function() {
+                kuponlariYukleVeListele();
             });
         }
     }
 }
+
+/* ==================================== */
+/* ⬇️ DOMCONTENTLOADED (ÇALIŞTIRMA BLOĞU) ⬇️ */
+/* ==================================== */
+
+document.addEventListener("DOMContentLoaded", function() {
+    
+    // Elementler artık fonksiyonların içinde seçildiği için burası temiz
+    
+    var kullaniciListesiSayfasi = document.getElementById("user-list");
+    var kullaniciEkleFormu = document.getElementById("add-user-form");
+
+    var kuponFormuSayfasi = document.getElementById("coupon-form");
+    var tumunuSecKutusu = document.getElementById("select-all-sellers");
+    var kuponListesiKonteyneri = document.getElementById("coupon-list-container"); // Kontrol için tutuluyor
+
+    // --- KULLANICI YÖNETİMİ SAYFASI ---
+    if (kullaniciListesiSayfasi) {
+        kullanicilariYukleVeListele();
+        if(kullaniciEkleFormu) kullaniciEkleFormu.addEventListener("submit", kullaniciEkleIslemi);
+        kullaniciListesiSayfasi.addEventListener("click", kullaniciListesiTiklamaIslemi);
+    }
+
+    // --- KUPON YÖNETİMİ SAYFASI ---
+    if (kuponFormuSayfasi) {
+        saticilariYukleVeListele(); 
+        kuponlariYukleVeListele(); 
+        
+        kuponFormuSayfasi.addEventListener("submit", kuponEkleIslemi);
+        
+        if (tumunuSecKutusu) { // Güvenli kontrol
+            tumunuSecKutusu.addEventListener("change", tumSaticilariSecIslemi);
+        }
+        
+        if (kuponListesiKonteyneri) { // Güvenli kontrol
+            kuponListesiKonteyneri.addEventListener("click", kuponListesiTiklamaIslemi);
+        }
+    }
+});
