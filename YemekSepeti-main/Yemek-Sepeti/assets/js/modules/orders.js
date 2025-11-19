@@ -1,6 +1,6 @@
-// Simüle edilmiş api.js içeriği
+
 const MOCK_API = {
-    // Aktif Siparişler için sahte veri
+
     getActiveOrders: () => new Promise(resolve => {
         setTimeout(() => {
             resolve({
@@ -20,8 +20,7 @@ const MOCK_API = {
             });
         }, 300);
     }),
-    
-    // Geçmiş Siparişler için sahte veri
+
     getPastOrders: () => new Promise(resolve => {
         setTimeout(() => {
             resolve({
@@ -54,7 +53,6 @@ const MOCK_API = {
     }),
 };
 
-// Yardımcı fonksiyon: TL formatında para birimini döndürür
 const formatTL = (amount) => {
     return (amount || 0).toLocaleString('tr-TR', {
         style: 'currency',
@@ -64,15 +62,14 @@ const formatTL = (amount) => {
     });
 };
 
-// Aksiyonları (İptal/Detay/Tekrarla) yöneten fonksiyon
 function handleOrderAction(e, orderId, actionType) {
     e.preventDefault();
-    const card = e.target.closest('.order-card'); // Tıklanan butona en yakın sipariş kartını bul
+    const card = e.target.closest('.order-card'); 
 
     switch (actionType) {
         case 'iptal':
             if (confirm(`Sipariş #${orderId} iptal edilsin mi?`)) {
-                // DOM Manipülasyonu ile kartın durumunu güncelle ve yerini değiştir (simülasyon)
+              
                 const newStatus = document.createElement('span');
                 newStatus.className = 'order-status cancelled'; 
                 newStatus.textContent = 'İptal Edildi'; 
@@ -121,23 +118,15 @@ function handleOrderAction(e, orderId, actionType) {
     }
 }
 
-/**
- * Tek bir sipariş verisine göre DOM'da sipariş kartı (order-card) oluşturur.
- * Bu fonksiyon, verilen HTML yapınıza tam olarak uyar.
- * @param {object} order Sipariş verisi objesi.
- * @returns {HTMLElement} Oluşturulmuş sipariş kartı elementi.
- */
 function createOrderCard(order) {
-    // Ana Kart: <div class="card order-card">
+
     const card = document.createElement('div');
     card.className = 'card order-card';
     card.setAttribute('data-order-id', order.id);
 
-    // Header: <div class="order-header">
     const header = document.createElement('div');
     header.className = 'order-header';
-    
-    // Header Sol (Durum ve Tarih)
+
     const headerLeft = document.createElement('div');
     const statusSpan = document.createElement('span');
     statusSpan.className = `order-status ${order.status}`;
@@ -148,7 +137,6 @@ function createOrderCard(order) {
     headerLeft.appendChild(statusSpan);
     headerLeft.appendChild(dateSpan);
 
-    // Header Sağ (Toplam)
     const headerRight = document.createElement('div');
     headerRight.className = 'order-total';
     const totalSpan = document.createElement('span');
@@ -161,25 +149,21 @@ function createOrderCard(order) {
     header.appendChild(headerLeft);
     header.appendChild(headerRight);
 
-    // Satıcı Adı: <div class="order-seller">
     const seller = document.createElement('div');
     seller.className = 'order-seller';
     const strongSeller = document.createElement('strong');
     strongSeller.textContent = order.seller;
     seller.appendChild(strongSeller);
-    
-    // Ürünler (Aktif siparişler için): <div class="order-items">
+ 
     const items = document.createElement('div');
     items.className = 'order-items';
     const pItems = document.createElement('p');
     pItems.textContent = order.items;
     items.appendChild(pItems);
-    
-    // Alt Bölüm (Butonlar): <div class="order-footer">
+
     const footer = document.createElement('div');
     footer.className = 'order-footer';
 
-    // Buton Ekleme Mantığı (Tüm butonlar handleOrderAction'a bağlanır)
     if (order.canCancel) {
         const cancelBtn = document.createElement('a');
         cancelBtn.href = '#';
@@ -216,35 +200,29 @@ function createOrderCard(order) {
         footer.appendChild(rateBtn);
     }
 
-    // Kartın parçalarını birleştirme (DOM Oluşturma - Hafta-4.docx)
     card.appendChild(header);
     card.appendChild(seller);
     if (order.type === 'active') {
-        card.appendChild(items); // Ürünler sadece aktif siparişlerde detaylı listelenir (örnek veri setine göre)
+        card.appendChild(items); 
     }
     card.appendChild(footer);
     
     return card;
 }
 
-
-/**
- * API'den aktif ve geçmiş siparişleri çeker ve DOM'a render eder.
- */
 async function renderOrders() {
     const activeSection = document.getElementById('active-orders');
     const pastSection = document.getElementById('past-orders');
 
-    // 1. Aktif Siparişleri Çek ve Render Et
     try {
         const activeResponse = await MOCK_API.getActiveOrders();
         if (activeResponse.success && activeSection) {
-            // Mevcut statik kartları temizle (Eğer varsa)
+        
             activeSection.querySelectorAll('.order-card').forEach(card => card.remove());
             
             activeResponse.data.forEach(order => {
-                const card = createOrderCard(order); // Kartı oluştur
-                activeSection.appendChild(card); // DOM'a ekle (Hafta-3_2.docx)
+                const card = createOrderCard(order); 
+                activeSection.appendChild(card); 
             });
 
             if (activeResponse.data.length === 0) {
@@ -257,16 +235,16 @@ async function renderOrders() {
         console.error("Aktif siparişler yüklenirken hata oluştu:", e);
     }
 
-    // 2. Geçmiş Siparişleri Çek ve Render Et
+
     try {
         const pastResponse = await MOCK_API.getPastOrders();
         if (pastResponse.success && pastSection) {
-            // Mevcut statik kartları temizle (Eğer varsa)
+        
             pastSection.querySelectorAll('.order-card').forEach(card => card.remove());
 
             pastResponse.data.forEach(order => {
-                const card = createOrderCard(order); // Kartı oluştur
-                pastSection.appendChild(card); // DOM'a ekle
+                const card = createOrderCard(order);
+                pastSection.appendChild(card); 
             });
             
              if (pastResponse.data.length === 0) {
@@ -280,7 +258,6 @@ async function renderOrders() {
     }
 }
 
-// Sayfa yüklendiğinde siparişleri render et (DOMContentLoaded - Hafta-5.docx)
 document.addEventListener('DOMContentLoaded', () => {
     renderOrders();
     
@@ -292,4 +269,5 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Başarıyla çıkış yaptınız.");
         });
     }
+
 });
