@@ -1,121 +1,91 @@
 /* ==================================== */
-/* ADMIN PANELİ ÖZEL STİLLERİ           */
-/* assets/css/pages/admin.css           */
+/* ADMİN PANELİ (pages/admin.css)      */
 /* ==================================== */
+/* NOT: Ana panel yerleşimi 'seller-dashboard.css'den geliyor */
 
-/* --- Kullanıcı ve Kupon Listesi --- */
+/* 1. Yeni Kullanıcı Formu (Yan Yana)
+-------------------------------------- */
+.admin-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 sütunlu form */
+    gap: 1rem 1.5rem;
+    align-items: flex-end; /* Butonun hizalanması için */
+}
+.admin-form button {
+    grid-column: 2 / 3; /* Butonu sağ sütuna at */
+    justify-self: start; /* Butonun genişlemesini engelle */
+}
+
+/* 2. Kullanıcı Listesi
+-------------------------------------- */
 .admin-list {
     display: flex;
     flex-direction: column;
 }
 
-.admin-list-item, 
-.coupon-list-item {
+.admin-list-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 1rem;
+    gap: 1.5rem;
+    padding: 1rem 0;
     border-bottom: 1px solid var(--border-color);
-    background-color: var(--card-bg);
-    transition: background-color 0.2s;
 }
+.admin-list-item:first-child { padding-top: 0; }
+.admin-list-item:last-child { border-bottom: none; padding-bottom: 0; }
 
-.admin-list-item:last-child,
-.coupon-list-item:last-child {
-    border-bottom: none;
+.user-info {
+    flex-grow: 1;
 }
-
-.admin-list-item:hover,
-.coupon-list-item:hover {
-    background-color: #f9f9f9;
-}
-
-/* --- Bilgi Alanları --- */
-.user-info, 
-.coupon-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.user-info strong,
-.coupon-info strong {
+.user-info strong {
+    font-family: var(--font-family-heading);
     font-size: 1.1rem;
-    color: var(--secondary-color);
+    display: block;
 }
-
-.user-info span,
-.coupon-info span {
+.user-info span {
     font-size: 0.9rem;
     color: var(--secondary-color-light);
 }
 
-/* --- Durum Noktası (Aktif/Dondurulmuş) --- */
 .user-status {
-    display: flex;
-    align-items: center;
+    min-width: 120px;
 }
-
-.status-dot {
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.status-dot.active {
-    background-color: #E8F5E9;
-    color: #2E7D32; /* Yeşil */
-}
-
-.status-dot.suspended {
-    background-color: #FFEBEE;
-    color: #C62828; /* Kırmızı */
-}
-
-/* --- Buton Grubu --- */
-.user-actions,
-.coupon-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-/* --- Satıcı Seçim Listesi (Kupon Sayfası) --- */
-.seller-checkbox-list {
-    max-height: 200px; /* Çok fazla satıcı olursa uzamasın */
-    overflow-y: auto;  /* Kaydırma çubuğu çıksın */
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: 1rem;
-    margin-bottom: 1rem;
-    background-color: #FAFAFA;
-}
-
-.seller-checkbox-list .form-check {
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-}
-
-.seller-checkbox-list label {
-    margin-left: 0.5rem;
-    cursor: pointer;
-}
-
-/* --- Kupon Sayfasındaki Satıcı Etiketleri --- */
-.coupon-sellers {
-    flex-grow: 1; /* Ortadaki boşluğu kapla */
-    padding: 0 1.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.seller-tag {
-    background-color: #FFF3E0; /* Açık turuncu */
-    color: #E65100; /* Koyu turuncu */
-    padding: 0.2rem 0.6rem;
-    border-radius: 4px;
-    font-size: 0.85rem;
+.status-dot { /* seller-menu.css'den */
     font-weight: 500;
+    font-size: 0.9rem;
+    position: relative;
+    padding-left: 15px;
 }
+.status-dot::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.status-dot.active { color: #4CAF50; }
+.status-dot.active::before { background-color: #4CAF50; }
+.status-dot.suspended { color: #E74C3C; }
+.status-dot.suspended::before { background-color: #E74C3C; }
+
+.user-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* 3. Kupon Sayfası Satıcı Listesi
+-------------------------------------- */
+.seller-checkbox-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr; /* 3 Sütunlu Checkbox listesi */
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    max-height: 400px;
+    overflow-y: auto;
+}
+/* .form-check stili components.css'den geliyor */
