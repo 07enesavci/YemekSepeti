@@ -1,10 +1,5 @@
-/* ==================================== */
-/* ADMİN PANELİ JAVASCRIPT (GÜVENLİ SON)*/
-/* assets/js/modules/admin.js           */
-/* ==================================== */
-// Bu sürümde global element seçimleri kaldırılarak hatalı NULL atamaları önlenmiştir.
-
-// Global fonksiyonları al (Bu blok değişmez)
+/* assets/js/modules/admin.js */
+// Global fonksiyonları al 
 var kullanicilariGetir = window.getAllUsers;
 var kullaniciEkle = window.adminAddUser;
 var kullaniciDondur = window.adminSuspendUser;
@@ -14,16 +9,9 @@ var kuponEkle = window.adminAddCoupon;
 var kuponlariGetir = window.getCoupons;
 var kuponSil = window.adminDeleteCoupon;
 
-/* ==================================== */
-/* YARDIMCI VE İŞLEM FONKSİYONLARI      */
-/* ==================================== */
-
 function yeniId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
-
-// ... (Diğer helper ve kullanıcı yönetimi fonksiyonları değişmez) ...
-
 function kullanicilariYukleVeListele() {
     if (typeof kullanicilariGetir !== 'function') return; 
     
@@ -31,21 +19,17 @@ function kullanicilariYukleVeListele() {
         .then(kullaniciListesiniCiz)
         .catch(hata => console.error("Kullanıcılar yüklenemedi", hata));
 }
-
 function kullaniciListesiniCiz(kullanicilar) {
-    // Güvenli Seçim: Elementi burada seçiyoruz
+    
     const kullaniciListesiElementi = document.getElementById("user-list");
     
     if (!kullaniciListesiElementi) return;
-    // ... (Kalan çizim mantığı devam eder) ...
     
     kullaniciListesiElementi.innerHTML = "";
-    
     if (kullanicilar.length === 0) {
         kullaniciListesiElementi.innerHTML = "<p>Gösterilecek kullanıcı yok.</p>";
         return;
     }
-
     const belgeParcasi = document.createDocumentFragment();
     for (let i = 0; i < kullanicilar.length; i++) {
         belgeParcasi.appendChild(kullaniciSatiriOlustur(kullanicilar[i]));
@@ -53,12 +37,10 @@ function kullaniciListesiniCiz(kullanicilar) {
     
     kullaniciListesiElementi.appendChild(belgeParcasi);
 }
-
 function kullaniciSatiriOlustur(kullanici) {
     const dondurulmus = kullanici.status === 'suspended';
     const itemDiv = document.createElement('div');
-    itemDiv.className = 'admin-list-item';
-    
+    itemDiv.className = 'admin-list-item';    
     var durumYazisi = dondurulmus ? 'Donduruldu' : 'Aktif';
     var butonYazisi = dondurulmus ? 'Aktif Et' : 'Dondur';
     var durumSinifi = dondurulmus ? 'suspended' : 'active';
@@ -82,7 +64,6 @@ function kullaniciSatiriOlustur(kullanici) {
     `;
     return itemDiv;
 }
-
 function kullaniciEkleIslemi(e) {
     e.preventDefault(); 
     
@@ -94,48 +75,34 @@ function kullaniciEkleIslemi(e) {
     if (!fullname || !email || !password) {
         alert("Lütfen tüm alanları doldurun."); return;
     }
-
     var yeniKullanici = { id: yeniId(), fullname: fullname, email: email, password: password, role: role, status: 'active' };
-
     kullaniciEkle(yeniKullanici).then(function() {
         alert("Kullanıcı başarıyla eklendi!");
         kullanicilariYukleVeListele(); 
         document.getElementById("add-user-form")?.reset();
     }).catch(hata => alert(hata.message));
 }
-
 function kullaniciListesiTiklamaIslemi(e) {
-    var hedef = e.target;
-    
+    var hedef = e.target;   
     if (hedef.classList.contains('btn-suspend')) {
         kullaniciDondur(hedef.dataset.id).then(kullanicilariYukleVeListele);
         return;
     }
-
     if (hedef.classList.contains('btn-delete')) {
         if (confirm("Bu kullanıcıyı silmek istediğinizden emin misiniz?")) {
             kullaniciSil(hedef.dataset.id).then(kullanicilariYukleVeListele);
         }
     }
 }
-
-/* ==================================== */
-/* KUPON YÖNETİMİ FONKSİYONLARI         */
-/* ==================================== */
-
+//KUPON YÖNETİMİ 
 function saticilariYukleVeListele() {
-    // Güvenli Seçim: Elementi burada seçiyoruz
     const listeElementi = document.getElementById("seller-checkbox-list");
-    
-    if (!listeElementi) return; // HATA KORUMASI: Element yoksa dur
-    
+    if (!listeElementi) return; 
     if (typeof getAllSellers !== 'function') {
         listeElementi.innerHTML = "<p style='color:red;'>Hata: Satıcı verisi alınamadı.</p>";
         return;
     }
-
     listeElementi.innerHTML = "<p>Satıcılar yükleniyor...</p>";
-
     saticilariGetir().then(function(saticilar) {
         var html = "";
         for (var i = 0; i < saticilar.length; i++) {
@@ -148,20 +115,15 @@ function saticilariYukleVeListele() {
         listeElementi.innerHTML = html;
     }).catch(hata => listeElementi.innerHTML = "<p style='color:red;'>Satıcılar yüklenemedi.</p>");
 }
-
-function kuponlariYukleVeListele() {
-    // Güvenli Seçim: Elementi burada seçiyoruz
+function kuponlariYukleVeListele() { 
     const listeKonteyneri = document.getElementById("coupon-list-container");
-    
-    if (!listeKonteyneri) return; // HATA KORUMASI: Element yoksa dur
-    
+    if (!listeKonteyneri) 
+        return; 
     if (typeof getCoupons !== 'function') {
         listeKonteyneri.innerHTML = "<p style='color:red;'>Hata: Kupon verisi alınamadı.</p>";
         return;
     }
-    
     listeKonteyneri.innerHTML = "<p>Kuponlar yükleniyor...</p>";
-
     kuponlariGetir().then(function(kuponlar) {
         var html = "";
         if (kuponlar.length === 0) {
@@ -169,7 +131,6 @@ function kuponlariYukleVeListele() {
             listeKonteyneri.innerHTML = html;
             return;
         }
-
         for (var i = 0; i < kuponlar.length; i++) {
             var k = kuponlar[i];
             
@@ -181,7 +142,6 @@ function kuponlariYukleVeListele() {
             } else {
                 saticilarHtml = '<span class="seller-tag">Tüm Satıcılar</span>';
             }
-
             html += '<div class="coupon-list-item">';
             html +=   '<div class="coupon-info"><strong>' + k.code + '</strong><span>İndirim: ' + k.amount + ' TL</span></div>';
             html +=   '<div class="coupon-sellers">' + saticilarHtml + '</div>';
@@ -193,30 +153,22 @@ function kuponlariYukleVeListele() {
         listeKonteyneri.innerHTML = html;
     }).catch(hata => listeKonteyneri.innerHTML = "<p style='color:red;'>Kuponlar yüklenemedi.</p>");
 }
-
 function kuponSatiriOlustur(kupon) {
-    // Bu fonksiyon artık kullanılmıyor, yukarıdaki fonksiyonlar tarafından direkt HTML üretiliyor
 }
-
 function tumSaticilariSecIslemi(e) {
     var secildiMi = e.target.checked;
-    var tumKutular = document.querySelectorAll(".seller-checkbox");
-    
+    var tumKutular = document.querySelectorAll(".seller-checkbox");    
     for (let i = 0; i < tumKutular.length; i++) {
         tumKutular[i].checked = secildiMi;
     }
 }
-
 function kuponEkleIslemi(e) {
     e.preventDefault();
-
     var kod = document.getElementById("coupon-code").value;
-    var miktar = document.getElementById("coupon-amount").value;
-    
+    var miktar = document.getElementById("coupon-amount").value; 
     var secilenIdler = [];
     var secilenKutular = document.querySelectorAll(".seller-checkbox:checked");
     var tumuSecili = document.getElementById("select-all-sellers").checked;
-
     if (!tumuSecili) {
         for (var i = 0; i < secilenKutular.length; i++) {
             secilenIdler.push(secilenKutular[i].value);
@@ -226,12 +178,10 @@ function kuponEkleIslemi(e) {
             return;
         }
     }
-    
     if (!kod || !miktar) {
         alert("Lütfen kupon kodu ve indirim miktarını girin.");
         return;
     }
-
     var veri = { code: kod, amount: miktar, sellerIds: secilenIdler };
 
     kuponEkle(veri).then(function() {
@@ -243,11 +193,9 @@ function kuponEkleIslemi(e) {
         for (var k = 0; k < kutular.length; k++) {
             kutular[k].checked = false;
         }
-
         kuponlariYukleVeListele();
     });
 }
-
 function kuponListesiTiklamaIslemi(e) {
     var hedef = e.target;
     var silButonu = hedef.closest('.btn-delete-coupon');
@@ -261,40 +209,28 @@ function kuponListesiTiklamaIslemi(e) {
         }
     }
 }
-
-/* ==================================== */
-/* ⬇️ DOMCONTENTLOADED (ÇALIŞTIRMA BLOĞU) ⬇️ */
-/* ==================================== */
-
-document.addEventListener("DOMContentLoaded", function() {
-    
+//DOM CONTENT
+document.addEventListener("DOMContentLoaded", function() {      
     // Elementler artık fonksiyonların içinde seçildiği için burası temiz
-    
     var kullaniciListesiSayfasi = document.getElementById("user-list");
     var kullaniciEkleFormu = document.getElementById("add-user-form");
-
     var kuponFormuSayfasi = document.getElementById("coupon-form");
     var tumunuSecKutusu = document.getElementById("select-all-sellers");
     var kuponListesiKonteyneri = document.getElementById("coupon-list-container"); // Kontrol için tutuluyor
-
     // --- KULLANICI YÖNETİMİ SAYFASI ---
     if (kullaniciListesiSayfasi) {
         kullanicilariYukleVeListele();
         if(kullaniciEkleFormu) kullaniciEkleFormu.addEventListener("submit", kullaniciEkleIslemi);
         kullaniciListesiSayfasi.addEventListener("click", kullaniciListesiTiklamaIslemi);
     }
-
     // --- KUPON YÖNETİMİ SAYFASI ---
     if (kuponFormuSayfasi) {
         saticilariYukleVeListele(); 
-        kuponlariYukleVeListele(); 
-        
-        kuponFormuSayfasi.addEventListener("submit", kuponEkleIslemi);
-        
+        kuponlariYukleVeListele();       
+        kuponFormuSayfasi.addEventListener("submit", kuponEkleIslemi);     
         if (tumunuSecKutusu) { // Güvenli kontrol
             tumunuSecKutusu.addEventListener("change", tumSaticilariSecIslemi);
-        }
-        
+        }       
         if (kuponListesiKonteyneri) { // Güvenli kontrol
             kuponListesiKonteyneri.addEventListener("click", kuponListesiTiklamaIslemi);
         }
