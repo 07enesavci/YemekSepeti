@@ -1,0 +1,280 @@
+/* ==================================== */
+/* BİLEŞENLER (components.css)         */
+/* ==================================== */
+
+/* 1. BUTONLAR (Buttons)
+-------------------------------------- */
+.btn {
+    display: inline-block;
+    /* DÜZELTME: Padding azaltıldı (Daha kibar butonlar) */
+    padding: 0.6rem 1rem; 
+    font-family: var(--font-family-body);
+    font-size: 0.9rem; /* Yazı boyutu hafif küçüldü */
+    font-weight: 800;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 6px; /* Köşeler biraz daha keskin */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    line-height: 1.2;
+}
+
+/* --- NORMAL DURUM (Resimdeki Gibi) --- */
+/* İçi Beyaz, Çerçeve Turuncu, Yazı Turuncu */
+.btn-primary,
+.btn-secondary {
+    background-color: #FFFFFF !important;
+    color: var(--primary-color) !important;
+    border: 2px solid var(--primary-color) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* --- HOVER DURUMU --- */
+/* İçi Turuncu, Yazı Beyaz */
+.btn-primary:hover,
+.btn-secondary:hover {
+    background-color: var(--primary-color) !important;
+    color: #FFFFFF !important;
+    border-color: var(--primary-color) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 111, 0, 0.2);
+}
+
+/* Tam genişlikte buton */
+.btn-full {
+    display: block;
+    width: 100%;
+}
+
+/* Küçük Butonlar */
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+}
+
+
+/* 2. KARTLAR (Cards)
+-------------------------------------- */
+.featured-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--card-shadow-hover);
+}
+
+.card-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+}
+
+.card-content {
+    padding: 1.5rem;
+}
+
+.card-title {
+    font-family: var(--font-family-heading);
+    font-size: 1.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-text {
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+    min-height: 45px;
+}
+
+
+/* 3. FORMLAR (Forms)
+-------------------------------------- */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    font-family: var(--font-family-body);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--card-bg);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.15);
+}
+
+.form-group-inline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-check label,
+.form-link {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    margin: 0;
+}
+
+.form-link:hover {
+    color: var(--primary-color);
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* 4. DİĞER BİLEŞENLER
+-------------------------------------- */
+
+/* Sipariş Özeti */
+.order-summary {
+    flex-basis: 380px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 100px;
+}
+
+.order-summary .card-title {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+}
+.summary-row span:last-child {
+    font-weight: 700;
+}
+
+.total-row {
+    margin-top: 1.5rem;
+    font-size: 1.2rem;
+}
+.total-price {
+    font-family: var(--font-family-heading);
+    font-size: 1.8rem;
+    color: var(--primary-color);
+}
+
+/* Kupon Formu */
+.coupon-form {
+    display: flex;
+    gap: 0.5rem;
+}
+.coupon-form .form-input {
+    flex-grow: 1;
+}
+
+/* Radyo Buton Kutuları */
+.divider {
+    border: none;
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 1.5rem 0;
+}
+
+.role-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem; 
+}
+
+.form-check-radio label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.form-check-radio label .icon {
+    font-size: 1.5rem;
+}
+
+.form-check-radio label strong {
+    color: var(--secondary-color);
+    flex-grow: 1;
+}
+
+.form-check-radio label span {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+
+.form-check-radio input[type="radio"] {
+    display: none;
+}
+
+.form-check-radio input[type="radio"]:checked + label {
+    border-color: var(--primary-color);
+    background-color: #FFF7F0;
+    box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.15);
+}
+
+.form-check-radio label:hover {
+    border-color: var(--primary-color-dark);
+}
+
+/* Yemek Kartı Ekstraları */
+.meal-card .card-text {
+    min-height: 45px; 
+    margin-bottom: 1rem;
+}
+.meal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+.meal-price {
+    font-family: var(--font-family-body);
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}

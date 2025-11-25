@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kayıt Ol - Ev Lezzetleri</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../assets/css/main.css">
+    <link rel="stylesheet" href="../../assets/css/layout.css">
+    <link rel="stylesheet" href="../../assets/css/components.css">
+    <link rel="stylesheet" href="../../assets/css/pages/auth.css">
+
+</head>
+<body class="bg-color"> <header class="site-header">
+        <div class="header-content container"> 
+            <a href="../../index.html" class="logo">Ev Lezzetleri</a>
+            <nav class="main-nav">
+            </nav>
+            <div class="header-actions">
+                <a href="login.html" class="btn btn-secondary">Giriş Yap</a>
+                <a href="../buyer/cart.html" class="btn btn-primary">Sepet (<span id="cart-count">0</span>)</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="auth-page"> 
+        <div class="container auth-container" style="margin-left: 35%;">
+            
+            <div class="card auth-card">
+                <div class="card-content">
+                    <h1 class="card-title text-center">Hesap Oluştur</h1>
+                    <p class="text-center auth-subtext">Aramıza katılmak için bilgilerinizi girin.</p>
+                    
+                    <form id="register-form">
+                        <div class="form-group">
+                            <label for="fullname" class="form-label">Ad Soyad</label>
+                            <input type="text" id="fullname" class="form-input" placeholder="Adınız Soyadınız" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email" class="form-label">E-posta Adresi</label>
+                            <input type="email" id="email" class="form-input" placeholder="ornek@mail.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password" class="form-label">Şifre</label>
+                            <input type="password" id="password" class="form-input" placeholder="En az 6 karakter" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm-password" class="form-label">Şifre Tekrar</label>
+                            <input type="password" id="confirm-password" class="form-input" placeholder="Şifrenizi doğrulayın" required>
+                        </div>
+
+                        <hr class="divider"> <div class="form-group">
+                            <label class="form-label">Hesap Türü Seçin:</label>
+                            <div class="role-selector"> <div class="form-check form-check-radio">
+                                    <input type="radio" id="role-buyer" name="user-role" value="buyer" checked>
+                                    <label for="role-buyer">
+                                        <span class="icon">🛒</span> 
+                                        <strong>Alıcıyım</strong> 
+                                        <span>(Yemek sipariş vermek istiyorum)</span>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check form-check-radio">
+                                    <input type="radio" id="role-seller" name="user-role" value="seller">
+                                    <label for="role-seller">
+                                        <span class="icon">🍲</span> 
+                                        <strong>Satıcıyım</strong> 
+                                        <span>(Yemek satmak istiyorum)</span>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check form-check-radio">
+                                    <input type="radio" id="role-courier" name="user-role" value="courier">
+                                    <label for="role-courier">
+                                        <span class="icon">🚚</span> 
+                                        <strong>Kuryeyim</strong> 
+                                        <span>(Sipariş teslimatı yapmak istiyorum)</span>
+                                    </label>
+                                </div>
+                                
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="form-check">
+                                <input type="checkbox" id="terms" required>
+                       <label for="terms"><a href="terms.html">Kullanım Koşulları</a>'nı okudum ve kabul ediyorum.</label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-full"> 
+                            Kayıt Ol
+                        </button>
+                    </form>
+
+                    <div class="auth-footer-link">
+                        <p>Zaten bir hesabın var mı? <a href="login.html">Giriş Yap</a></p>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-content container"> 
+            <p>&copy; 2025 Ev Lezzetleri Projesi. Tüm hakları saklıdır.</p>
+        </div>
+    </footer>
+    
+    <script src="../../assets/js/api.js"></script>
+    <script src="../../assets/js/main.js"></script>
+    <script src="../../assets/js/auth.js"></script>
+    <script src="../../assets/js/modules/cart.js"></script>
+</body>
+</html>
