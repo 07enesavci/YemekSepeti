@@ -32,7 +32,15 @@ let MOCK_SELLERS = [
  * Tüm menüleri getir (frontend için)
  */
 router.get("/menus", (req, res) => {
-    res.json(MOCK_MENUS);
+    try {
+        res.json(MOCK_MENUS);
+    } catch (error) {
+        console.error("Menüler getirme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
+    }
 });
 
 /**
@@ -40,7 +48,15 @@ router.get("/menus", (req, res) => {
  * Tüm satıcıları getir (frontend için)
  */
 router.get("/sellers", (req, res) => {
-    res.json(MOCK_SELLERS);
+    try {
+        res.json(MOCK_SELLERS);
+    } catch (error) {
+        console.error("Satıcılar getirme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
+    }
 });
 
 /**
@@ -48,29 +64,37 @@ router.get("/sellers", (req, res) => {
  * Belirli bir ürünü getir
  */
 router.get("/product/:id", (req, res) => {
-    const productId = parseInt(req.params.id);
-    
-    // Tüm menülerde ara
-    for (const sellerId in MOCK_MENUS) {
-        const menu = MOCK_MENUS[sellerId];
-        const product = menu.find(p => p.id === productId);
+    try {
+        const productId = parseInt(req.params.id);
         
-        if (product) {
-            const seller = MOCK_SELLERS.find(s => s.id == sellerId);
-            return res.json({
-                ...product,
-                satici: seller ? seller.name : "Ev Lezzetleri",
-                fiyat: product.price,
-                gorsel: product.imageUrl,
-                ad: product.name
-            });
+        // Tüm menülerde ara
+        for (const sellerId in MOCK_MENUS) {
+            const menu = MOCK_MENUS[sellerId];
+            const product = menu.find(p => p.id === productId);
+            
+            if (product) {
+                const seller = MOCK_SELLERS.find(s => s.id == sellerId);
+                return res.json({
+                    ...product,
+                    satici: seller ? seller.name : "Ev Lezzetleri",
+                    fiyat: product.price,
+                    gorsel: product.imageUrl,
+                    ad: product.name
+                });
+            }
         }
-    }
 
-    res.status(404).json({ 
-        success: false, 
-        message: "Ürün bulunamadı." 
-    });
+        res.status(404).json({ 
+            success: false, 
+            message: "Ürün bulunamadı." 
+        });
+    } catch (error) {
+        console.error("Ürün getirme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
+    }
 });
 
 module.exports = router;

@@ -53,22 +53,30 @@ const MOCK_MENUS = {
  * Satıcıları listele (filtreleme ile)
  */
 router.get("/", (req, res) => {
-    const { location, rating } = req.query;
-    let sellers = [...MOCK_SELLERS];
+    try {
+        const { location, rating } = req.query;
+        let sellers = [...MOCK_SELLERS];
 
-    // Filtreleme
-    if (location) {
-        sellers = sellers.filter(s => 
-            s.location.toLowerCase().includes(location.toLowerCase())
-        );
+        // Filtreleme
+        if (location) {
+            sellers = sellers.filter(s => 
+                s.location.toLowerCase().includes(location.toLowerCase())
+            );
+        }
+
+        if (rating) {
+            const minRating = parseFloat(rating);
+            sellers = sellers.filter(s => s.rating >= minRating);
+        }
+
+        res.json(sellers);
+    } catch (error) {
+        console.error("Satıcılar listeleme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
     }
-
-    if (rating) {
-        const minRating = parseFloat(rating);
-        sellers = sellers.filter(s => s.rating >= minRating);
-    }
-
-    res.json(sellers);
 });
 
 /**
@@ -76,17 +84,25 @@ router.get("/", (req, res) => {
  * Belirli bir satıcının detaylarını getir
  */
 router.get("/:id", (req, res) => {
-    const sellerId = parseInt(req.params.id);
-    const seller = MOCK_SELLERS.find(s => s.id === sellerId);
+    try {
+        const sellerId = parseInt(req.params.id);
+        const seller = MOCK_SELLERS.find(s => s.id === sellerId);
 
-    if (!seller) {
-        return res.status(404).json({ 
+        if (!seller) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Satıcı bulunamadı." 
+            });
+        }
+
+        res.json(seller);
+    } catch (error) {
+        console.error("Satıcı detay getirme hatası:", error);
+        res.status(500).json({ 
             success: false, 
-            message: "Satıcı bulunamadı." 
+            message: "Sunucu hatası." 
         });
     }
-
-    res.json(seller);
 });
 
 /**
@@ -94,10 +110,18 @@ router.get("/:id", (req, res) => {
  * Belirli bir satıcının menüsünü getir
  */
 router.get("/:id/menu", (req, res) => {
-    const sellerId = req.params.id;
-    const menu = MOCK_MENUS[sellerId] || [];
+    try {
+        const sellerId = req.params.id;
+        const menu = MOCK_MENUS[sellerId] || [];
 
-    res.json(menu);
+        res.json(menu);
+    } catch (error) {
+        console.error("Menü getirme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
+    }
 });
 
 module.exports = router;

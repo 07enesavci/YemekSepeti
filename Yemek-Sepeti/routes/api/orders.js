@@ -19,53 +19,61 @@ let MOCK_ORDERS = [
  * Yeni sipariş oluştur
  */
 router.post("/", (req, res) => {
-    const { cart, address } = req.body;
+    try {
+        const { cart, address } = req.body;
 
-    if (!cart || !Array.isArray(cart) || cart.length === 0) {
-        return res.status(400).json({ 
+        if (!cart || !Array.isArray(cart) || cart.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Sepet boş olamaz." 
+            });
+        }
+
+        if (!address) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Adres bilgisi gereklidir." 
+            });
+        }
+
+        // Yeni sipariş oluştur
+        const newOrderId = MOCK_ORDERS.length > 0 
+            ? Math.max(...MOCK_ORDERS.map(o => o.id)) + 1 
+            : 1000;
+
+        // Sepetten toplam tutarı hesapla
+        const total = cart.reduce((sum, item) => {
+            const itemPrice = item.urun?.price || item.urun?.fiyat || 0;
+            const quantity = item.adet || 1;
+            return sum + (itemPrice * quantity);
+        }, 0) + 29.99; // Teslimat ücreti
+
+        const newOrder = {
+            id: newOrderId,
+            userId: 1, // Gerçek uygulamada req.user'dan alınacak
+            sellerName: cart[0]?.urun?.satici || "Ev Lezzetleri",
+            date: new Date().toLocaleString("tr-TR"),
+            total: total.toFixed(2),
+            status: "preparing",
+            items: cart.map(item => 
+                `${item.adet} x ${item.urun?.ad || item.urun?.name}`
+            ).join(", ")
+        };
+
+        MOCK_ORDERS.unshift(newOrder); // Başa ekle
+
+        res.json({ 
+            success: true, 
+            orderId: newOrderId,
+            order: newOrder
+        });
+    } catch (error) {
+        console.error("Sipariş oluşturma hatası:", error);
+        res.status(500).json({ 
             success: false, 
-            message: "Sepet boş olamaz." 
+            message: "Sunucu hatası. Sipariş oluşturulamadı." 
         });
     }
-
-    if (!address) {
-        return res.status(400).json({ 
-            success: false, 
-            message: "Adres bilgisi gereklidir." 
-        });
-    }
-
-    // Yeni sipariş oluştur
-    const newOrderId = MOCK_ORDERS.length > 0 
-        ? Math.max(...MOCK_ORDERS.map(o => o.id)) + 1 
-        : 1000;
-
-    // Sepetten toplam tutarı hesapla
-    const total = cart.reduce((sum, item) => {
-        const itemPrice = item.urun?.price || item.urun?.fiyat || 0;
-        const quantity = item.adet || 1;
-        return sum + (itemPrice * quantity);
-    }, 0) + 29.99; // Teslimat ücreti
-
-    const newOrder = {
-        id: newOrderId,
-        userId: 1, // Gerçek uygulamada req.user'dan alınacak
-        sellerName: cart[0]?.urun?.satici || "Ev Lezzetleri",
-        date: new Date().toLocaleString("tr-TR"),
-        total: total.toFixed(2),
-        status: "preparing",
-        items: cart.map(item => 
-            `${item.adet} x ${item.urun?.ad || item.urun?.name}`
-        ).join(", ")
-    };
-
-    MOCK_ORDERS.unshift(newOrder); // Başa ekle
-
-    res.json({ 
-        success: true, 
-        orderId: newOrderId,
-        order: newOrder
-    });
 });
 
 /**
@@ -73,12 +81,20 @@ router.post("/", (req, res) => {
  * Aktif siparişleri getir
  */
 router.get("/active/:userId", (req, res) => {
-    const userId = parseInt(req.params.userId);
-    const activeOrders = MOCK_ORDERS.filter(
-        o => o.userId === userId && o.status === "preparing"
-    );
+    try {
+        const userId = parseInt(req.params.userId);
+        const activeOrders = MOCK_ORDERS.filter(
+            o => o.userId === userId && o.status === "preparing"
+        );
 
-    res.json(activeOrders);
+        res.json(activeOrders);
+    } catch (error) {
+        console.error("Aktif siparişler getirme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
+    }
 });
 
 /**
@@ -86,12 +102,20 @@ router.get("/active/:userId", (req, res) => {
  * Geçmiş siparişleri getir
  */
 router.get("/past/:userId", (req, res) => {
-    const userId = parseInt(req.params.userId);
-    const pastOrders = MOCK_ORDERS.filter(
-        o => o.userId === userId && (o.status === "delivered" || o.status === "cancelled")
-    );
+    try {
+        const userId = parseInt(req.params.userId);
+        const pastOrders = MOCK_ORDERS.filter(
+            o => o.userId === userId && (o.status === "delivered" || o.status === "cancelled")
+        );
 
-    res.json(pastOrders);
+        res.json(pastOrders);
+    } catch (error) {
+        console.error("Geçmiş siparişler getirme hatası:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Sunucu hatası." 
+        });
+    }
 });
 
 /**
@@ -99,17 +123,25 @@ router.get("/past/:userId", (req, res) => {
  * Belirli bir siparişin detaylarını getir
  */
 router.get("/:id", (req, res) => {
-    const orderId = parseInt(req.params.id);
-    const order = MOCK_ORDERS.find(o => o.id === orderId);
+    try {
+        const orderId = parseInt(req.params.id);
+        const order = MOCK_ORDERS.find(o => o.id === orderId);
 
-    if (!order) {
-        return res.status(404).json({ 
+        if (!order) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Sipariş bulunamadı." 
+            });
+        }
+
+        res.json(order);
+    } catch (error) {
+        console.error("Sipariş detay getirme hatası:", error);
+        res.status(500).json({ 
             success: false, 
-            message: "Sipariş bulunamadı." 
+            message: "Sunucu hatası." 
         });
     }
-
-    res.json(order);
 });
 
 module.exports = router;

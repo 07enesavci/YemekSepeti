@@ -1,4 +1,5 @@
 // auth.js – Temiz, düzenli ve her sayfada sorunsuz çalışır
+// Not: getBaseUrl ve cleanPath fonksiyonları api.js'de tanımlı (window objesine eklenmiş)
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -36,19 +37,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     
                     // Rol bazlı yönlendirme
                     const role = result.user.role;
-                    console.log("Yönlendirme yapılıyor, rol:", role);
+                    const baseUrl = window.getBaseUrl();
+                    console.log("Yönlendirme yapılıyor, rol:", role, "baseUrl:", baseUrl);
                     
                     if (role === "admin") {
-                        window.location.href = "/pages/admin/user-management.html";
+                        window.location.href = `${baseUrl}${window.cleanPath('/pages/admin/user-management.html')}`;
                     } else if (role === "seller") {
-                        window.location.href = "/pages/seller/dashboard.html";
+                        window.location.href = `${baseUrl}${window.cleanPath('/pages/seller/dashboard.html')}`;
                     } else if (role === "courier") {
-                        window.location.href = "/pages/courier/dashboard.html";
+                        window.location.href = `${baseUrl}${window.cleanPath('/pages/courier/dashboard.html')}`;
                     } else if (role === "buyer") {
-                        window.location.href = "/index.html";
+                        window.location.href = `${baseUrl}${window.cleanPath('/index.html')}`;
                     } else {
                         // Varsayılan olarak ana sayfaya yönlendir
-                        window.location.href = "/";
+                        window.location.href = `${baseUrl}/`;
                     }
                 } else {
                     alert(result?.message || "E-posta veya şifre hatalı.");
@@ -106,7 +108,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         localStorage.setItem("user", JSON.stringify(result.user));
                     }
                     alert("Kayıt başarılı! Şimdi giriş yapabilirsin.");
-                    window.location.href = "login.html";
+                    const baseUrl = window.getBaseUrl();
+                    window.location.href = `${baseUrl}${window.cleanPath('/pages/common/login.html')}`;
                 } else {
                     alert(result?.message || "Bu e-posta zaten kayıtlı.");
                 }

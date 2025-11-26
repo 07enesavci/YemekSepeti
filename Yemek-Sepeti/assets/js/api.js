@@ -13,6 +13,36 @@
 // Gecikme süresi (milisaniye). 500ms = 0.5 saniye
 const NETWORK_DELAY = 500;
 
+// ============================================
+// GLOBAL UTILITY FONKSİYONLARI
+// ============================================
+
+// Path'ten gereksiz segmentleri temizle (örn: /Yemek-Sepeti/)
+window.cleanPath = function(path) {
+    if (!path) return path;
+    // /Yemek-Sepeti/ veya /YemekSepeti/ gibi segmentleri kaldır
+    return path.replace(/^\/Yemek-Sepeti\//, '/').replace(/^\/YemekSepeti\//, '/');
+};
+
+// Yönlendirme için base URL belirleme
+window.getBaseUrl = function() {
+    const port = window.location.port;
+    // Eğer Live Server veya başka bir dev server kullanılıyorsa Express sunucusuna yönlendir
+    if (port === '5500' || port === '8080' || port === '5173' || port === '3001') {
+        return 'http://localhost:3000';  // Express sunucusu
+    }
+    // Aynı portta çalışıyorsa (production) relative path kullan
+    return '';
+};
+
+// API Base URL - Backend sunucusunun adresi
+// Eğer frontend ve backend farklı portlarda çalışıyorsa, backend'in portunu buraya yazın
+// Live Server (5500) veya başka bir dev server kullanılıyorsa backend portunu belirtin
+const getApiBaseUrl = () => {
+    return window.getBaseUrl();
+};
+const API_BASE_URL = getApiBaseUrl();
+
 /* ==================================== */
 /* SAHTE VERİTABANI (Mock Database)     */
 /* ==================================== */
@@ -123,7 +153,7 @@ function mockError(message, delay = NETWORK_DELAY) {
  */
 async function loginUser(email, password) {
     try {
-        const response = await fetch('/api/auth/login', {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -160,7 +190,7 @@ function searchSellers(filters = {}) {
  */
 async function registerUser(userData) {
     try {
-        const response = await fetch('/api/auth/register', {
+        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -188,7 +218,7 @@ async function registerUser(userData) {
  */
 async function forgotPassword(email) {
     try {
-        const response = await fetch('/api/auth/forgot-password', {
+        const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

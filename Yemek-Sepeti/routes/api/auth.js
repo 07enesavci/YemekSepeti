@@ -39,10 +39,23 @@ router.post("/login", async (req, res) => {
 
     try {
         // Kullanıcıyı veritabanından bul
-        const users = await db.query("SELECT id, email, password, fullname, role FROM users WHERE email = ?", [email]);
+        let users;
+        try {
+            users = await db.query("SELECT id, email, password, fullname, role FROM users WHERE email = ?", [email]);
+        } catch (dbError) {
+            console.error("❌ Veritabanı sorgu hatası:", dbError);
+            // SQL hatası (tablo yok, sütun yok, vb.)
+            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
+                return res.status(500).json({ 
+                    success: false, 
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                });
+            }
+            throw dbError; // Diğer hataları yukarı fırlat
+        }
 
         if (!users || users.length === 0) {
-            console.log("❌ Kullanıcı bulunamadı veya şifre hatalı");
+            console.log("❌ Kullanıcı bulunamadı:", email);
             return res.status(401).json({ 
                 success: false, 
                 message: "E-posta veya şifre yanlış." 
@@ -72,7 +85,7 @@ router.post("/login", async (req, res) => {
         const isMatch = await comparePassword(password, user.password);
         
         if (!isMatch) {
-            console.log("❌ Şifre hatalı");
+            console.log("❌ Şifre hatalı:", email);
             return res.status(401).json({ 
                 success: false, 
                 message: "E-posta veya şifre yanlış." 
@@ -97,10 +110,15 @@ router.post("/login", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Login hatası:", error);
+        console.error("❌ Login hatası - Detay:", {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         res.status(500).json({ 
             success: false, 
-            message: "Sunucu hatası. Giriş yapılamadı." 
+            message: "Sunucu hatası. Giriş yapılamadı.",
+            ...(process.env.NODE_ENV === 'development' && { error: error.message })
         });
     }
 });
@@ -115,8 +133,28 @@ router.post("/register", async (req, res) => {
     console.log("📝 Register isteği alındı:", { fullname, email, role });
 
     try {
+        // Validasyon
+        if (!fullname || !email || !password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Tüm alanlar gereklidir." 
+            });
+        }
+
         // E-posta kontrolü
-        const existingUsers = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+        let existingUsers;
+        try {
+            existingUsers = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+        } catch (dbError) {
+            console.error("❌ Veritabanı sorgu hatası:", dbError);
+            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
+                return res.status(500).json({ 
+                    success: false, 
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                });
+            }
+            throw dbError;
+        }
         
         if (existingUsers && existingUsers.length > 0) {
             return res.status(400).json({ 
@@ -129,10 +167,22 @@ router.post("/register", async (req, res) => {
         const hashedPassword = await hashPassword(password);
 
         // Kullanıcıyı kaydet
-        const result = await db.execute(
-            "INSERT INTO users (email, password, fullname, role) VALUES (?, ?, ?, ?)",
-            [email, hashedPassword, fullname, role]
-        );
+        let result;
+        try {
+            result = await db.execute(
+                "INSERT INTO users (email, password, fullname, role) VALUES (?, ?, ?, ?)",
+                [email, hashedPassword, fullname, role]
+            );
+        } catch (dbError) {
+            console.error("❌ Kullanıcı kaydetme hatası:", dbError);
+            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
+                return res.status(500).json({ 
+                    success: false, 
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                });
+            }
+            throw dbError;
+        }
 
         const userId = result.insertId;
 
@@ -154,10 +204,15 @@ router.post("/register", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Register hatası:", error);
+        console.error("❌ Register hatası - Detay:", {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         res.status(500).json({ 
             success: false, 
-            message: "Sunucu hatası. Kayıt yapılamadı." 
+            message: "Sunucu hatası. Kayıt yapılamadı.",
+            ...(process.env.NODE_ENV === 'development' && { error: error.message })
         });
     }
 });
@@ -173,7 +228,19 @@ router.post("/forgot-password", async (req, res) => {
 
     try {
         // Kullanıcıyı bul
-        const users = await db.query("SELECT id, email FROM users WHERE email = ?", [email]);
+        let users;
+        try {
+            users = await db.query("SELECT id, email FROM users WHERE email = ?", [email]);
+        } catch (dbError) {
+            console.error("❌ Veritabanı sorgu hatası:", dbError);
+            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
+                return res.status(500).json({ 
+                    success: false, 
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                });
+            }
+            throw dbError;
+        }
 
         if (!users || users.length === 0) {
             // Güvenlik için: Kullanıcı yoksa da aynı mesajı döndür
@@ -194,10 +261,15 @@ router.post("/forgot-password", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Forgot password hatası:", error);
+        console.error("❌ Forgot password hatası - Detay:", {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         res.status(500).json({ 
             success: false, 
-            message: "Sunucu hatası. İşlem yapılamadı." 
+            message: "Sunucu hatası. İşlem yapılamadı.",
+            ...(process.env.NODE_ENV === 'development' && { error: error.message })
         });
     }
 });
