@@ -97,7 +97,7 @@ CREATE TABLE addresses (
 CREATE TABLE cart_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
-    meal_id INT NOT NULL,
+    meal_id INT,
     quantity INT NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -146,7 +146,7 @@ CREATE TABLE orders (
 CREATE TABLE order_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
-    meal_id INT NOT NULL,
+    meal_id INT ,
     meal_name VARCHAR(255) NOT NULL, -- Yemek silinse bile siparişte görünsün
     meal_price DECIMAL(10,2) NOT NULL, -- O anki fiyat
     quantity INT NOT NULL DEFAULT 1,
@@ -321,8 +321,6 @@ INSERT INTO users (email, password, fullname, role) VALUES
 
 -- Satıcılar
 INSERT INTO sellers (user_id, shop_name, location, rating, total_reviews, delivery_fee) VALUES
-(4, 'Ayşe''nin Mutfağı', 'Kadıköy', 4.9, 150, 15.00),
-(4, 'Ali''nin Kebapları', 'Beşiktaş', 4.7, 89, 20.00),
 (4, 'Vegan Lezzetler', 'Moda', 4.8, 45, 12.00);
 
 -- Yemekler
@@ -330,8 +328,8 @@ INSERT INTO meals (seller_id, category, name, description, price) VALUES
 (1, 'Ana Yemekler', 'Ev Mantısı (Porsiyon)', 'Kayseri usulü, yoğurt ve sos ile.', 110.00),
 (1, 'Ana Yemekler', 'Kuru Fasulye', 'Geleneksel usulde, yanında pilav ile.', 85.00),
 (1, 'Tatlılar', 'Fırın Sütlaç', 'Ev yapımı, bol fındıklı.', 60.00),
-(2, 'Kebaplar', 'Adana Kebap', 'Acılı, porsiyon.', 130.00),
-(2, 'Pide', 'Kıymalı Pide', 'Bol malzemeli.', 90.00);
+(1, 'Kebaplar', 'Adana Kebap', 'Acılı, porsiyon.', 130.00),
+(1, 'Pide', 'Kıymalı Pide', 'Bol malzemeli.', 90.00);
 
 -- ============================================
 -- YARDIMCI VIEW'LER (Görünümler)
