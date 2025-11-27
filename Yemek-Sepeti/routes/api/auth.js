@@ -126,18 +126,19 @@ router.post("/login", async (req, res) => {
 // ============================================
 // REGISTER ENDPOINT
 // ============================================
-
 router.post("/register", async (req, res) => {
-    const { fullname, email, password, role = "buyer" } = req.body;
+    // artık hem `name` hem de `fullname` alanlarını kabul ediyoruz
+    const { name, fullname, email, password, role = "buyer" } = req.body;
+    const displayName = (name || fullname || '').trim();
 
-    console.log("📝 Register isteği alındı:", { fullname, email, role });
+    console.log("📝 Register isteği alındı:", { name: displayName, email, role });
 
     try {
         // Validasyon
-        if (!fullname || !email || !password) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Tüm alanlar gereklidir." 
+        if (!displayName || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Tüm alanlar gereklidir."
             });
         }
 
@@ -148,18 +149,18 @@ router.post("/register", async (req, res) => {
         } catch (dbError) {
             console.error("❌ Veritabanı sorgu hatası:", dbError);
             if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
-                return res.status(500).json({ 
-                    success: false, 
-                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                return res.status(500).json({
+                    success: false,
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin."
                 });
             }
             throw dbError;
         }
-        
+
         if (existingUsers && existingUsers.length > 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Bu e-posta adresi zaten kayıtlı." 
+            return res.status(400).json({
+                success: false,
+                message: "Bu e-posta adresi zaten kayıtlı."
             });
         }
 
@@ -171,14 +172,14 @@ router.post("/register", async (req, res) => {
         try {
             result = await db.execute(
                 "INSERT INTO users (email, password, fullname, role) VALUES (?, ?, ?, ?)",
-                [email, hashedPassword, fullname, role]
+                [email, hashedPassword, displayName, role]
             );
         } catch (dbError) {
             console.error("❌ Kullanıcı kaydetme hatası:", dbError);
             if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
-                return res.status(500).json({ 
-                    success: false, 
-                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                return res.status(500).json({
+                    success: false,
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin."
                 });
             }
             throw dbError;
@@ -190,7 +191,7 @@ router.post("/register", async (req, res) => {
         const user = {
             id: userId,
             email: email,
-            fullname: fullname,
+            fullname: displayName,
             role: role
         };
         const token = generateToken(user);
@@ -209,8 +210,8 @@ router.post("/register", async (req, res) => {
             code: error.code,
             stack: error.stack
         });
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: "Sunucu hatası. Kayıt yapılamadı.",
             ...(process.env.NODE_ENV === 'development' && { error: error.message })
         });
@@ -220,7 +221,6 @@ router.post("/register", async (req, res) => {
 // ============================================
 // FORGOT PASSWORD ENDPOINT
 // ============================================
-
 router.post("/forgot-password", async (req, res) => {
     const { email } = req.body;
 
@@ -230,31 +230,62 @@ router.post("/forgot-password", async (req, res) => {
         // Kullanıcıyı bul
         let users;
         try {
-            users = await db.query("SELECT id, email FROM users WHERE email = ?", [email]);
+            users = await db.query("SELECT id, email, fullname, role FROM users WHERE email = ?", [email]);
         } catch (dbError) {
             console.error("❌ Veritabanı sorgu hatası:", dbError);
             if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
-                return res.status(500).json({ 
-                    success: false, 
-                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+                return res.status(500).json({
+                    success: false,
+                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin."
                 });
             }
             throw dbError;
         }
 
+        // Güvenlik: kullanıcı yoksa da aynı genel mesajı döndür; token/link üretme veya e-posta gönderme yapılmaz
         if (!users || users.length === 0) {
-            // Güvenlik için: Kullanıcı yoksa da aynı mesajı döndür
             return res.json({
                 success: true,
                 message: "Eğer bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi."
             });
         }
 
-        // TODO: E-posta gönderme işlemi burada yapılacak
-        // Şimdilik sadece başarı mesajı döndürüyoruz
+        const user = users[0];
 
-        console.log("✅ Şifre sıfırlama e-postası gönderildi (simüle):", { email });
+        // İzin verilen roller (yalnızca bu roller için reset e-postası gönder)
+        const allowedRoles = ['buyer', 'seller', 'courier', 'admin'];
 
+        if (!user.role || !allowedRoles.includes(user.role)) {
+            // Kullanıcı sistemde bulunuyor olabilir ama rolü uygun değilse de e-posta gönderilmez.
+            console.log(`ℹ️ Kullanıcı bulundu fakat rolü e-posta gönderimi için uygun değil: ${user.email} (role: ${user.role})`);
+            return res.json({
+                success: true,
+                message: "Eğer bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi."
+            });
+        }
+
+        // Kısa ömürlü sıfırlama token'ı oluştur (örn. 1 saat)
+        const resetToken = jwt.sign(
+            { id: user.id, email: user.email },
+            process.env.JWT_SECRET || "yemek-sepeti-super-secret-key-2025",
+            { expiresIn: "1h" }
+        );
+
+        // Reset linki oluştur
+        const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
+
+        // Sunucu tarafında logla (geliştirme/izleme amaçlı)
+        console.log("✅ Şifre sıfırlama linki (sunucu logu):", resetLink);
+
+        // E-posta gönderimi yalnızca kayıtlı ve izin verilen roller için yapılır
+        try {
+            await sendResetEmail(user.email, resetLink);
+        } catch (mailErr) {
+            // E-posta gönderim hatası üretici logla; yine kullanıcıya genel mesaj dön
+            console.error("❌ Reset e-postası gönderilemedi:", mailErr);
+        }
+
+        // Her durumda aynı genel mesaj dönülür; link/token asla response'a eklenmez
         res.json({
             success: true,
             message: "Eğer bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi."
@@ -266,12 +297,25 @@ router.post("/forgot-password", async (req, res) => {
             code: error.code,
             stack: error.stack
         });
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: "Sunucu hatası. İşlem yapılamadı.",
             ...(process.env.NODE_ENV === 'development' && { error: error.message })
         });
     }
 });
+
+// Yardımcı: reset e-postası gönderme (gerçek gönderim için TODO)
+async function sendResetEmail(toEmail, resetLink) {
+	// Eğer gerçek e-posta gönderimi istenmiyorsa ENV ile engelle
+	if (process.env.SEND_EMAILS !== 'true') {
+		console.log(`(Simülasyon) Reset e-postası gönderimi kapalı. To: ${toEmail}, Link: ${resetLink}`);
+		return;
+	}
+
+	// TODO: Buraya nodemailer veya başka bir e-posta servisi ile gerçek gönderim ekle
+	// Örnek: await transporter.sendMail({ to: toEmail, subject: 'Şifre sıfırlama', html: `<a href="${resetLink}">Sıfırla</a>` });
+	console.log(`(TODO) Gerçek e-posta gönderimi yapılacak. To: ${toEmail}`);
+}
 
 module.exports = router;
