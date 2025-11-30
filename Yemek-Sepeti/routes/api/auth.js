@@ -8,13 +8,46 @@ const db = require("../../config/database");
 // YARDIMCI FONKSİYONLAR
 // ============================================
 
-// JWT Token oluştur
+// Yardımcı: SECRET'in mevcut olmasını sağlar. Production'da zorunlu, diğer ortamlarda geçici secret üretir.
+let _devTempSecret = null;
+function ensureSecret() {
+	// Eğer zaten tanımlıysa direkt döndür
+	if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+
+	// PROD kontrolü: yalnızca kesinlikle "production" ise hata fırlat
+	// Böylece NODE_ENV undefined veya "development" gibi değerlerde fallback çalışır
+	if (process.env.NODE_ENV === 'production') {
+		const msg = 'JWT_SECRET tanımlı değil. Lütfen process.env.JWT_SECRET ayarlayın.';
+		console.error('❌', msg);
+		throw new Error(msg);
+	}
+
+	// Production dışında (development veya test veya undefined) geçici secret üret ve process.env'e koy
+	if (!_devTempSecret) {
+		const crypto = require('crypto');
+		_devTempSecret = crypto.randomBytes(32).toString('hex');
+		console.warn('⚠️ Development/runtime için geçici JWT_SECRET üretildi. Prod ortamında JWT_SECRET tanımlayın.');
+	}
+	process.env.JWT_SECRET = _devTempSecret;
+	return _devTempSecret;
+}
+
+// JWT Token oluştur (SECRET zorunlu, development için geçici fallback)
 function generateToken(user) {
-    return jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET || "yemek-sepeti-super-secret-key-2025",
-        { expiresIn: "7d" }
-    );
+    const secret = ensureSecret(); // artık kesin secret dönecek veya hata fırlatılacak
+
+    const payload = {
+        id: user.id,
+        email: user.email,
+        role: user.role
+    };
+
+    try {
+        return jwt.sign(payload, secret, { expiresIn: "7d", algorithm: "HS256" });
+    } catch (err) {
+        console.error('❌ Token oluşturulurken hata:', err);
+        throw err;
+    }
 }
 
 // Şifre hashle
@@ -29,70 +62,59 @@ async function comparePassword(password, hashedPassword) {
 }
 
 // ============================================
-// LOGIN ENDPOINT
+// LOGIN ENDPOINT (GÜNCELLENDİ)
 // ============================================
-
 router.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
-    console.log("🔐 Login isteği alındı:", { email, password: "***" });
+    console.log("🔐 Login isteği alındı:", { email, password: password ? '***' : null });
 
     try {
+        // Zorunlu alan kontrolü
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Geçersiz kimlik bilgileri."
+            });
+        }
+
         // Kullanıcıyı veritabanından bul
         let users;
         try {
             users = await db.query("SELECT id, email, password, fullname, role FROM users WHERE email = ?", [email]);
         } catch (dbError) {
             console.error("❌ Veritabanı sorgu hatası:", dbError);
-            // SQL hatası (tablo yok, sütun yok, vb.)
             if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
                 return res.status(500).json({ 
                     success: false, 
                     message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
                 });
             }
-            throw dbError; // Diğer hataları yukarı fırlat
+            throw dbError;
         }
 
+        // Kullanıcı yoksa genel hata (gizlilik için)
         if (!users || users.length === 0) {
             console.log("❌ Kullanıcı bulunamadı:", email);
-            return res.status(401).json({ 
-                success: false, 
-                message: "E-posta veya şifre yanlış." 
+            return res.status(400).json({
+                success: false,
+                message: "Geçersiz kimlik bilgileri."
             });
         }
 
         const user = users[0];
 
-        // Admin kontrolü (özel durum)
-        if ((email === "admin@gmail.com" || email === "admin@mail.com") && password === "admin") {
-            const token = generateToken(user);
-            const userData = {
-                id: user.id,
-                email: user.email,
-                fullname: user.fullname || "Admin",
-                role: "admin"
-            };
-            console.log("✅ Admin girişi başarılı");
-            return res.json({
-                success: true,
-                user: userData,
-                token: token
-            });
-        }
-
         // Şifre kontrolü
         const isMatch = await comparePassword(password, user.password);
-        
         if (!isMatch) {
             console.log("❌ Şifre hatalı:", email);
-            return res.status(401).json({ 
-                success: false, 
-                message: "E-posta veya şifre yanlış." 
+            return res.status(400).json({
+                success: false,
+                message: "Geçersiz kimlik bilgileri."
             });
         }
 
-        // Token oluştur
+        // Başarılı giriş -> token oluştur ve döndür
         const token = generateToken(user);
         const userData = {
             id: user.id,
@@ -115,8 +137,8 @@ router.post("/login", async (req, res) => {
             code: error.code,
             stack: error.stack
         });
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: "Sunucu hatası. Giriş yapılamadı.",
             ...(process.env.NODE_ENV === 'development' && { error: error.message })
         });
@@ -252,11 +274,10 @@ router.post("/forgot-password", async (req, res) => {
 
         const user = users[0];
 
-        // İzin verilen roller (yalnızca bu roller için reset e-postası gönder)
+        // İzin verilen roller (yalnızca bu roller için reset e-posta'sı gönder)
         const allowedRoles = ['buyer', 'seller', 'courier', 'admin'];
 
         if (!user.role || !allowedRoles.includes(user.role)) {
-            // Kullanıcı sistemde bulunuyor olabilir ama rolü uygun değilse de e-posta gönderilmez.
             console.log(`ℹ️ Kullanıcı bulundu fakat rolü e-posta gönderimi için uygun değil: ${user.email} (role: ${user.role})`);
             return res.json({
                 success: true,
@@ -264,12 +285,33 @@ router.post("/forgot-password", async (req, res) => {
             });
         }
 
+        // SECRET zorunlu kontrolü
+        let secret;
+        try {
+            secret = ensureSecret();
+        } catch (e) {
+            // Secret yoksa already logged inside ensureSecret; yine kullanıcıya genel mesaj dönüyoruz
+            return res.json({
+                success: true,
+                message: "Eğer bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi."
+            });
+        }
+
         // Kısa ömürlü sıfırlama token'ı oluştur (örn. 1 saat)
-        const resetToken = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET || "yemek-sepeti-super-secret-key-2025",
-            { expiresIn: "1h" }
-        );
+        let resetToken;
+        try {
+            resetToken = jwt.sign(
+                { id: user.id, email: user.email },
+                secret,
+                { expiresIn: "1h", algorithm: "HS256" }
+            );
+        } catch (err) {
+            console.error("❌ Reset token oluşturulurken hata:", err);
+            return res.json({
+                success: true,
+                message: "Eğer bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi."
+            });
+        }
 
         // Reset linki oluştur
         const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
@@ -281,7 +323,6 @@ router.post("/forgot-password", async (req, res) => {
         try {
             await sendResetEmail(user.email, resetLink);
         } catch (mailErr) {
-            // E-posta gönderim hatası üretici logla; yine kullanıcıya genel mesaj dön
             console.error("❌ Reset e-postası gönderilemedi:", mailErr);
         }
 

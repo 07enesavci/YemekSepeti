@@ -8,10 +8,9 @@ require('dotenv').config();
  * - req.query.token (varsa)
  */
 function getTokenFromRequest(req) {
-	// Öncelikle x-auth-token başlığını kontrol et
-	if (req.headers && (req.headers['x-auth-token'] || req.headers['X-Auth-Token'])) {
-		return req.headers['x-auth-token'] || req.headers['X-Auth-Token'];
-	}
+	// Express'in req.get ile daha güvenli başlık okuma (case-insensitive)
+	const xAuth = req.get && (req.get('x-auth-token') || req.get('X-Auth-Token'));
+	if (xAuth) return xAuth;
 
 	// Header kontrolü (diğer Authorization formları)
 	const authHeader = req.headers && (req.headers['authorization'] || req.headers['Authorization']);
