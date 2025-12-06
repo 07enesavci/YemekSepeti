@@ -1,0 +1,65 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/courier-available.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Alınabilir Siparişler (İş Havuzu)</h1>
+        <p class="panel-subtitle">Yakınındaki teslimat bekleyen siparişler.</p>
+        
+        <div class="available-orders-list">
+            
+            <div class="card available-order-card">
+                <div class="order-route">
+                    <div class="route-point">
+                        <strong>Alış:</strong> Ayşe'nin Mutfağı (Kadıköy)
+                    </div>
+                    <div class="route-point">
+                        <strong>Teslim:</strong> E*** S. (Çerkezköy)
+                    </div>
+                </div>
+                <div class="order-payout">
+                    <span>Tahmini Kazanç</span>
+                    <strong>45.00 TL</strong>
+                    <button class="btn btn-primary btn-full">Görevi Kabul Et</button>
+                </div>
+            </div>
+
+            <div class="card available-order-card">
+                <div class="order-route">
+                    <div class="route-point">
+                        <strong>Alış:</strong> Ali'nin Kebapları (Beşiktaş)
+                    </div>
+                    <div class="route-point">
+                        <strong>Teslim:</strong> A*** K. (Şişli)
+                    </div>
+                </div>
+                <div class="order-payout">
+                    <span>Tahmini Kazanç</span>
+                    <strong>25.00 TL</strong>
+                    <button class="btn btn-primary btn-full">Görevi Kabul Et</button>
+                </div>
+            </div>
+            
+            <div class="card available-order-card">
+                <div class="order-route">
+                    <div class="route-point">
+                        <strong>Alış:</strong> Vegan Lezzetler (Moda)
+                    </div>
+                    <div class="route-point">
+                        <strong>Teslim:</strong> M*** Y. (Göztepe)
+                    </div>
+                </div>
+                <div class="order-payout">
+                    <span>Tahmini Kazanç</span>
+                    <strong>30.00 TL</strong>
+                    <button class="btn btn-primary btn-full">Görevi Kabul Et</button>
+                </div>
+            </div>
+
+        </div> 
+    </main> 
+</div>

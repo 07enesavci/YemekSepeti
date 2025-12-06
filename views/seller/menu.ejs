@@ -1,0 +1,78 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/seller-menu.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <div class="panel-header">
+            <h1 class="panel-title">Menü Yönetimi</h1>
+            <button id="add-new-meal-btn" class="btn btn-primary">Yeni Yemek Ekle</button>
+        </div>
+
+        <div class="card">
+            <div class="card-content">
+                <div class="menu-list">
+                    
+                    <div class="menu-list-item">
+                        <img src="" alt="Yemek Resmi" class="menu-item-image">
+                        <div class="menu-item-info">
+                            <strong>Ev Mantısı (Porsiyon)</strong>
+                            <span>Ana Yemekler</span>
+                        </div>
+                        <div class="menu-item-status">
+                            <span class="status-dot active">Satışta</span>
+                        </div>
+                        <div class="menu-item-price">
+                            110.00 TL
+                        </div>
+                        <div class="menu-item-actions">
+                            <button class="btn btn-secondary btn-sm">Düzenle</button>
+                            <button class="btn btn-danger btn-sm">Sil</button>
+                        </div>
+                    </div>
+                    
+                    <div class="menu-list-item">
+                        <img src="" alt="Yemek Resmi" class="menu-item-image">
+                        <div class="menu-item-info">
+                            <strong>Kuru Fasulye</strong>
+                            <span>Ana Yemekler</span>
+                        </div>
+                        <div class="menu-item-status">
+                            <span class="status-dot active">Satışta</span>
+                        </div>
+                        <div class="menu-item-price">
+                            85.00 TL
+                        </div>
+                        <div class="menu-item-actions">
+                            <button class="btn btn-secondary btn-sm">Düzenle</button>
+                            <button class="btn btn-danger btn-sm">Sil</button>
+                        </div>
+                    </div>
+                    
+                    <div class="menu-list-item">
+                        <img src="" alt="Yemek Resmi" class="menu-item-image">
+                        <div class="menu-item-info">
+                            <strong>Fırın Sütlaç</strong>
+                            <span>Tatlılar</span>
+                        </div>
+                        <div class="menu-item-status">
+                            <span class="status-dot inactive">Stokta Yok</span>
+                        </div>
+                        <div class="menu-item-price">
+                            60.00 TL
+                        </div>
+                        <div class="menu-item-actions">
+                            <button class="btn btn-secondary btn-sm">Düzenle</button>
+                            <button class="btn btn-danger btn-sm">Sil</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>

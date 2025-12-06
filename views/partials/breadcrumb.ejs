@@ -1,0 +1,44 @@
+<%
+    // Breadcrumb logic based on the page path (path değişkeni server.js'ten geliyor)
+    // Örn: /buyer/orders
+    const pathSegments = path.split('/').filter(segment => segment.length > 0);
+    const breadcrumbs = [];
+
+    // 1. Başlangıç: Ana Sayfa
+    breadcrumbs.push({ name: 'Ana Sayfa', url: '/' });
+
+    if (pathSegments.length > 0) {
+        let currentPath = '';
+        pathSegments.forEach((segment, index) => {
+            currentPath += '/' + segment;
+
+            let displayName = segment.charAt(0).toUpperCase() + segment.slice(1);
+            
+            // Eğer son segmentse, route'tan gelen sayfa başlığını kullan.
+            if (index === pathSegments.length - 1 && typeof title !== 'undefined') {
+                displayName = title;
+            } else if (segment === 'buyer' || segment === 'seller' || segment === 'courier' || segment === 'admin') {
+                displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1) + ' Paneli';
+            }
+
+            // ID gibi tek sayı segmentlerini gösterme
+            if (!displayName.match(/^\d+$/)) {
+                breadcrumbs.push({ name: displayName, url: currentPath });
+            }
+        });
+    }
+
+%>
+
+<% if (breadcrumbs.length > 1) { %>
+    <nav class="breadcrumb-nav" style="margin-bottom: 1rem; font-size: 0.9rem; color: #888;">
+        <% breadcrumbs.forEach((crumb, index) => { %>
+            <% if (index < breadcrumbs.length - 1) { %>
+                <a href="<%= crumb.url %>" style="color: #FF6B35; text-decoration: none;"><%= crumb.name %></a> 
+                <span style="margin: 0 5px;">/</span>
+            <% } else { %>
+                <span style="color: #333; font-weight: 500;"><%= crumb.name %></span>
+            <% } %>
+        <% }); %>
+    </nav>
+<% } %>

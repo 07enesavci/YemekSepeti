@@ -1,0 +1,90 @@
+<link rel="stylesheet" href="/assets/css/pages/profile.css">
+
+<div class="container section-padding">
+    <h1 class="section-title">Hesabım</h1>
+
+    <div class="profile-layout">
+        
+        <aside class="profile-sidebar">
+            <nav class="profile-nav">
+                <ul>
+                    <li><a href="/buyer/profile#profil-bilgileri">Profil Bilgileri</a></li>
+                    <li><a href="/buyer/profile#adreslerim">Adreslerim</a></li>
+                    <li><a href="/buyer/profile#cuzdan-kuponlar">Cüzdan & Kuponlar</a></li>
+                    <li><a href="/buyer/orders" class="active">Siparişlerim</a></li> 
+                    <li><a href="/buyer/profile#guvenlik">Güvenlik</a></li>
+                    <li><a href="#" id="logout-btn">Çıkış Yap</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="profile-content">
+            
+            <section id="active-orders">
+                <h3 class="checkout-card-title">Aktif Siparişler</h3>
+                
+                <div class="card order-card">
+                    <div class="order-header">
+                        <div>
+                            <span class="order-status preparing">Hazırlanıyor</span>
+                            <span class="order-date">12 Kasım 2025, 21:00</span>
+                        </div>
+                        <div class="order-total">
+                            <span>Toplam:</span> <strong>259.99 TL</strong>
+                        </div>
+                    </div>
+                    <div class="order-seller">
+                        <strong>Ayşe'nin Mutfağı</strong>
+                    </div>
+                    <div class="order-items">
+                        <p>1 x Ev Mantısı, 2 x Fırın Sütlaç</p>
+                    </div>
+                    <div class="order-footer">
+                        <a href="#" class="btn btn-secondary btn-sm">Siparişi İptal Et</a>
+                        <a href="#" class="btn btn-primary btn-sm">Sipariş Detayı</a>
+                    </div>
+                </div>
+            </section>
+
+
+            <section id="past-orders" style="margin-top: 2rem;">
+                <h3 class="checkout-card-title">Geçmiş Siparişler</h3>
+
+                <div class="card order-card">
+                    <div class="order-header">
+                        <div>
+                            <span class="order-status delivered">Teslim Edildi</span>
+                            <span class="order-date">10 Kasım 2025, 12:15</span>
+                        </div>
+                        <div class="order-total">
+                            <span>Toplam:</span> <strong>85.00 TL</strong>
+                        </div>
+                    </div>
+                    <div class="order-seller">
+                        <strong>Ali'nin Kebapları</strong>
+                    </div>
+                    <div class="order-footer">
+                        <a href="#" class="btn btn-primary btn-sm">Siparişi Tekrarla</a>
+                        <a href="#" class="btn btn-secondary btn-sm">Siparişi Değerlendir</a>
+                    </div>
+                </div>
+                
+                <div class="card order-card">
+                    <div class="order-header">
+                        <div>
+                            <span class="order-status cancelled">İptal Edildi</span>
+                            <span class="order-date">9 Kasım 2025, 17:30</span>
+                        </div>
+                        <div class="order-total">
+                            <span>Toplam:</span> <strong>60.00 TL</strong>
+                        </div>
+                    </div>
+                    <div class="order-seller">
+                        <strong>Vegan Lezzetler</strong>
+                    </div>
+                </div>
+            </section>
+            
+        </div>
+    </div> 
+</div>

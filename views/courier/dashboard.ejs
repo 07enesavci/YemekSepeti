@@ -1,0 +1,51 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/courier-dashboard.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Dashboard</h1>
+        <p class="panel-subtitle">Hoş geldin, Kurye! İşte anlık görev durumun.</p>
+
+        <div class="card">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Aktif Görev: #1052</h3>
+                
+                <div class="map-placeholder">
+                    <p>Harita Alanı</p>
+                    <span>(Kurye -> Satıcı -> Alıcı rotası)</span>
+                </div>
+
+                <div class="task-details">
+                    <div class="task-step active">
+                        <strong>1. Adım (Alış):</strong> Ayşe'nin Mutfağı (Kadıköy)
+                    </div>
+                    <div class="task-step">
+                        <strong>2. Adım (Teslim):</strong> E*** S. (Çerkezköy)
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-full" style="margin-top: 1rem;">
+                    Görevi Tamamladım
+                </button>
+            </div>
+        </div>
+
+        <div class="stat-grid" style="margin-top: 2rem;">
+            <div class="card stat-card">
+                <span class="stat-icon">💰</span>
+                <span class="stat-label">Bugünkü Kazanç</span>
+                <strong class="stat-value">120 TL</strong>
+            </div>
+            <div class="card stat-card">
+                <span class="stat-icon">✅</span>
+                <span class="stat-label">Bugünkü Teslimat</span>
+                <strong class="stat-value">5</strong>
+            </div>
+        </div>
+
+    </main>
+</div>
