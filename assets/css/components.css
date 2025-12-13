@@ -1,0 +1,701 @@
+/* ==================================== */
+/* MODERN 2025 COMPONENTS - SADE & DİKKAT ÇEKİCİ */
+/* ==================================== */
+
+/* 1. MODERN BUTTONS - Unique 3D Style
+-------------------------------------- */
+.btn {
+    display: inline-block;
+    padding: 0.875rem 2rem;
+    font-family: var(--font-family-heading);
+    font-size: 0.95rem;
+    font-weight: var(--font-weight-bold);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.2;
+    position: relative;
+    overflow: hidden;
+    border: none;
+    box-shadow: var(--shadow-md);
+    transform-style: preserve-3d;
+    perspective: 1000px;
+}
+
+.btn:hover {
+    animation: btn3DTilt 0.5s ease;
+}
+
+@keyframes btn3DTilt {
+    0%, 100% {
+        transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+    }
+    25% {
+        transform: perspective(1000px) rotateX(-5deg) rotateY(5deg);
+    }
+    75% {
+        transform: perspective(1000px) rotateX(5deg) rotateY(-5deg);
+    }
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
+    transition: width 0.6s, height 0.6s;
+}
+
+/* PRIMARY BUTON - Ripple Effect Style */
+.btn-primary {
+    background: var(--gradient-primary) !important;
+    color: #FFFFFF !important;
+    box-shadow: var(--shadow-primary);
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s, opacity 0.6s;
+}
+
+.btn-primary:hover::before {
+    width: 400px;
+    height: 400px;
+    opacity: 0;
+}
+
+.btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.btn-primary:hover::after {
+    opacity: 1;
+    animation: ripplePulse 1.5s ease-out infinite;
+}
+
+@keyframes ripplePulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+
+/* SECONDARY BUTON */
+.btn-secondary {
+    background-color: transparent !important;
+    color: var(--primary-color) !important;
+    border: 2px solid var(--primary-color) !important;
+    box-shadow: 0 4px 16px rgba(255, 107, 53, 0.2);
+    position: relative;
+    z-index: 1;
+}
+
+.btn-secondary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 100%;
+    background: var(--gradient-primary);
+    z-index: -1;
+    border-radius: var(--border-radius-small);
+}
+
+.btn-secondary:hover::before {
+    width: 100%;
+}
+
+.btn-secondary:hover {
+    color: #FFFFFF !important;
+    border-color: transparent !important;
+    box-shadow: 0 15px 40px rgba(255, 107, 53, 0.4);
+}
+
+/* Button Variants */
+.btn-full {
+    display: block;
+    width: 100%;
+}
+
+.btn-sm {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+}
+
+.btn-lg {
+    padding: 1.125rem 2.5rem;
+    font-size: 1.1rem;
+}
+
+/* Responsive Buttons */
+@media (max-width: 768px) {
+    .btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn-lg {
+        padding: 1rem 2rem;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .btn-sm {
+        padding: 0.4rem 1rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* 2. MODERN CARDS - 2025-2026 Premium Style
+-------------------------------------- */
+.featured-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2rem;
+    padding: 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .featured-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .featured-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .featured-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .featured-grid {
+        gap: 1rem;
+        padding: 0.5rem 0;
+    }
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 107, 53, 0.1);
+    backdrop-filter: var(--blur-md);
+    -webkit-backdrop-filter: var(--blur-md);
+    transform-style: preserve-3d;
+}
+
+.card:hover {
+    animation: cardFlip 0.6s ease;
+}
+
+@keyframes cardFlip {
+    0%, 100% {
+        transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+    }
+    25% {
+        transform: perspective(1000px) rotateY(-5deg) rotateX(2deg);
+    }
+    50% {
+        transform: perspective(1000px) rotateY(0deg) rotateX(-2deg);
+    }
+    75% {
+        transform: perspective(1000px) rotateY(5deg) rotateX(2deg);
+    }
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: var(--gradient-primary);
+    transform: scaleX(0);
+    transform-origin: left;
+    z-index: 1;
+}
+
+.card::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 107, 53, 0.15) 0%, transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.card:hover::before {
+    transform: scaleX(1);
+}
+
+.card:hover::after {
+    opacity: 1;
+}
+
+.card:hover {
+    box-shadow: var(--card-shadow-hover);
+    border-color: rgba(255, 107, 53, 0.3);
+}
+
+
+.card-image {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    filter: brightness(1) contrast(1);
+    transition: filter 0.4s;
+}
+
+.card:hover .card-image {
+    filter: brightness(1.1) contrast(1.1) saturate(1.2);
+    animation: imageZoom 0.6s ease;
+}
+
+@keyframes imageZoom {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+.card:hover .card-image {
+    /* Transform kaldırıldı */
+}
+
+.card-content {
+    padding: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.card-title {
+    font-family: var(--font-family-heading);
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--secondary-color);
+    position: relative;
+    display: inline-block;
+}
+
+.card:hover .card-title {
+    color: var(--primary-color);
+    animation: titleWave 0.6s ease;
+}
+
+@keyframes titleWave {
+    0%, 100% {
+        transform: translateX(0) rotate(0deg);
+    }
+    25% {
+        transform: translateX(-3px) rotate(-1deg);
+    }
+    75% {
+        transform: translateX(3px) rotate(1deg);
+    }
+}
+
+.card-text {
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    min-height: 45px;
+    color: var(--secondary-color-light);
+    line-height: 1.6;
+}
+
+/* 3. MODERN FORMS - Sade
+-------------------------------------- */
+.form-group {
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+@media (max-width: 480px) {
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--secondary-color);
+}
+
+@media (max-width: 480px) {
+    .form-label {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+}
+
+.form-group:focus-within .form-label {
+    color: var(--primary-color);
+}
+
+.form-input {
+    width: 100%;
+    padding: 1rem 1.25rem;
+    font-size: 1rem;
+    font-family: var(--font-family-body);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--card-bg);
+    outline: none;
+    position: relative;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.form-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15);
+    background-color: #FFFFFF;
+    animation: inputGlow 1.5s ease infinite;
+}
+
+@keyframes inputGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(255, 107, 53, 0.25), 0 0 20px rgba(255, 107, 53, 0.1);
+    }
+}
+
+@media (max-width: 768px) {
+    .form-input {
+        padding: 0.875rem 1rem;
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .form-input {
+        padding: 0.75rem 0.875rem;
+        font-size: 0.9rem;
+        border-radius: var(--border-radius-small);
+    }
+}
+
+.form-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15);
+    background-color: #FFFFFF;
+}
+
+.form-input::placeholder {
+    color: #999;
+}
+
+.form-input:focus::placeholder {
+    opacity: 0.5;
+}
+
+.form-group-inline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.form-check label,
+.form-link {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    margin: 0;
+    cursor: pointer;
+}
+
+.form-link:hover {
+    color: var(--primary-color);
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* 4. MODERN RADIO BUTTONS - Dikkat Çekici
+-------------------------------------- */
+.role-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.form-check-radio label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    background: var(--card-bg);
+    position: relative;
+    overflow: hidden;
+}
+
+.form-check-radio label::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.1), transparent);
+}
+
+.form-check-radio label:hover::before {
+    left: 100%;
+}
+
+.form-check-radio label .icon {
+    font-size: 1.75rem;
+}
+
+.form-check-radio label:hover .icon {
+    transform: scale(1.2) rotate(5deg);
+}
+
+.form-check-radio label strong {
+    color: var(--secondary-color);
+    flex-grow: 1;
+    font-weight: 600;
+}
+
+.form-check-radio label span {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+
+.form-check-radio input[type="radio"] {
+    display: none;
+}
+
+.form-check-radio input[type="radio"]:checked + label {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.15) 0%, rgba(255, 140, 90, 0.1) 100%);
+    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15);
+}
+
+
+.form-check-radio label:hover {
+    border-color: var(--primary-color-dark);
+    box-shadow: var(--shadow-md);
+}
+
+/* 5. ORDER SUMMARY & OTHER COMPONENTS
+-------------------------------------- */
+.order-summary {
+    flex-basis: 380px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 120px;
+}
+
+@media (max-width: 992px) {
+    .order-summary {
+        flex-basis: 350px;
+    }
+}
+
+@media (max-width: 768px) {
+    .order-summary {
+        flex-basis: 100%;
+        position: static;
+        margin-top: 2rem;
+    }
+}
+
+.order-summary .card-title {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.5rem 0;
+}
+
+.summary-row:hover {
+    color: var(--primary-color);
+}
+
+.summary-row span:last-child {
+    font-weight: 700;
+}
+
+.total-row {
+    margin-top: 1.5rem;
+    font-size: 1.25rem;
+    padding-top: 1rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.total-price {
+    font-family: var(--font-family-heading);
+    font-size: 2rem;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 900;
+}
+
+/* Coupon Form */
+.coupon-form {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.coupon-form .form-input {
+    flex-grow: 1;
+}
+
+.divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 2rem 0;
+}
+
+/* Meal Card Extras */
+.meal-card .card-text {
+    min-height: 45px;
+    margin-bottom: 1rem;
+}
+
+.meal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2px solid var(--border-color);
+    padding-top: 1.25rem;
+    margin-top: 1.25rem;
+}
+
+.meal-price {
+    font-family: var(--font-family-body);
+    font-size: 1.6rem;
+    font-weight: 900;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* 6. ANIMATION UTILITIES - Kaldırıldı
+-------------------------------------- */
+.animate-float,
+.animate-float3D,
+.animate-shimmer,
+.animate-particle,
+.animate-shake,
+.animate-rotate-scale,
+.animate-pulse-glow,
+.animate-wave,
+.animate-spin-glow {
+    /* Animasyonlar kaldırıldı */
+}
+
+/* 7. GLASSMORPHISM UTILITY
+-------------------------------------- */
+.glass {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* 8. HOVER EFFECTS - Dikkat Çekici
+-------------------------------------- */
+.hover-lift:hover {
+    /* Transform kaldırıldı */
+}
+
+.hover-glow {
+    /* Transition kaldırıldı */
+}
+
+.hover-glow:hover {
+    box-shadow: var(--shadow-glow);
+}

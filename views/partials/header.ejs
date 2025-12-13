@@ -1,0 +1,40 @@
+<header class="site-header">
+    <div class="header-content container">
+        <a href="/" class="logo">Ev Lezzetleri</a>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="nav-overlay" id="nav-overlay"></div>
+        <nav class="main-nav" id="main-nav">
+            <ul> 	
+                <li><a href="/" class="btn btn-secondary">Ana Sayfa</a></li>
+                <li><a href="/buyer/search" class="btn btn-secondary">Satıcı Bul</a></li>
+                
+                <% if (user) { %>
+                    <% if(user.role === 'buyer') { %>
+                        <li><a href="/buyer/profile" class="btn btn-secondary">Profilim</a></li>
+                    <% } else if(user.role === 'seller') { %>
+                        <li><a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="btn btn-primary">Satıcı Paneli</a></li>
+                    <% } else if(user.role === 'courier') { %>
+                        <% const courierId = user.courierId || user.id; %>
+                        <li><a href="/courier/<%= courierId %>/dashboard" class="btn btn-primary">Kurye Paneli</a></li>
+                    <% } else if(user.role === 'admin') { %>
+                        <li><a href="/admin/users" class="btn btn-primary">Admin Paneli</a></li>
+                    <% } %>
+                <% } else { %>
+                    <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>
+                    <li><a href="/register" class="btn btn-primary">Kayıt Ol</a></li>
+                <% } %>
+                
+                <li id="cart-button-li" style="position: relative; display: none;"> 
+                    <a href="/buyer/cart" class="btn btn-primary" id="cart-button">
+                        Sepet (<span id="cart-count">0</span>) 
+                    </a>
+                </li>
+
+            </ul>
+        </nav>
+    </div>
+</header>

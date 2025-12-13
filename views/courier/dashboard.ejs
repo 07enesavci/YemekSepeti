@@ -1,0 +1,33 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/courier-dashboard.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Dashboard</h1>
+        <p class="panel-subtitle">Hoş geldin, <%= user && user.fullname ? user.fullname : 'Kurye' %>! İşte anlık görev durumun.</p>
+
+        <div class="stat-grid" style="margin-bottom: 2rem;">
+            <div class="card stat-card">
+                <span class="stat-icon">💰</span>
+                <span class="stat-label">Bugünkü Kazanç</span>
+                <strong class="stat-value">0.00 TL</strong>
+            </div>
+            <div class="card stat-card">
+                <span class="stat-icon">✅</span>
+                <span class="stat-label">Bugünkü Teslimat</span>
+                <strong class="stat-value">0</strong>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-content">
+                <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+            </div>
+        </div>
+
+    </main>
+</div>

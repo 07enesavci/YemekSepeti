@@ -1,0 +1,151 @@
+/* ==================================== */
+/* ADMİN PANELİ (pages/admin.css)      */
+/* ==================================== */
+/* NOT: Ana panel yerleşimi 'seller-dashboard.css'den geliyor */
+
+/* 1. Yeni Kullanıcı Formu (Yan Yana)
+-------------------------------------- */
+.admin-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 2 sütunlu form */
+    gap: 1rem 1.5rem;
+    align-items: flex-end; /* Butonun hizalanması için */
+}
+.admin-form button {
+    grid-column: 2 / 3; /* Butonu sağ sütuna at */
+    justify-self: start; /* Butonun genişlemesini engelle */
+}
+
+/* 2. Kullanıcı Listesi
+-------------------------------------- */
+.admin-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-list-item {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.admin-list-item:first-child { padding-top: 0; }
+.admin-list-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+.user-info {
+    flex-grow: 1;
+}
+.user-info strong {
+    font-family: var(--font-family-heading);
+    font-size: 1.1rem;
+    display: block;
+}
+.user-info span {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+
+.user-status {
+    min-width: 120px;
+}
+.status-dot { /* seller-menu.css'den */
+    font-weight: 500;
+    font-size: 0.9rem;
+    position: relative;
+    padding-left: 15px;
+}
+.status-dot::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.status-dot.active { color: #4CAF50; }
+.status-dot.active::before { background-color: #4CAF50; }
+.status-dot.suspended { color: #E74C3C; }
+.status-dot.suspended::before { background-color: #E74C3C; }
+
+.user-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* 3. Kupon Sayfası Satıcı Listesi
+-------------------------------------- */
+.seller-checkbox-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr; /* 3 Sütunlu Checkbox listesi */
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    max-height: 400px;
+    overflow-y: auto;
+}
+/* .form-check stili components.css'den geliyor */
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 992px) {
+    .admin-form {
+        grid-template-columns: 1fr;
+    }
+    
+    .admin-form button {
+        grid-column: 1;
+        width: 100%;
+    }
+    
+    .seller-checkbox-list {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-list-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1.5rem 0;
+    }
+    
+    .user-info {
+        width: 100%;
+    }
+    
+    .user-status {
+        width: 100%;
+    }
+    
+    .user-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .user-actions .btn {
+        flex: 1;
+    }
+    
+    .seller-checkbox-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-list-item {
+        padding: 1rem 0;
+    }
+    
+    .user-actions {
+        flex-direction: column;
+    }
+    
+    .user-actions .btn {
+        width: 100%;
+    }
+}

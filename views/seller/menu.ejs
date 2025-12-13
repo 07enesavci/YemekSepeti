@@ -1,0 +1,27 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/seller-menu.css">
+<link rel="stylesheet" href="/assets/css/pages/modal.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <div class="panel-header">
+            <h1 class="panel-title">Menü Yönetimi</h1>
+            <button id="add-new-meal-btn" class="btn btn-primary">Yeni Yemek Ekle</button>
+        </div>
+
+        <div class="card">
+            <div class="card-content">
+                <div class="menu-list">
+                    <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="/assets/js/modules/meal-modal.js"></script>

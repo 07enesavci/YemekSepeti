@@ -1,0 +1,437 @@
+/* ==================================== */
+/* MODERN 2025 LAYOUT - SADE & DİKKAT ÇEKİCİ */
+/* ==================================== */
+
+/* 1. CONTAINER - Responsive
+-------------------------------------- */
+.container {
+    width: 90%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        width: 100%;
+        padding: 0 0.75rem;
+    }
+}
+
+.section-padding {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+}
+
+@media (max-width: 768px) {
+    .section-padding {
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-padding {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+}
+
+.section-title {
+    text-align: center;
+    margin-bottom: 3rem;
+    font-size: clamp(2rem, 4vw, 3rem);
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.section-title::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 4px;
+    background: var(--gradient-primary);
+    background-size: 200% 200%;
+    border-radius: var(--border-radius-full);
+}
+
+
+/* 2. DİKKAT ÇEKİCİ HEADER - Sade Ama Etkili
+-------------------------------------- */
+.site-header {
+    width: 100%;
+    background: linear-gradient(135deg, 
+        rgba(255, 107, 53, 0.95) 0%, 
+        rgba(255, 217, 61, 0.95) 100%);
+    backdrop-filter: var(--blur-xl) saturate(180%);
+    -webkit-backdrop-filter: var(--blur-xl) saturate(180%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 
+                0 0 60px rgba(255, 107, 53, 0.3);
+    padding: 1.25rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+    background-size: 200% 200%;
+}
+
+
+.site-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(255, 255, 255, 0.3) 50%, 
+        transparent 100%);
+    pointer-events: none;
+}
+
+
+.site-header:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), 
+                0 0 80px rgba(255, 107, 53, 0.4);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
+
+.logo {
+    font-family: var(--font-family-heading);
+    font-size: clamp(1.5rem, 3vw, 2.25rem);
+    font-weight: var(--font-weight-black);
+    background: linear-gradient(135deg, #FFFFFF 0%, #FFD93D 100%);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-decoration: none;
+    letter-spacing: -0.5px;
+    position: relative;
+    display: inline-block;
+    text-shadow: 0 2px 10px rgba(255, 255, 255, 0.5);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    transform-style: preserve-3d;
+    }
+
+.logo:hover {
+    filter: brightness(1.2) drop-shadow(0 4px 12px rgba(255, 107, 53, 0.6));
+    animation: logoSpin 0.8s ease;
+    }
+
+@keyframes logoSpin {
+    0%, 100% {
+        transform: perspective(1000px) rotateY(0deg) scale(1);
+    }
+    25% {
+        transform: perspective(1000px) rotateY(90deg) scale(1.1);
+    }
+    50% {
+        transform: perspective(1000px) rotateY(180deg) scale(1.05);
+    }
+    75% {
+        transform: perspective(1000px) rotateY(270deg) scale(1.1);
+    }
+}
+
+
+.logo::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 0;
+    height: 3px;
+    background: #FFFFFF;
+    border-radius: var(--border-radius-full);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.logo:hover {
+    filter: brightness(1.2) drop-shadow(0 4px 12px rgba(255, 107, 53, 0.6));
+}
+
+.logo:hover::after {
+    width: 100%;
+    transition: width 0.3s;
+}
+
+/* 3. MODERN NAVIGATION - Dikkat Çekici
+-------------------------------------- */
+.main-nav ul {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .main-nav ul {
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+    }
+}
+
+.main-nav a {
+    text-decoration: none;
+    color: #FFFFFF;
+    font-weight: var(--font-weight-semibold);
+    font-size: clamp(0.85rem, 2vw, 0.95rem);
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--border-radius-small);
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: var(--blur-md);
+    -webkit-backdrop-filter: var(--blur-md);
+}
+
+.main-nav a::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transition: left 0.5s;
+}
+
+.main-nav a:hover::before {
+    left: 100%;
+}
+
+.main-nav a:hover {
+    animation: navBounce 0.5s ease;
+}
+
+@keyframes navBounce {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        transform: translateY(-5px) scale(1.05);
+    }
+}
+
+/* Header içindeki butonlar için özel stiller - Arka plandan ayırt edilebilir */
+.site-header .btn-primary {
+    background: linear-gradient(135deg, #4D96FF 0%, #6BCB77 100%) !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 8px 24px rgba(77, 150, 255, 0.5) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.site-header .btn-primary:hover {
+    background: linear-gradient(135deg, #3D7EE8 0%, #5BB869 100%) !important;
+    box-shadow: 0 15px 40px rgba(77, 150, 255, 0.6) !important;
+    transform: translateY(-5px) scale(1.05) !important;
+}
+
+.site-header .btn-secondary {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #FF6B35 !important;
+    border: 2px solid rgba(255, 255, 255, 0.5) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.site-header .btn-secondary:hover {
+    background: #FFFFFF !important;
+    color: #FF6B35 !important;
+    border-color: #FFFFFF !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+    transform: translateY(-5px) scale(1.05) !important;
+}
+
+@media (max-width: 480px) {
+    .main-nav a {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+}
+
+.main-nav a::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    z-index: -1;
+}
+
+.main-nav a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 3px;
+    background: #FFFFFF;
+    border-radius: var(--border-radius-full);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+}
+
+.main-nav a:hover::before {
+    left: 100%;
+}
+
+.main-nav a:hover::after,
+.main-nav a.active::after {
+    width: 80%;
+}
+
+.main-nav a:hover,
+.main-nav a.active {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.4);
+}
+
+/* 4. MODERN FOOTER - Sade
+-------------------------------------- */
+.site-footer {
+    background: var(--footer-bg);
+    color: #FFFFFF;
+    padding: 4rem 0 2rem;
+    margin-top: 6rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.site-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 20% 50%, rgba(255, 107, 53, 0.2) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 217, 61, 0.2) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+
+.footer-content {
+    text-align: center;
+    font-size: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.footer-content p {
+    margin: 0.5rem 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 400;
+}
+
+/* Footer Responsive */
+@media (max-width: 768px) {
+    .site-footer {
+        padding: 3rem 0 1.5rem;
+        margin-top: 4rem;
+    }
+    
+    .footer-content {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .site-footer {
+        padding: 2rem 0 1rem;
+        margin-top: 3rem;
+    }
+    
+    .footer-content {
+        font-size: 0.85rem;
+    }
+    
+    .footer-content p {
+        margin: 0.4rem 0;
+    }
+}
+
+/* 5. RESPONSIVE DESIGN
+-------------------------------------- */
+@media (max-width: 1200px) {
+    .container {
+        max-width: 1140px;
+    }
+}
+
+@media (max-width: 992px) {
+    .container {
+        max-width: 960px;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        max-width: 720px;
+    }
+    
+    .section-title {
+        margin-bottom: 2rem;
+    }
+    
+    .section-title::after {
+        width: 60px;
+        height: 3px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        max-width: 100%;
+    }
+    
+    .section-title {
+        font-size: 1.75rem;
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* 6. LOADING ANIMATIONS
+-------------------------------------- */
+.loading {
+    opacity: 1;
+}
+
+.spinner {
+    /* Spinner animasyonu kaldırıldı */
+}

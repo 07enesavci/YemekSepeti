@@ -1,0 +1,177 @@
+<link rel="stylesheet" href="/assets/css/pages/order-confirmation.css">
+
+<div class="container section-padding">
+    <div class="order-confirmation-wrapper">
+        <div class="order-confirmation-card">
+            <div class="confirmation-header">
+                <div class="success-icon">✓</div>
+                <h1 class="confirmation-title">Siparişiniz Oluşturuldu!</h1>
+                <p class="confirmation-subtitle">Siparişiniz başarıyla alındı ve işleme alındı.</p>
+            </div>
+
+            <div class="confirmation-content">
+                <div class="info-section">
+                    <h2 class="section-title">Sipariş Bilgileri</h2>
+                    <div id="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                        <p>Sipariş bilgileri yükleniyor...</p>
+                    </div>
+                    <div id="order-info" style="display: none;">
+                    <div class="info-item">
+                        <div class="info-label">
+                            <span class="info-icon">📦</span>
+                            <span>Sipariş ID</span>
+                        </div>
+                        <div class="info-value" id="order-number">-</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">
+                            <span class="info-icon">🏪</span>
+                            <span>Restoran</span>
+                        </div>
+                        <div class="info-value" id="restaurant-name">-</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">
+                            <span class="info-icon">📍</span>
+                            <span>Teslimat Adresi</span>
+                        </div>
+                        <div class="info-value" id="delivery-address">-</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">
+                            <span class="info-icon">💰</span>
+                            <span>Toplam Tutar</span>
+                        </div>
+                        <div class="info-value total-amount" id="total-amount">-</div>
+                    </div>
+
+                    <div class="info-item">
+                        <div class="info-label">
+                            <span class="info-icon">📅</span>
+                            <span>Sipariş Tarihi</span>
+                        </div>
+                        <div class="info-value" id="order-date">-</div>
+                    </div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <a href="/buyer/orders" class="btn btn-primary">Siparişlerimi Görüntüle</a>
+                    <a href="/" class="btn btn-secondary">Ana Sayfaya Dön</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    // EJS'den gelen orderId'yi kullan
+    const orderId = <%= typeof orderId !== 'undefined' ? orderId : 'null' %>;
+    
+    if (!orderId) {
+        // OrderId yoksa siparişler sayfasına yönlendir
+        window.location.href = '/buyer/orders';
+        return;
+    }
+    
+    try {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const apiUrl = `${baseUrl}/api/orders/${orderId}`;
+        console.log('📦 Sipariş bilgileri yükleniyor:', apiUrl);
+        console.log('📦 Order ID:', orderId);
+        
+        const response = await fetch(apiUrl, {
+            credentials: 'include'
+        });
+        
+        console.log('📦 Response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                errorData = { message: await response.text() };
+            }
+            console.error('❌ API hatası:', response.status, errorData);
+            throw new Error(errorData.message || `Sipariş bilgileri yüklenemedi: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('📦 API yanıtı:', data);
+        
+        if (!data.success || !data.data) {
+            console.error('❌ Sipariş bulunamadı veya veri formatı hatalı:', data);
+            throw new Error(data.message || 'Sipariş bulunamadı');
+        }
+        
+        const order = data.data;
+        
+        // Loading mesajını gizle, order info'yu göster
+        const loadingEl = document.getElementById('loading-message');
+        const orderInfoEl = document.getElementById('order-info');
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (orderInfoEl) orderInfoEl.style.display = 'block';
+        
+        // Bilgileri doldur
+        const orderNumberEl = document.getElementById('order-number');
+        const restaurantEl = document.getElementById('restaurant-name');
+        const addressEl = document.getElementById('delivery-address');
+        const totalEl = document.getElementById('total-amount');
+        const dateEl = document.getElementById('order-date');
+        
+        if (orderNumberEl) {
+            orderNumberEl.textContent = order.orderNumber || `#${order.id}`;
+        }
+        
+        if (restaurantEl) {
+            restaurantEl.textContent = order.seller?.name || 'Restoran bilgisi yok';
+        }
+        
+        if (addressEl) {
+            const address = order.address;
+            if (address && address.full) {
+                addressEl.textContent = address.full;
+            } else if (address && address.addressLine) {
+                addressEl.textContent = `${address.addressLine}, ${address.district || ''}, ${address.city || ''}`;
+            } else {
+                addressEl.textContent = 'Adres bilgisi yok';
+            }
+        }
+        
+        if (totalEl) {
+            const formatTL = window.formatTL || ((amount) => {
+                return Number(amount || 0).toLocaleString('tr-TR', {
+                    style: 'currency',
+                    currency: 'TRY'
+                });
+            });
+            totalEl.textContent = formatTL(order.total);
+        }
+        
+        if (dateEl) {
+            dateEl.textContent = order.date || new Date().toLocaleString('tr-TR');
+        }
+        
+    } catch (error) {
+        console.error('Sipariş bilgileri yükleme hatası:', error);
+        const loadingEl = document.getElementById('loading-message');
+        if (loadingEl) {
+            loadingEl.innerHTML = `
+                <div style="color: #dc3545; padding: 1rem; background: #f8d7da; border-radius: 8px; margin-bottom: 1rem;">
+                    <strong>Hata:</strong> ${error.message || 'Sipariş bilgileri yüklenirken bir hata oluştu.'}
+                </div>
+                <p>Siparişler sayfasına yönlendiriliyorsunuz...</p>
+            `;
+        }
+        setTimeout(() => {
+            window.location.href = '/buyer/orders';
+        }, 3000);
+    }
+});
+</script>
+

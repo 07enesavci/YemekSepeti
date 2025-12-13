@@ -1,0 +1,290 @@
+/* ==================================== */
+/* MODERN 2025 ANA SAYFA - SADE & DİKKAT ÇEKİCİ */
+/* ==================================== */
+
+/* 1. HERO BÖLÜMÜ - Dikkat Çekici
+-------------------------------------- */
+.hero-section {
+    padding: 10rem 0;
+    text-align: center;
+    color: #FFFFFF;
+    position: relative;
+    overflow: hidden;
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    background: 
+        linear-gradient(135deg, 
+            rgba(255, 107, 53, 0.9) 0%, 
+            rgba(255, 217, 61, 0.85) 50%, 
+            rgba(255, 107, 53, 0.9) 100%),
+        linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.4)),
+        url(https://images.unsplash.com/photo-1546069901-ba9599a7e63c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1920&q=80);
+    
+    background-size: 200% 200%, cover, 50% auto;
+    background-position: center, center, center right;
+    background-attachment: fixed, fixed, fixed;
+    background-repeat: no-repeat, no-repeat, no-repeat;
+}
+
+
+@media (max-width: 768px) {
+    .hero-section {
+        padding: 6rem 0;
+        min-height: 70vh;
+        background-attachment: scroll;
+        background-size: 200% 200%, cover, 40% auto;
+        background-position: center, center, center right;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-section {
+        padding: 4rem 0;
+        min-height: 60vh;
+        background-size: 200% 200%, cover, 35% auto;
+        background-position: center, center, center right;
+    }
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 30% 50%, rgba(255, 107, 53, 0.4) 0%, transparent 60%),
+        radial-gradient(circle at 70% 80%, rgba(255, 217, 61, 0.4) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+
+.hero-section::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+
+.hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+.hero-content h1 {
+    font-size: clamp(3rem, 8vw, 5.5rem);
+    font-weight: 900;
+    color: #FFFFFF;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 8px 40px rgba(0, 0, 0, 0.2);
+    letter-spacing: -2px;
+    background: none;
+    -webkit-text-fill-color: #FFFFFF;
+    line-height: 1.1;
+}
+
+
+.hero-content p {
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
+    font-weight: 600;
+    color: #FFFFFF;
+    margin-bottom: 3rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    text-shadow: 0 2px 15px rgba(0, 0, 0, 0.3);
+    line-height: 1.6;
+}
+
+
+/* 2. MODERN HERO ARAMA ÇUBUĞU - Dikkat Çekici
+-------------------------------------- */
+.hero-search {
+    display: flex;
+    max-width: 700px;
+    margin: 0 auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border-radius: var(--border-radius-large);
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    position: relative;
+    width: 100%;
+}
+
+
+.hero-search::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.15), transparent);
+}
+
+
+.hero-search .form-input {
+    flex-grow: 1;
+    border: none;
+    border-radius: 0;
+    padding: 1.25rem 1.5rem;
+    font-size: 1.1rem;
+    background: transparent;
+}
+
+.hero-search .form-input:focus {
+    box-shadow: none;
+    transform: none;
+}
+
+.hero-search .btn-primary {
+    border-radius: 0;
+    font-size: 1.1rem;
+    padding: 1.25rem 2.5rem;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .hero-search {
+        max-width: 100%;
+        border-radius: var(--border-radius);
+        flex-direction: column;
+    }
+    
+    .hero-search .form-input {
+        border-radius: var(--border-radius) var(--border-radius) 0 0;
+    }
+    
+    .hero-search .btn-primary {
+        border-radius: 0 0 var(--border-radius) var(--border-radius);
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-search {
+        border-radius: var(--border-radius-small);
+    }
+}
+
+/* 3. MODERN RESTORAN KARTLARI - Dikkat Çekici
+-------------------------------------- */
+.restaurant-card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    border: 1px solid rgba(255, 107, 53, 0.1);
+    position: relative;
+}
+
+
+.restaurant-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: var(--gradient-primary);
+    transform: scaleX(0);
+    transform-origin: left;
+    z-index: 1;
+}
+
+.restaurant-card:hover::before {
+    transform: scaleX(1);
+}
+
+.restaurant-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    border-color: rgba(255, 107, 53, 0.3);
+}
+
+
+.restaurant-card .card-image-wrapper {
+    overflow: hidden;
+    position: relative;
+}
+
+.restaurant-card .card-image-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.1) 100%);
+    opacity: 0;
+}
+
+.restaurant-card:hover .card-image-wrapper::after {
+    opacity: 1;
+}
+
+.restaurant-card .card-image-wrapper img {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+}
+
+.restaurant-card:hover .card-image-wrapper img {
+    /* Transform kaldırıldı */
+}
+
+.restaurant-card .card-content {
+    background: white;
+    padding: 2rem;
+}
+
+.restaurant-card .card-title {
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.restaurant-card:hover .card-title {
+    color: var(--primary-color);
+}
+
+/* 4. FEATURED SECTION
+-------------------------------------- */
+.featured-section {
+    padding: 6rem 0;
+    position: relative;
+}
+
+@media (max-width: 768px) {
+    .featured-section {
+        padding: 4rem 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .featured-section {
+        padding: 3rem 0;
+    }
+}
+
+.featured-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 10% 20%, rgba(255, 107, 53, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 90% 80%, rgba(255, 217, 61, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+}
+
