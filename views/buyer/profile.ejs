@@ -1,0 +1,114 @@
+<link rel="stylesheet" href="/assets/css/pages/auth.css">
+<link rel="stylesheet" href="/assets/css/pages/checkout.css">
+
+<div class="container section-padding">
+    <h1 class="section-title">Hesabım</h1>
+
+    <div class="profile-layout">
+        
+        <aside class="profile-sidebar">
+            <nav class="profile-nav">
+                <ul>
+                    <li><a href="#profil-bilgileri" class="active">Profil Bilgileri</a></li>
+                    <li><a href="/buyer/addresses">Adreslerim</a></li>
+                    <li><a href="/buyer/wallet">Cüzdan & Kuponlar</a></li>
+                    <li><a href="/buyer/orders">Siparişlerim</a></li> 
+                    <li><a href="/buyer/security">Güvenlik</a></li>
+                    <li><a href="#" id="logout-btn">Çıkış Yap</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="profile-content">
+            
+            <section id="profil-bilgileri" class="profile-section active">
+                <div class="card">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">Profil Bilgileri</h3>
+                        <form id="profile-info-form">
+                            <div class="form-group">
+                                <label for="profile-name" class="form-label">Ad Soyad</label>
+                                <input type="text" id="profile-name" class="form-input" value="<%= user && user.fullname ? user.fullname : '' %>" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-phone" class="form-label">Telefon Numarası</label>
+                                <input type="tel" id="profile-phone" class="form-input" value="<%= user && user.phone ? user.phone : '' %>">
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-email" class="form-label">E-posta</label>
+                                <input type="email" id="profile-email" class="form-input" value="<%= user && user.email ? user.email : '' %>" disabled>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Bilgileri Güncelle</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="adreslerim" class="profile-section" style="display: none;">
+                <div class="card">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">Adreslerim</h3>
+                        <div class="role-selector">
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="address-1" name="address" checked>
+                                <label for="address-1">
+                                    <strong>Ev Adresi</strong>
+                                    <span>(Çerkezköy, Tekirdağ...)</span>
+                                    <a href="#" class="btn-edit">Düzenle</a>
+                                </label>
+                            </div>
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="address-new" name="address">
+                                <label for="address-new"><strong>Yeni Adres Ekle</strong></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="cuzdan-kuponlar" class="profile-section" style="display: none;">
+                <div class="card">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">Cüzdanım</h3>
+                        <div class="wallet-balance">
+                            <span>Bakiye</span>
+                            <strong class="total-price">0,00 TL</strong>
+                        </div>
+                        <button class="btn btn-primary">Para Yükle</button>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">Kuponlarım</h3>
+                        <div class="coupon-list">
+                            <div class="coupon-item">
+                                <span class="coupon-code">HOSGELDIN10</span>
+                                <p>10 TL Hoş geldin indirimi (30 TL ve üzeri)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="guvenlik" class="profile-section" style="display: none;">
+                <div class="card">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">Şifre Değiştir</h3>
+                        <form id="change-password-form">
+                            <div class="form-group">
+                                <label for="current-password" class="form-label">Mevcut Şifre</label>
+                                <input type="password" id="current-password" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="new-password" class="form-label">Yeni Şifre</label>
+                                <input type="password" id="new-password" class="form-input" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Şifreyi Değiştir</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+</div>

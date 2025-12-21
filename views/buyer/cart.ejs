@@ -1,0 +1,64 @@
+<div class="container section-padding">
+    <h1 class="section-title">Sepetim</h1>
+
+    <div id="cart-layout" class="cart-layout">
+        
+        <div class="cart-items-list">
+            </div>
+            
+        <aside class="order-summary">
+            <div class="card">
+                <div class="card-content">
+                    <h3 class="card-title">Sipariş Özeti</h3>
+                    
+                    <div class="summary-row">
+                        <span>Ara Toplam</span>
+                        <span id="summary-subtotal">0.00 TL</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Teslimat Ücreti</span>
+                        <span id="summary-delivery">29.99 TL</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="coupon" class="form-label">Kupon Kodu</label>
+                        <div class="coupon-form">
+                            <input type="text" id="coupon" class="form-input" placeholder="Kuponu girin...">
+                            <button class="btn btn-secondary">Uygula</button>
+                        </div>
+                    </div>
+                    
+                    <hr class="divider"> 
+                    
+                    <div class="summary-row total-row">
+                        <span>Toplam Tutar</span>
+                        <strong id="summary-total" class="total-price">29.99 TL</strong>
+                    </div>
+
+                    <a href="/buyer/checkout" class="btn btn-primary btn-full">
+                        Ödemeye Geç
+                    </a>
+                    
+                    <!-- Uygulanabilir Kupon Kodları -->
+                    <div id="available-coupons-section" style="margin-top: 1.5rem; display: none;">
+                        <hr class="divider">
+                        <h4 style="margin-bottom: 1rem; font-size: 1rem; color: #333;">Uygulanabilir Kupon Kodları</h4>
+                        <div id="available-coupons-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <!-- Kuponlar buraya dinamik olarak eklenecek -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+    </div> 
+
+    <div id="cart-empty" class="text-center" style="display: none;">
+        <div class="card" style="padding: 3rem;">
+            <h2>Sepetiniz Boş</h2>
+            <p>Görünüşe göre henüz bir şey eklememişsiniz.</p>
+            <a href="/" class="btn btn-primary">Hemen Satıcı Bul</a>
+        </div>
+    </div>
+
+</div>

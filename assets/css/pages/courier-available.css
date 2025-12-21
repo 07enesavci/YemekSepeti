@@ -1,0 +1,112 @@
+/* ==================================== */
+/* KURYE ALINABİLİR SİPARİŞLER (pages/courier-available.css) */
+/* ==================================== */
+/* NOT: Ana panel yerleşimi 'seller-dashboard.css'den geliyor */
+
+/* 1. Görev Listesi
+-------------------------------------- */
+.available-orders-list {
+    display: grid;
+    /* Responsive Grid: Minimum 320px'lik kartlar */
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+/* 2. Tekil Görev Kartı
+-------------------------------------- */
+.available-order-card {
+    /* .card stilini (gölge, bg) components.css'den alır */
+    padding: 0; /* İç padding'i sıfırlıyoruz */
+    display: flex;
+    flex-direction: column; /* Rota ve Kazanç alt alta */
+}
+
+/* Rota Bilgisi (Alış/Teslim) */
+.order-route {
+    padding: 1.5rem;
+    flex-grow: 1; /* Butonun altta kalması için burası esnesin */
+}
+
+.route-point {
+    font-size: 1.1rem;
+    position: relative;
+    padding-left: 25px;
+}
+.route-point:first-child {
+    margin-bottom: 1.5rem; /* İki nokta arası boşluk */
+}
+.route-point strong {
+    display: block;
+    color: var(--secondary-color-light);
+    font-size: 0.9rem;
+}
+
+/* Rota ikonları (Önce/Sonra) */
+.route-point::before {
+    content: '▼';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.2rem;
+    color: var(--primary-color);
+}
+.route-point:first-child::before {
+    content: '▲';
+    color: #4CAF50; /* Yeşil (Alış) */
+}
+
+/* Kazanç ve Buton Alanı */
+.order-payout {
+    background: var(--bg-color);
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+}
+.order-payout span {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+.order-payout strong {
+    font-family: var(--font-family-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: 1rem;
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 768px) {
+    .available-orders-list {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .order-route {
+        padding: 1rem;
+    }
+    
+    .order-payout {
+        padding: 1rem;
+    }
+    
+    .order-payout strong {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .available-order-card {
+        margin-bottom: 1rem;
+    }
+    
+    .route-point {
+        font-size: 1rem;
+    }
+    
+    .order-payout strong {
+        font-size: 1.25rem;
+    }
+}

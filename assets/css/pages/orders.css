@@ -1,0 +1,309 @@
+/* ==================================== */
+/* SİPARİŞLERİM SAYFASI (pages/orders.css) */
+/* ==================================== */
+/* NOT: .profile-layout, .profile-sidebar, .profile-content
+   gibi ana yerleşim stilleri 'profile.css' dosyasından gelmektedir.
+*/
+
+/* Sipariş Kartı Ana Yapısı */
+.order-card {
+    /* .card stilini (gölge, bg) components.css'den alır */
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.order-status {
+    font-family: var(--font-family-body);
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    color: #FFF;
+    margin-right: 0.75rem;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+/* Sipariş Durum Renkleri */
+.order-status.preparing { background-color: #FFA000; } /* Turuncu */
+.order-status.delivered { background-color: #4CAF50; } /* Yeşil */
+.order-status.cancelled { background-color: #E74C3C; } /* Kırmızı */
+
+.order-date {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    display: block;
+}
+
+.order-total {
+    text-align: right;
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    flex-shrink: 0; /* Küçülmesin */
+    margin-left: 1rem;
+}
+.order-total strong {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.order-seller {
+    font-family: var(--font-family-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 1rem 0;
+}
+
+.order-items {
+    padding: 0.75rem 1rem;
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+}
+.order-items p {
+    margin-bottom: 0;
+}
+
+.order-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end; /* Butonları sağa yasla */
+    padding-top: 1rem;
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Tıklanabilir Sipariş Kartı */
+.clickable-order-card {
+}
+
+.clickable-order-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 768px) {
+    .order-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .order-total {
+        text-align: left;
+        margin-left: 0;
+    }
+    
+    .order-footer {
+        flex-direction: column;
+    }
+    
+    .order-footer .btn {
+        width: 100%;
+    }
+    
+    .order-card {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .order-seller {
+        font-size: 1rem;
+    }
+    
+    .order-total strong {
+        font-size: 1.2rem;
+    }
+    
+    .order-items {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+}
+
+/* Sipariş Detay Modal */
+.order-detail-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    overflow-y: auto;
+}
+
+.order-detail-modal-content {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    max-width: 700px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.order-detail-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    z-index: 1;
+}
+
+.order-detail-modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: var(--secondary-color);
+}
+
+.order-detail-modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: var(--secondary-color-light);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.order-detail-modal-close:hover {
+    background-color: var(--bg-color);
+    color: var(--secondary-color);
+}
+
+.order-detail-modal-body {
+    padding: 1.5rem;
+}
+
+.order-detail-section {
+    margin-bottom: 2rem;
+}
+
+.order-detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.order-detail-section h3 {
+    font-size: 1.2rem;
+    color: var(--secondary-color);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.order-detail-info p {
+    margin: 0.75rem 0;
+    color: var(--secondary-color-light);
+}
+
+.order-detail-info strong {
+    color: var(--secondary-color);
+    margin-right: 0.5rem;
+}
+
+.order-detail-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.order-detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+}
+
+.order-detail-item-name {
+    flex: 1;
+    color: var(--secondary-color);
+}
+
+.order-detail-item-price {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.order-detail-total {
+    background: var(--bg-color);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    margin-top: 1.5rem;
+}
+
+.order-detail-total-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    color: var(--secondary-color-light);
+}
+
+.order-detail-total-final {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 2px solid var(--border-color);
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+}
+
+.order-detail-total-final strong {
+    color: var(--primary-color);
+    font-size: 1.3rem;
+}
+
+/* Yıldız Rating Sistemi */
+.star-rating {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 2rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.star-rating .star {
+    transition: transform 0.2s, color 0.2s;
+    font-size: 2.5rem;
+    line-height: 1;
+}
+
+.star-rating .star:hover {
+    transform: scale(1.2);
+}
+
+.rating-text {
+    font-weight: 500;
+    color: var(--primary-color) !important;
+}
+
+.order-detail-modal-footer {
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}

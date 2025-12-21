@@ -1,0 +1,324 @@
+/* ==================================== */
+/* MODERN 2025 LAYOUT - SADE & DİKKAT ÇEKİCİ */
+/* ==================================== */
+
+/* 1. CONTAINER - Responsive
+-------------------------------------- */
+.container {
+    width: 90%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+        padding: 0 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        width: 100%;
+        padding: 0 0.75rem;
+    }
+}
+
+.section-padding {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+}
+
+@media (max-width: 768px) {
+    .section-padding {
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-padding {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+}
+
+.section-title {
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 700;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+
+
+/* 2. MODERN HEADER - Shef.com Style - Temiz & Minimal
+-------------------------------------- */
+.site-header {
+    width: 100%;
+    background: var(--card-bg);
+    box-shadow: var(--shadow-md);
+    padding: 1rem 0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 2px solid var(--border-color);
+    transition: all var(--transition-normal);
+    backdrop-filter: var(--blur-md);
+}
+
+
+
+.site-header:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
+
+.logo {
+    font-family: var(--font-family-heading);
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: var(--font-weight-bold);
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-decoration: none;
+    letter-spacing: -0.5px;
+    position: relative;
+    display: inline-block;
+    transition: color var(--transition-normal);
+}
+
+.logo:hover {
+    color: var(--primary-color);
+}
+
+
+/* 3. MODERN NAVIGATION - Shef.com Style
+-------------------------------------- */
+.main-nav ul {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .main-nav ul {
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+    }
+}
+
+.main-nav a {
+    text-decoration: none;
+    color: #1F2937;
+    font-weight: var(--font-weight-medium);
+    font-size: clamp(0.875rem, 2vw, 1rem);
+    padding: 0.625rem 1rem;
+    border-radius: 8px;
+    position: relative;
+    overflow: visible;
+    display: inline-block;
+    background: transparent;
+    transition: color var(--transition-normal), background-color var(--transition-normal);
+    transform: none !important;
+}
+
+.main-nav a:hover {
+    color: var(--primary-color);
+    background: rgba(220, 38, 38, 0.05);
+    transform: none !important;
+}
+
+.main-nav a::before,
+.main-nav a::after {
+    display: none !important;
+}
+
+/* Header içindeki butonlar için özel stiller - Zıt Renkler */
+.site-header .btn-primary {
+    background: var(--primary-color) !important;
+    color: #FFFFFF !important;
+    box-shadow: none !important;
+    border: 1px solid var(--primary-color) !important;
+    padding: 0.625rem 1.5rem !important;
+    transition: background-color var(--transition-normal), color var(--transition-normal), border-color var(--transition-normal) !important;
+    transform: none !important;
+}
+
+.site-header .btn-primary:hover {
+    background: #FFFFFF !important;
+    color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.site-header .btn-primary::before,
+.site-header .btn-primary::after {
+    display: none !important;
+}
+
+.site-header .btn-secondary {
+    background: #FFFFFF !important;
+    color: #1F2937 !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: none !important;
+    padding: 0.625rem 1.5rem !important;
+    transition: background-color var(--transition-normal), color var(--transition-normal), border-color var(--transition-normal) !important;
+    transform: none !important;
+}
+
+.site-header .btn-secondary:hover {
+    background: var(--primary-color) !important;
+    color: #FFFFFF !important;
+    border-color: var(--primary-color) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.site-header .btn-secondary::before {
+    display: none !important;
+}
+
+@media (max-width: 480px) {
+    .main-nav a {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+}
+
+.main-nav a.active {
+    color: var(--primary-color);
+    background: rgba(220, 38, 38, 0.08);
+}
+
+/* 4. MODERN FOOTER - Shef.com Style
+-------------------------------------- */
+.site-footer {
+    background: var(--bg-accent);
+    color: var(--text-color-light);
+    padding: 3rem 0 2rem;
+    margin-top: 4rem;
+    border-top: 2px solid var(--border-color);
+    position: relative;
+}
+
+
+
+.footer-content {
+    text-align: center;
+    font-size: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.footer-content p {
+    margin: 0.5rem 0;
+    color: var(--text-color-light);
+    font-weight: 400;
+    font-size: 0.9rem;
+}
+
+/* Footer Responsive */
+@media (max-width: 768px) {
+    .site-footer {
+        padding: 3rem 0 1.5rem;
+        margin-top: 4rem;
+    }
+    
+    .footer-content {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .site-footer {
+        padding: 2rem 0 1rem;
+        margin-top: 3rem;
+    }
+    
+    .footer-content {
+        font-size: 0.85rem;
+    }
+    
+    .footer-content p {
+        margin: 0.4rem 0;
+    }
+}
+
+/* 5. RESPONSIVE DESIGN
+-------------------------------------- */
+@media (max-width: 1200px) {
+    .container {
+        max-width: 1140px;
+    }
+}
+
+@media (max-width: 992px) {
+    .container {
+        max-width: 960px;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        max-width: 720px;
+    }
+    
+    .section-title {
+        margin-bottom: 2rem;
+    }
+    
+    .section-title::after {
+        width: 60px;
+        height: 3px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        max-width: 100%;
+    }
+    
+    .section-title {
+        font-size: 1.75rem;
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* 6. LOADING ANIMATIONS
+-------------------------------------- */
+.loading {
+    opacity: 1;
+}
+
+.spinner {
+    /* Spinner animasyonu kaldırıldı */
+}

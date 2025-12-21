@@ -1,0 +1,155 @@
+<section class="hero-section" id="hero-section">
+    <!-- Hero Background Slider - Veritabanından yüklenecek -->
+    <div class="hero-background-slider" id="hero-background-slider"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content container">
+        <h1>Mahallenizdeki En Lezzetli Ev Yemekleri</h1>
+        <p>Güvenilir aşçılardan, taze ve sağlıklı ev yemeklerini keşfedin.</p>
+        <div class="hero-search">
+            <input type="text" id="hero-search-input" class="form-input" placeholder="Yemek veya mutfak arayın...">
+            <button type="button" id="hero-search-button" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center;">Bul</button>
+        </div>
+    </div>
+</section>
+
+<section class="container section-padding" style="background: #FFFFFF;">
+    <!-- Fırsatlar/Kuponlar Banner -->
+    <div class="promotions-banner">
+        <div class="promotions-wrapper">
+            <div class="promotions-track" id="promotions-track">
+                <div class="promotion-item">
+                    <span class="promo-badge">🔥 Özel Fırsat</span>
+                    <span class="promo-text">Seçili restoranlarda 300TL üzerine 100TL indirim!</span>
+                </div>
+                <div class="promotion-item">
+                    <span class="promo-badge">💰 %10 İndirim</span>
+                    <span class="promo-text">Tüm restoranlarda geçerli %10 indirim kazanın!</span>
+                </div>
+                <div class="promotion-item">
+                    <span class="promo-badge">🎁 İlk Sipariş</span>
+                    <span class="promo-text">İlk siparişinizde %15 indirim fırsatı!</span>
+                </div>
+                <div class="promotion-item">
+                    <span class="promo-badge">⚡ Hızlı Teslimat</span>
+                    <span class="promo-text">150TL üzeri siparişlerde ücretsiz teslimat!</span>
+                </div>
+                <div class="promotion-item">
+                    <span class="promo-badge">🌟 VIP Üyelik</span>
+                    <span class="promo-text">500TL üzeri siparişlerde %20 ekstra indirim!</span>
+                </div>
+                <div class="promotion-item">
+                    <span class="promo-badge">🍕 Özel Menü</span>
+                    <span class="promo-text">Seçili menülerde 2 alana 1 bedava!</span>
+                </div>
+                <!-- İlk elemanların kopyası (sonsuz döngü için) -->
+                <div class="promotion-item">
+                    <span class="promo-badge">🔥 Özel Fırsat</span>
+                    <span class="promo-text">Seçili restoranlarda 300TL üzerine 100TL indirim!</span>
+                </div>
+                <div class="promotion-item">
+                    <span class="promo-badge">💰 %10 İndirim</span>
+                    <span class="promo-text">Tüm restoranlarda geçerli %10 indirim kazanın!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin-bottom: 3rem;">
+        <h2 class="section-title">Tüm Restoranlar</h2>
+        <p style="color: #6B7280; font-size: 1rem;">Mahallenizdeki en lezzetli ev yemeklerini keşfedin</p>
+    </div>
+    
+    <!-- Filtreleme ve Restoranlar Layout -->
+    <div class="restaurants-layout">
+        <!-- Sol Taraf: Filtreleme Paneli -->
+        <aside class="filters-sidebar">
+            <div class="card">
+                <div class="card-content">
+                    <h3 class="card-title">Filtrele</h3>
+                    
+                    <!-- Yıldız Filtresi -->
+                    <div class="form-group">
+                        <label class="form-label">Puana Göre</label>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-rating-5" class="filter-rating" value="5">
+                            <label for="filter-rating-5">⭐⭐⭐⭐⭐ 5 Yıldız</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-rating-4" class="filter-rating" value="4">
+                            <label for="filter-rating-4">⭐⭐⭐⭐ 4 ve üzeri</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-rating-3" class="filter-rating" value="3">
+                            <label for="filter-rating-3">⭐⭐⭐ 3 ve üzeri</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-rating-2" class="filter-rating" value="2">
+                            <label for="filter-rating-2">⭐⭐ 2 ve üzeri</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Mutfak Türü Filtresi -->
+                    <div class="form-group">
+                        <label class="form-label">Mutfak Türü</label>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-cuisine-turkish" class="filter-cuisine" value="turkish">
+                            <label for="filter-cuisine-turkish">🍽️ Türk Mutfağı</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-cuisine-italian" class="filter-cuisine" value="italian">
+                            <label for="filter-cuisine-italian">🍝 İtalyan</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-cuisine-asian" class="filter-cuisine" value="asian">
+                            <label for="filter-cuisine-asian">🍜 Asya Mutfağı</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-cuisine-vegan" class="filter-cuisine" value="vegan">
+                            <label for="filter-cuisine-vegan">🌱 Vegan</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-cuisine-fastfood" class="filter-cuisine" value="fastfood">
+                            <label for="filter-cuisine-fastfood">🍔 Fast Food</label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-cuisine-seafood" class="filter-cuisine" value="seafood">
+                            <label for="filter-cuisine-seafood">🐟 Deniz Ürünleri</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Minimum Sepet Tutarı -->
+                    <div class="form-group">
+                        <label for="filter-min-order" class="form-label">Minimum Sepet Tutarı</label>
+                        <select id="filter-min-order" class="form-input">
+                            <option value="">Tümü</option>
+                            <option value="0">0 TL</option>
+                            <option value="50">50 TL</option>
+                            <option value="100">100 TL</option>
+                            <option value="150">150 TL</option>
+                            <option value="200">200 TL</option>
+                            <option value="300">300 TL</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Konum Filtresi -->
+                    <div class="form-group">
+                        <label for="filter-location" class="form-label">Konum</label>
+                        <input type="text" id="filter-location" class="form-input" placeholder="İlçe / Mahalle ara...">
+                    </div>
+                    
+                    <!-- Filtreleri Temizle -->
+                    <button type="button" id="clear-filters" class="btn btn-secondary btn-full" style="margin-top: 1rem;">Filtreleri Temizle</button>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Sağ Taraf: Restoranlar -->
+        <div class="restaurants-content">
+            <div class="results-header" id="results-header" style="display: none;">
+                <span><strong id="results-count">0</strong> restoran bulundu</span>
+            </div>
+            <div class="featured-grid" id="restaurants-container">
+            </div>
+        </div>
+    </div>
+</section>

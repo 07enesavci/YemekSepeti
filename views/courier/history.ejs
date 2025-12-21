@@ -1,0 +1,36 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/courier-history.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Teslimat Geçmişi ve Kazançlar</h1>
+        
+        <div class="stat-grid">
+            <div class="card stat-card">
+                <span class="stat-icon">💰</span>
+                <span class="stat-label">Toplam Bakiye</span>
+                <strong class="stat-value">0.00 TL</strong>
+            </div>
+            <div class="card stat-card">
+                <span class="stat-icon">✅</span>
+                <span class="stat-label">Toplam Teslimat</span>
+                <strong class="stat-value">0</strong>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 2rem;">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Son İşlemler</h3>
+                
+                <div class="transaction-list">
+                    <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>

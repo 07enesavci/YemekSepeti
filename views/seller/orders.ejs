@@ -1,0 +1,31 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/seller-orders.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Sipariş Yönetimi</h1>
+
+        <div class="tabs">
+            <button class="tab-link active" data-tab="new">Yeni Siparişler (0)</button>
+            <button class="tab-link" data-tab="preparing">Hazırlananlar (0)</button>
+            <button class="tab-link" data-tab="history">Geçmiş Siparişler</button>
+        </div>
+
+        <div id="new" class="tab-content active">
+            <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+        </div> 
+
+        <div id="preparing" class="tab-content" style="display: none;">
+            <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+        </div> 
+
+        <div id="history" class="tab-content" style="display: none;">
+            <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+        </div>
+        
+    </main>
+</div>

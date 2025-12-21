@@ -1,0 +1,526 @@
+/* ==================================== */
+/* MODERN 2025 ANA SAYFA - SADE & DİKKAT ÇEKİCİ */
+/* ==================================== */
+
+/* 1. HERO BÖLÜMÜ - Shef.com Style - Renkli & Modern
+-------------------------------------- */
+.hero-section {
+    padding: 6rem 0 4rem;
+    text-align: center;
+    color: var(--text-color);
+    position: relative;
+    background: var(--bg-secondary);
+    border-bottom: 2px solid var(--border-color);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+    overflow: hidden;
+    min-height: 500px;
+    display: flex;
+    align-items: center;
+}
+
+/* Hero Background Slider */
+.hero-background-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.hero-slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+}
+
+.hero-slide.active {
+    opacity: 1;
+}
+
+.hero-slide-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+.hero-slide-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.4) 100%);
+    z-index: 1;
+}
+
+
+.hero-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.1);
+    z-index: 1;
+}
+
+@keyframes gradientShift {
+    0%, 100% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+
+
+@media (max-width: 768px) {
+    .hero-section {
+        padding: 4rem 0 3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-section {
+        padding: 3rem 0 2rem;
+    }
+}
+
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+}
+
+.hero-content h1 {
+    font-size: clamp(2.5rem, 6vw, 3.5rem);
+    font-weight: 700;
+    color: #FFFFFF;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+    margin-bottom: 1rem;
+    letter-spacing: -1px;
+    line-height: 1.2;
+}
+
+
+
+.hero-content p {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
+    font-weight: 400;
+    color: #FFFFFF;
+    text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
+    margin-bottom: 2.5rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+
+
+/* 2. MODERN HERO ARAMA ÇUBUĞU - Shef.com Style
+-------------------------------------- */
+.hero-search {
+    display: flex;
+    max-width: 600px;
+    margin: 0 auto;
+    box-shadow: var(--shadow-lg);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    position: relative;
+    width: 100%;
+    backdrop-filter: var(--blur-md);
+}
+
+
+.hero-search .form-input {
+    flex-grow: 1;
+    border: none;
+    border-radius: 0;
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    background: transparent;
+}
+
+.hero-search .form-input:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+.hero-search .btn-primary {
+    border-radius: 0;
+    font-size: 1rem;
+    padding: 1rem 2rem;
+    box-shadow: none;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+    .hero-search {
+        max-width: 100%;
+        border-radius: 12px;
+        flex-direction: column;
+    }
+    
+    .hero-search .form-input {
+        border-radius: 12px 12px 0 0;
+    }
+    
+    .hero-search .btn-primary {
+        border-radius: 0 0 12px 12px;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* 3. FİRSATLAR/KUPONLAR BANNER - Kaydırmalı
+-------------------------------------- */
+.promotions-banner {
+    width: 100%;
+    overflow: hidden;
+    margin-bottom: 3rem;
+    background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);
+    border-radius: 12px;
+    padding: 1rem 0;
+    position: relative;
+}
+
+.promotions-wrapper {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.promotions-track {
+    display: flex;
+    gap: 2rem;
+    animation: scrollPromotions 30s linear infinite;
+    white-space: nowrap;
+}
+
+.promotions-track:hover {
+    animation-play-state: paused;
+}
+
+.promotion-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    flex-shrink: 0;
+    min-width: fit-content;
+}
+
+.promo-badge {
+    background: #FFFFFF;
+    color: #DC2626;
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.promo-text {
+    color: #FFFFFF;
+    font-weight: 500;
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+@keyframes scrollPromotions {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+@media (max-width: 768px) {
+    .promotions-banner {
+        margin-bottom: 2rem;
+        padding: 0.75rem 0;
+    }
+    
+    .promotion-item {
+        padding: 0.625rem 1.25rem;
+        gap: 0.75rem;
+    }
+    
+    .promo-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.625rem;
+    }
+    
+    .promo-text {
+        font-size: 0.85rem;
+    }
+    
+    .promotions-track {
+        gap: 1.5rem;
+        animation-duration: 25s;
+    }
+}
+
+@media (max-width: 480px) {
+    .promotion-item {
+        padding: 0.5rem 1rem;
+        gap: 0.5rem;
+    }
+    
+    .promo-badge {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .promo-text {
+        font-size: 0.8rem;
+    }
+    
+    .promotions-track {
+        gap: 1rem;
+        animation-duration: 20s;
+    }
+}
+
+/* 4. MODERN RESTORAN KARTLARI - Shef.com Style
+-------------------------------------- */
+.restaurant-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+    position: relative;
+    transition: all var(--transition-normal);
+    backdrop-filter: var(--blur-sm);
+}
+
+.restaurant-card:hover {
+    box-shadow: var(--card-shadow-hover);
+    transform: translateY(-4px);
+    border-color: var(--primary-color-light);
+    background: var(--card-bg-hover);
+}
+
+
+
+.restaurant-card .card-image-wrapper {
+    overflow: hidden;
+    position: relative;
+    background: #F3F4F6;
+}
+
+.restaurant-card .card-image-wrapper img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    transition: transform var(--transition-normal);
+}
+
+.restaurant-card:hover .card-image-wrapper img {
+    transform: scale(1.02);
+}
+
+.restaurant-card .card-content {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    transition: background var(--transition-normal);
+}
+
+
+.restaurant-card .card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.75rem;
+}
+
+.restaurant-card:hover .card-title {
+    color: var(--primary-color);
+}
+
+/* 5. RESTORANLAR LAYOUT (Filtreleme + Sonuçlar)
+-------------------------------------- */
+.restaurants-layout {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 2rem;
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Sol Taraf: Filtreleme Paneli */
+.filters-sidebar {
+    flex: 0 0 300px;
+    min-width: 300px;
+    max-width: 300px;
+    position: sticky;
+    top: 100px;
+    align-self: flex-start;
+}
+
+.filters-sidebar .card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+}
+
+.filters-sidebar .card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: var(--text-color);
+}
+
+.filters-sidebar .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.filters-sidebar .form-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-color);
+    font-size: 0.95rem;
+}
+
+.filters-sidebar .form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: background var(--transition-normal);
+}
+
+.filters-sidebar .form-check:hover {
+    background: var(--bg-secondary);
+}
+
+.filters-sidebar .form-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.filters-sidebar .form-check label {
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    user-select: none;
+}
+
+/* Sağ Taraf: Restoranlar */
+.restaurants-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+}
+
+.results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.5rem;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+}
+
+.results-header span {
+    font-size: 1rem;
+    color: var(--text-color);
+}
+
+.results-header span strong {
+    color: var(--primary-color);
+    font-size: 1.1rem;
+}
+
+/* Mobil Uyumluluk */
+@media (max-width: 992px) {
+    .restaurants-layout {
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+    
+    .filters-sidebar {
+        flex: 1 1 auto;
+        min-width: 100%;
+        max-width: 100%;
+        position: static;
+        width: 100%;
+    }
+    
+    .restaurants-content {
+        flex: 1 1 auto;
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .restaurants-layout {
+        gap: 1rem;
+    }
+    
+    .results-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+}
+
+/* 4. FEATURED SECTION
+-------------------------------------- */
+.featured-section {
+    padding: 6rem 0;
+    position: relative;
+}
+
+@media (max-width: 768px) {
+    .featured-section {
+        padding: 4rem 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .featured-section {
+        padding: 3rem 0;
+    }
+}
+
+.featured-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 10% 20%, rgba(220, 38, 38, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 90% 80%, rgba(239, 68, 68, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+}
+

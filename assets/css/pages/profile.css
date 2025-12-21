@@ -1,0 +1,216 @@
+/* ==================================== */
+/* PROFİL SAYFASI (pages/profile.css)  */
+/* ==================================== */
+
+/* 2 Sütunlu (Menü + İçerik) ana yerleşimi */
+.profile-layout {
+    display: flex;
+    align-items: flex-start; /* Sütunlar yukarıdan hizalansın */
+    gap: 2rem; /* İki sütun arası boşluk */
+}
+
+/* 1. Sol Sütun (Navigasyon Menüsü) */
+.profile-sidebar {
+    flex-basis: 280px; /* Menü 280px sabit genişlik */
+    flex-shrink: 0;
+    
+    /* Menünün yapışkan kalması */
+    position: sticky;
+    top: 100px; /* Header yüksekliği + boşluk */
+}
+
+.profile-nav {
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+}
+
+.profile-nav ul {
+    list-style: none;
+    padding: 1rem;
+}
+
+.profile-nav li a {
+    display: block;
+    padding: 1rem;
+    text-decoration: none;
+    color: var(--secondary-color-light);
+    font-weight: 500;
+    font-size: 1.05rem;
+    border-radius: var(--border-radius);
+}
+
+.profile-nav li a:hover {
+    background-color: var(--bg-color); /* Hafif gri */
+    color: var(--secondary-color);
+}
+
+/* JS tarafından eklenecek 'active' sınıfı */
+.profile-nav li a.active {
+    background-color: var(--primary-color);
+    color: #FFFFFF;
+    font-weight: 700;
+}
+
+/* Çıkış Yap butonu */
+#logout-btn {
+    color: #E74C3C; /* Kırmızı */
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+#logout-btn:hover {
+    background-color: #E74C3C;
+    color: #FFFFFF;
+}
+
+/* 2. Sağ Sütun (İçerik) */
+.profile-content {
+    flex-grow: 1; /* Kalan tüm alanı kapla */
+}
+
+/* JS tarafından gösterilip/gizlenecek bölümler */
+.profile-section { display: none; }
+.profile-section.active { display: block; }
+
+/* Adres kartındaki 'Düzenle' butonu */
+.form-check-radio label .btn-edit {
+    margin-left: auto; /* Sağa yasla */
+    font-size: 0.9rem;
+    color: var(--primary-color);
+    font-weight: 700;
+}
+.form-check-radio label:hover .btn-edit {
+    color: var(--primary-color-dark);
+}
+
+/* 2FA Toggle Switch */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #DC2626;
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Cüzdan Bakiyesi */
+.wallet-balance {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-color);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1.5rem;
+}
+.wallet-balance span {
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 992px) {
+    .profile-layout {
+        flex-direction: column;
+    }
+    
+    .profile-sidebar {
+        flex-basis: auto;
+        position: static;
+        width: 100%;
+    }
+    
+    .profile-content {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .profile-nav ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .profile-nav li {
+        flex: 1 1 auto;
+    }
+    
+    .profile-nav li a {
+        text-align: center;
+        padding: 0.75rem;
+        font-size: 0.95rem;
+    }
+    
+    .wallet-balance {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .profile-nav ul {
+        flex-direction: column;
+    }
+    
+    .profile-nav li {
+        width: 100%;
+    }
+}
+/* .total-price stilini checkout/cart'dan alır */
+
+/* Kupon Listesi */
+.coupon-item {
+    padding: 1rem;
+    border: 1px dashed var(--primary-color);
+    border-radius: var(--border-radius);
+    background-color: #FFF7F0;
+}
+.coupon-item .coupon-code {
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--primary-color-dark);
+}
+.coupon-item p {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+}

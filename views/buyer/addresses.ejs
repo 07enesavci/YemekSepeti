@@ -1,0 +1,126 @@
+<link rel="stylesheet" href="/assets/css/pages/profile.css">
+<link rel="stylesheet" href="/assets/css/pages/checkout.css">
+
+<div class="container section-padding">
+    <h1 class="section-title">Adreslerim</h1>
+
+    <div class="profile-layout">
+        
+        <aside class="profile-sidebar">
+            <nav class="profile-nav">
+                <ul>
+                    <li><a href="/buyer/profile#profil-bilgileri">Profil Bilgileri</a></li>
+                    <li><a href="/buyer/addresses" class="active">Adreslerim</a></li>
+                    <li><a href="/buyer/wallet">Cüzdan & Kuponlar</a></li>
+                    <li><a href="/buyer/orders">Siparişlerim</a></li> 
+                    <li><a href="/buyer/security">Güvenlik</a></li>
+                    <li><a href="#" id="logout-btn">Çıkış Yap</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="profile-content">
+            
+            <section id="addresses-section" class="profile-section active">
+                <div class="card">
+                    <div class="card-content">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h3 class="checkout-card-title" style="margin: 0;">Kayıtlı Adreslerim</h3>
+                            <button id="add-address-btn" class="btn btn-primary">+ Yeni Adres Ekle</button>
+                        </div>
+                        
+                        <div id="addresses-list" class="role-selector">
+                            <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Yeni Adres Ekleme Formu (Gizli) -->
+            <div id="new-address-form-container" style="display: none; margin-top: 1.5rem;">
+                <div class="card">
+                    <div class="card-content">
+                        <h4 style="margin-bottom: 1.5rem;">Yeni Adres Bilgileri</h4>
+                        <form id="new-address-form">
+                            <div class="form-group">
+                                <label for="address-title" class="form-label">Adres Başlığı (Ev/İş/Diğer)</label>
+                                <input type="text" class="form-input" id="address-title" placeholder="Örn: Ev, İş, Anne Evi" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="address-district" class="form-label">İlçe</label>
+                                    <input type="text" class="form-input" id="address-district" placeholder="Örn: Çerkezköy" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="address-city" class="form-label">İl</label>
+                                    <input type="text" class="form-input" id="address-city" placeholder="Örn: Tekirdağ" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="address-detail" class="form-label">Adres Detayı (Mahalle, Sokak, No...)</label>
+                                <textarea class="form-input" id="address-detail" rows="3" placeholder="Mahalle, Sokak, Bina No, Daire No" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input type="checkbox" id="address-default" class="form-check-input">
+                                    <label for="address-default" class="form-check-label">
+                                        Varsayılan Adres Yap
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary" id="save-address-btn">Adresi Kaydet</button>
+                                <button type="button" class="btn btn-secondary" id="cancel-address-btn" style="margin-left: 1rem;">İptal</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Adres Düzenleme Formu (Gizli) -->
+            <div id="edit-address-form-container" style="display: none; margin-top: 1.5rem;">
+                <div class="card">
+                    <div class="card-content">
+                        <h4 style="margin-bottom: 1.5rem;">Adres Düzenle</h4>
+                        <form id="edit-address-form">
+                            <input type="hidden" id="edit-address-id">
+                            <div class="form-group">
+                                <label for="edit-address-title" class="form-label">Adres Başlığı (Ev/İş/Diğer)</label>
+                                <input type="text" class="form-input" id="edit-address-title" placeholder="Örn: Ev, İş, Anne Evi" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="edit-address-district" class="form-label">İlçe</label>
+                                    <input type="text" class="form-input" id="edit-address-district" placeholder="Örn: Çerkezköy" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit-address-city" class="form-label">İl</label>
+                                    <input type="text" class="form-input" id="edit-address-city" placeholder="Örn: Tekirdağ" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-address-detail" class="form-label">Adres Detayı (Mahalle, Sokak, No...)</label>
+                                <textarea class="form-input" id="edit-address-detail" rows="3" placeholder="Mahalle, Sokak, Bina No, Daire No" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <div class="form-check">
+                                    <input type="checkbox" id="edit-address-default" class="form-check-input">
+                                    <label for="edit-address-default" class="form-check-label">
+                                        Varsayılan Adres Yap
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary" id="update-address-btn">Adresi Güncelle</button>
+                                <button type="button" class="btn btn-secondary" id="cancel-edit-btn" style="margin-left: 1rem;">İptal</button>
+                                <button type="button" class="btn btn-danger" id="delete-address-btn" style="margin-left: 1rem;">Adresi Sil</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+

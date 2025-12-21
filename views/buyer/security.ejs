@@ -1,0 +1,82 @@
+<link rel="stylesheet" href="/assets/css/pages/profile.css">
+<link rel="stylesheet" href="/assets/css/pages/checkout.css">
+
+<div class="container section-padding">
+    <h1 class="section-title">Güvenlik</h1>
+
+    <div class="profile-layout">
+        
+        <aside class="profile-sidebar">
+            <nav class="profile-nav">
+                <ul>
+                    <li><a href="/buyer/profile#profil-bilgileri">Profil Bilgileri</a></li>
+                    <li><a href="/buyer/addresses">Adreslerim</a></li>
+                    <li><a href="/buyer/wallet">Cüzdan & Kuponlar</a></li>
+                    <li><a href="/buyer/orders">Siparişlerim</a></li> 
+                    <li><a href="/buyer/security" class="active">Güvenlik</a></li>
+                    <li><a href="#" id="logout-btn">Çıkış Yap</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="profile-content">
+            
+            <section id="security-section" class="profile-section active">
+                <!-- İki Faktörlü Kimlik Doğrulama -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">İki Faktörlü Kimlik Doğrulama (2FA)</h3>
+                        <p style="color: #666; margin-bottom: 1.5rem;">
+                            İki faktörlü kimlik doğrulama, hesabınızı ekstra bir güvenlik katmanı ile korur. 
+                            Açık olduğunda, giriş yaparken email adresinize gönderilen 6 haneli kodu girmeniz gerekecektir.
+                        </p>
+                        <div class="form-group">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <label class="form-label" style="margin-bottom: 0.5rem;">2FA Durumu</label>
+                                    <p id="2fa-status" style="color: #666; font-size: 0.9rem; margin: 0;">
+                                        <span id="2fa-status-text">Yükleniyor...</span>
+                                    </p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="2fa-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <small style="color: #666; font-size: 0.85rem; display: block; margin-top: 1rem;">
+                            ⚠️ 2FA açıkken, her girişte email adresinize doğrulama kodu gönderilecektir.
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Şifre Değiştir -->
+                <div class="card">
+                    <div class="card-content">
+                        <h3 class="checkout-card-title">Şifre Değiştir</h3>
+                        <form id="change-password-form">
+                            <div class="form-group">
+                                <label for="current-password" class="form-label">Mevcut Şifre</label>
+                                <input type="password" id="current-password" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="new-password" class="form-label">Yeni Şifre</label>
+                                <input type="password" id="new-password" class="form-input" required>
+                                <small style="color: #666; font-size: 0.85rem; margin-top: 0.25rem; display: block;">
+                                    Şifreniz en az 6 karakter olmalıdır.
+                                </small>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirm-password" class="form-label">Yeni Şifre Tekrar</label>
+                                <input type="password" id="confirm-password" class="form-input" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="change-password-btn">Şifreyi Değiştir</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+</div>
+

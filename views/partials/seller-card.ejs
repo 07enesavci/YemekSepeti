@@ -1,0 +1,38 @@
+<div class="card seller-card">
+    
+    <img src="<%= seller.bannerImage || '/assets/images/seller-placeholder.png' %>" 
+         alt="<%= seller.name %>" 
+         class="card-image">
+    
+    <div class="card-content">
+        
+        <div class="seller-card-header">
+            <h3 class="card-title"><%= seller.name %></h3>
+            <span class="seller-rating">
+                <span class="icon">⭐</span> <%= seller.rating %> 
+                <a href="/buyer/seller-profile/<%= seller.id %>?tab=reviews" class="rating-count" title="Yorumları Görmek İçin Tıklayınız">
+                    (<%= seller.reviewCount %>)
+                </a>
+            </span>
+        </div>
+
+        <p class="card-text">
+            <%= seller.description %>
+        </p>
+
+        <div class="seller-card-meta">
+            <span class="meta-item">
+                <span class="icon">📍</span> <%= seller.location %>
+            </span>
+            <span class="meta-item">
+                <span class="icon">🚚</span> Tahmini Teslimat: <%= seller.deliveryTime %> dk
+            </span>
+        </div>
+
+        <a href="/buyer/seller-profile/<%= seller.id %>" 
+           class="btn btn-primary" 
+           data-seller-id="<%= seller.id %>">
+            Menüyü Gör
+        </a>
+    </div>
+</div>

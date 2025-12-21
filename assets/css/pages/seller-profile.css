@@ -1,0 +1,237 @@
+/* ==================================== */
+/* SATICI PROFİLİ (pages/seller-profile.css) */
+/* ==================================== */
+
+/* 1. Satıcı Vitrin Alanı */
+.seller-header {
+    background-color: var(--card-bg);
+    box-shadow: var(--card-shadow);
+    padding-bottom: 2rem;
+    margin-bottom: -3rem; /* İçeriğin (menü) üste binmesi için */
+    position: relative;
+    z-index: 2; /* Menünün üstünde kalsın */
+}
+
+.seller-banner {
+    height: 250px;
+    background-size: cover;
+    background-position: center;
+    /* background-image JavaScript tarafından dinamik olarak ayarlanacak */
+}
+
+.seller-info-container {
+    /* Logo ve bilgileri banner'ın üzerine taşırmak için */
+    margin-top: -60px; 
+}
+
+.seller-details {
+    display: flex;
+    align-items: flex-end; /* Logo ve yazı alttan hizalansın */
+    gap: 1.5rem;
+}
+
+.seller-logo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 5px solid var(--card-bg);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    background-color: var(--border-color); /* Resim yüklenmezse */
+}
+
+.seller-info h1 {
+    font-family: var(--font-family-heading);
+    font-size: 2.5rem;
+    color: var(--secondary-color);
+    margin-bottom: 0.25rem;
+}
+
+.seller-info p {
+    font-family: var(--font-family-body);
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--secondary-color-light);
+    margin: 0;
+}
+
+/* 2. Tab Navigasyon (Menü / Yorumlar) */
+.tabs {
+    display: flex;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 2.5rem;
+    
+    /* Vitrinin altından başlasın */
+    padding-top: 5rem; 
+    position: relative;
+    z-index: 1;
+}
+
+.tab-link {
+    font-family: var(--font-family-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--secondary-color-light);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px; /* Çizginin üstüne binsin */
+}
+
+.tab-link.active,
+.tab-link:hover {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+/* JS'nin göstereceği/gizleyeceği içerik alanları */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Yorum Stilleri */
+.review-item {
+    padding: 1rem 0;
+}
+
+.review-item:not(:last-child) {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+.review-author {
+    font-size: 1rem;
+    color: var(--secondary-color);
+    font-weight: 600;
+}
+
+.review-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 1rem;
+}
+
+.review-rating span[style*="color: #FFA500"] {
+    color: #FFA500 !important;
+}
+
+.review-text {
+    margin: 0.75rem 0;
+    color: var(--secondary-color-light);
+    line-height: 1.6;
+}
+
+.review-date {
+    font-size: 0.85rem;
+    color: #999;
+    display: block;
+    margin-top: 0.5rem;
+}
+
+/* Menü Kategori Başlığı */
+.menu-category-title {
+    font-size: 2.2rem;
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+}
+.menu-category-title:first-child {
+    margin-top: 0;
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 768px) {
+    .seller-banner {
+        height: 180px;
+    }
+    
+    .seller-info-container {
+        margin-top: -40px;
+    }
+    
+    .seller-details {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .seller-logo {
+        width: 100px;
+        height: 100px;
+    }
+    
+    .seller-info h1 {
+        font-size: 2rem;
+    }
+    
+    .tabs {
+        padding-top: 3rem;
+        flex-wrap: wrap;
+    }
+    
+    .tab-link {
+        font-size: 1.25rem;
+        padding: 0.5rem 1rem;
+    }
+    
+    .menu-category-title {
+        font-size: 1.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .seller-banner {
+        height: 150px;
+    }
+    
+    .seller-logo {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .seller-info h1 {
+        font-size: 1.75rem;
+    }
+    
+    .seller-info p {
+        font-size: 1rem;
+    }
+    
+    .tab-link {
+        font-size: 1.1rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .menu-category-title {
+        font-size: 1.5rem;
+    }
+}
+
+/* Yorum stilleri */
+.review-item {
+    padding: 1.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.review-item:first-child { padding-top: 0; }
+.review-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+.review-author {
+    font-family: var(--font-family-heading);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.review-rating {
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-left: 0.5rem;
+}
+.review-date {
+    float: right;
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+.review-text {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+}

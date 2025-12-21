@@ -1,0 +1,832 @@
+/* ==================================== */
+/* MODERN 2025 COMPONENTS - SADE & DİKKAT ÇEKİCİ */
+/* ==================================== */
+
+/* 1. MODERN BUTTONS - Unique 3D Style
+-------------------------------------- */
+.btn {
+    display: inline-block;
+    padding: 0.875rem 2rem;
+    font-family: var(--font-family-heading);
+    font-size: 0.95rem;
+    font-weight: var(--font-weight-bold);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.2;
+    position: relative;
+    overflow: hidden;
+    border: none;
+    box-shadow: var(--shadow-md);
+    transition: all var(--transition-normal);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+/* Header dışındaki butonlar için hover efekti */
+.site-header .btn:hover {
+    transform: none !important;
+}
+
+/* Dark mode buton stilleri */
+
+/* Panel sayfalarındaki butonlar için animasyon düzeltmesi */
+.panel-content .btn,
+.panel-layout .btn,
+.card .btn {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.panel-content .btn-secondary::before,
+.panel-layout .btn-secondary::before,
+.card .btn-secondary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: auto;
+    width: 0 !important;
+    height: 100%;
+    background: var(--gradient-primary);
+    z-index: -1;
+    border-radius: inherit;
+    transition: width var(--transition-normal) ease, opacity var(--transition-normal) ease;
+    opacity: 0;
+    transform: none;
+}
+
+.panel-content .btn-secondary:hover::before,
+.panel-layout .btn-secondary:hover::before,
+.card .btn-secondary:hover::before {
+    width: 100% !important;
+    left: 0 !important;
+    right: auto !important;
+    opacity: 1;
+    transform: none;
+}
+
+.panel-content .btn-secondary::after,
+.panel-layout .btn-secondary::after,
+.card .btn-secondary::after {
+    display: none !important;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: width 0.4s ease, height 0.4s ease, opacity 0.2s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
+    opacity: 1;
+}
+
+/* PRIMARY BUTON - Ripple Effect Style */
+.btn-primary {
+    background: var(--gradient-primary) !important;
+    color: #FFFFFF !important;
+    box-shadow: var(--shadow-primary);
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+}
+
+/* Tüm butonlarda tutarlı z-index */
+.btn-primary,
+.btn-secondary {
+    position: relative;
+    z-index: 1;
+}
+
+.btn-primary > *,
+.btn-secondary > * {
+    position: relative;
+    z-index: 2;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s, opacity 0.6s;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.btn-primary:hover::before {
+    display: none;
+}
+
+.btn-primary::after {
+    display: none !important;
+}
+
+
+/* SECONDARY BUTON */
+.btn-secondary {
+    background-color: transparent !important;
+    color: var(--primary-color) !important;
+    border: 2px solid var(--primary-color) !important;
+    box-shadow: 0 4px 16px rgba(220, 38, 38, 0.2);
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.btn-secondary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: auto;
+    width: 0;
+    height: 100%;
+    background: var(--gradient-primary);
+    z-index: -1;
+    border-radius: var(--border-radius-small);
+    transition: width var(--transition-normal) ease, opacity var(--transition-normal) ease;
+    opacity: 0;
+    transform: none;
+}
+
+.btn-secondary:hover::before {
+    width: 100% !important;
+    left: 0 !important;
+    right: auto !important;
+    opacity: 1;
+    transform: none;
+}
+
+.btn-secondary:active {
+    transform: scale(0.98);
+    transition: transform 0.1s;
+}
+
+.btn-secondary:hover {
+    color: #FFFFFF !important;
+    border-color: transparent !important;
+    box-shadow: 0 15px 40px rgba(220, 38, 38, 0.4);
+}
+
+.btn-secondary::after {
+    display: none !important;
+}
+
+/* Button Variants */
+.btn-full {
+    display: block;
+    width: 100%;
+}
+
+.btn-sm {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+}
+
+.btn-lg {
+    padding: 1.125rem 2.5rem;
+    font-size: 1.1rem;
+}
+
+/* Responsive Buttons */
+@media (max-width: 768px) {
+    .btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn-lg {
+        padding: 1rem 2rem;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .btn-sm {
+        padding: 0.4rem 1rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* 2. MODERN CARDS - 2025-2026 Premium Style
+-------------------------------------- */
+/* MODERN GRID - Shef.com Style */
+.featured-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .featured-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .featured-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .featured-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .featured-grid {
+        gap: 1rem;
+        padding: 0.5rem 0;
+    }
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(220, 38, 38, 0.1);
+    backdrop-filter: var(--blur-md);
+    -webkit-backdrop-filter: var(--blur-md);
+    transform-style: preserve-3d;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: var(--gradient-primary);
+    transform: scaleX(0);
+    transform-origin: left;
+    z-index: 1;
+}
+
+.card::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(220, 38, 38, 0.12) 0%, transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-normal);
+}
+
+.card:hover::before {
+    transform: scaleX(1);
+}
+
+.card:hover::after {
+    opacity: 1;
+}
+
+.card {
+    animation: fadeInUp 0.6s var(--transition-ease-out);
+}
+
+.card:hover {
+    box-shadow: var(--card-shadow-hover);
+    border-color: rgba(220, 38, 38, 0.3);
+}
+
+
+.card-image {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    filter: brightness(1) contrast(1);
+    transition: filter 0.4s;
+}
+
+.card:hover .card-image {
+    filter: brightness(1.05) contrast(1.05) saturate(1.1);
+    transition: filter var(--transition-normal);
+}
+
+.card-content {
+    padding: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.card-title {
+    font-family: var(--font-family-heading);
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--secondary-color);
+    position: relative;
+    display: inline-block;
+}
+
+.card:hover .card-title {
+    color: var(--primary-color);
+    transition: color var(--transition-normal);
+}
+
+.card-text {
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    min-height: 45px;
+    color: var(--secondary-color-light);
+    line-height: 1.6;
+}
+
+/* 3. MODERN FORMS - Sade
+-------------------------------------- */
+.form-group {
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+@media (max-width: 480px) {
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--secondary-color);
+}
+
+@media (max-width: 480px) {
+    .form-label {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+}
+
+.form-group:focus-within .form-label {
+    color: var(--primary-color);
+}
+
+.form-input {
+    width: 100%;
+    padding: 1rem 1.25rem;
+    font-size: 1rem;
+    font-family: var(--font-family-body);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--card-bg);
+    outline: none;
+    position: relative;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.form-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+    background-color: #FFFFFF;
+    animation: inputGlow 2s ease infinite;
+}
+
+@keyframes inputGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.25), 0 0 20px rgba(220, 38, 38, 0.1);
+    }
+}
+
+@media (max-width: 768px) {
+    .form-input {
+        padding: 0.875rem 1rem;
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .form-input {
+        padding: 0.75rem 0.875rem;
+        font-size: 0.9rem;
+        border-radius: var(--border-radius-small);
+    }
+}
+
+.form-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+    background-color: #FFFFFF;
+}
+
+.form-input::placeholder {
+    color: #999;
+}
+
+.form-input:focus::placeholder {
+    opacity: 0.5;
+}
+
+.form-group-inline {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+}
+
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.form-check label,
+.form-link {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+    margin: 0;
+    cursor: pointer;
+}
+
+.form-link:hover {
+    color: var(--primary-color);
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* 4. MODERN RADIO BUTTONS - Dikkat Çekici
+-------------------------------------- */
+.role-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.form-check-radio label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    background: var(--card-bg);
+    position: relative;
+    overflow: hidden;
+}
+
+.form-check-radio label::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.1), transparent);
+}
+
+.form-check-radio label:hover::before {
+    left: 100%;
+}
+
+.form-check-radio label .icon {
+    font-size: 1.75rem;
+}
+
+.form-check-radio label:hover .icon {
+    transform: scale(1.1);
+    transition: transform var(--transition-normal);
+}
+
+.form-check-radio label strong {
+    color: var(--secondary-color);
+    flex-grow: 1;
+    font-weight: 600;
+}
+
+.form-check-radio label span {
+    font-size: 0.9rem;
+    color: var(--secondary-color-light);
+}
+
+.form-check-radio input[type="radio"] {
+    display: none;
+}
+
+.form-check-radio input[type="radio"]:checked + label {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+}
+
+
+.form-check-radio label:hover {
+    border-color: var(--primary-color-dark);
+    box-shadow: var(--shadow-md);
+}
+
+/* 5. ORDER SUMMARY & OTHER COMPONENTS
+-------------------------------------- */
+.order-summary {
+    flex-basis: 380px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 120px;
+}
+
+@media (max-width: 992px) {
+    .order-summary {
+        flex-basis: 350px;
+    }
+}
+
+@media (max-width: 768px) {
+    .order-summary {
+        flex-basis: 100%;
+        position: static;
+        margin-top: 2rem;
+    }
+}
+
+.order-summary .card-title {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.5rem 0;
+}
+
+.summary-row:hover {
+    color: var(--primary-color);
+}
+
+.summary-row span:last-child {
+    font-weight: 700;
+}
+
+.total-row {
+    margin-top: 1.5rem;
+    font-size: 1.25rem;
+    padding-top: 1rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.total-price {
+    font-family: var(--font-family-heading);
+    font-size: 2rem;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 900;
+}
+
+/* Coupon Form */
+.coupon-form {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.coupon-form .form-input {
+    flex-grow: 1;
+}
+
+.divider {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 2rem 0;
+}
+
+/* Meal Card Extras */
+.meal-card .card-text {
+    min-height: 45px;
+    margin-bottom: 1rem;
+}
+
+.meal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2px solid var(--border-color);
+    padding-top: 1.25rem;
+    margin-top: 1.25rem;
+}
+
+.meal-price {
+    font-family: var(--font-family-body);
+    font-size: 1.6rem;
+    font-weight: 900;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* 6. ANIMATION UTILITIES - Kaldırıldı
+-------------------------------------- */
+.animate-float,
+.animate-float3D,
+.animate-shimmer,
+.animate-particle,
+.animate-shake,
+.animate-rotate-scale,
+.animate-pulse-glow,
+.animate-wave,
+.animate-spin-glow {
+    /* Animasyonlar kaldırıldı */
+}
+
+/* 7. GLASSMORPHISM UTILITY
+-------------------------------------- */
+.glass {
+    background: rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* 8. HOVER EFFECTS - Dikkat Çekici
+-------------------------------------- */
+.hover-lift:hover {
+    /* Transform kaldırıldı */
+}
+
+.hover-glow {
+    /* Transition kaldırıldı */
+}
+
+.hover-glow:hover {
+    box-shadow: var(--shadow-glow);
+}
+
+/* 9. SCROLL TO TOP BUTTON - Sağ Alt Köşe (Floating Cart'ın Üstünde)
+-------------------------------------- */
+.scroll-to-top-btn {
+    position: fixed;
+    bottom: 8rem; /* Floating cart toggle butonunun üstünde (60px cart + 2rem margin = ~8rem) */
+    right: 2rem;
+    width: 50px;
+    height: 50px;
+    background: var(--gradient-primary);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+    z-index: 9998; /* Floating cart'tan biraz daha düşük ama diğerlerinden yüksek */
+    transition: all var(--transition-normal);
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+    pointer-events: none;
+}
+
+.scroll-to-top-btn[style*="flex"] {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: all;
+}
+
+.scroll-to-top-btn:hover {
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 30px rgba(220, 38, 38, 0.5);
+    background: var(--gradient-secondary);
+}
+
+.scroll-to-top-btn:active {
+    transform: translateY(-2px) scale(1.05);
+}
+
+.scroll-to-top-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.4s, height 0.4s;
+}
+
+.scroll-to-top-btn:hover::before {
+    width: 100%;
+    height: 100%;
+}
+
+@media (max-width: 768px) {
+    .scroll-to-top-btn {
+        bottom: 7rem; /* Mobilde floating cart'ın üstünde */
+        right: 1.5rem;
+        width: 45px;
+        height: 45px;
+        font-size: 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .scroll-to-top-btn {
+        bottom: 6.5rem; /* Küçük ekranlarda floating cart'ın üstünde */
+        right: 1rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.1rem;
+    }
+}
+
+/* Panel sayfalarında floating cart yok, JavaScript ile bottom pozisyonu ayarlanacak */
+/* 10. RATING COUNT LINK - Değerlendirme Sayısı Tıklanabilir
+-------------------------------------- */
+
+.rating-count {
+    color: #999;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+    display: inline-block;
+}
+
+.rating-count:hover {
+    color: var(--primary-color) !important;
+    text-decoration: underline;
+}
+
+.rating-count::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--primary-color);
+    transition: width var(--transition-fast);
+}
+
+.rating-count:hover::after {
+    width: 100%;
+}

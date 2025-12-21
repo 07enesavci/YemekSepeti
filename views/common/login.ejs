@@ -1,0 +1,54 @@
+<div class="auth-page">
+    <div class="auth-container">
+        
+        <div class="card auth-card">
+            <div class="card-content">
+                <h1 class="card-title text-center">Giriş Yap</h1>
+                <p class="text-center auth-subtext">Lezzet dünyamıza tekrar hoş geldin!</p>
+                
+                <form id="login-form">
+                    
+                    <div class="form-group">
+                        <label for="email" class="form-label">E-posta Adresi</label>
+                        <input type="email" id="email" class="form-input" placeholder="ornek@mail.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password" class="form-label">Şifre</label>
+                        <input type="password" id="password" class="form-input" placeholder="••••••••" required>
+                    </div>
+
+                    <div class="form-group-inline space-between">
+                        <div class="form-check">
+                            <input type="checkbox" id="remember-me">
+                            <label for="remember-me">Beni Hatırla</label>
+                        </div>
+                        <a href="/forgot-password" class="form-link">Şifremi Unuttum</a>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-full"> Giriş Yap</button>
+                </form>
+
+                <!-- 2FA Doğrulama Ekranı -->
+                <div id="2fa-section" style="display: none;">
+                    <h2 class="card-title text-center">İki Faktörlü Kimlik Doğrulama</h2>
+                    <p class="text-center auth-subtext">Email adresinize gönderilen 6 haneli kodu girin.</p>
+                    <form id="verify-2fa-form">
+                        <div class="form-group">
+                            <label for="2fa-code" class="form-label">Doğrulama Kodu</label>
+                            <input type="text" id="2fa-code" class="form-input" placeholder="123456" maxlength="6" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Doğrula</button>
+                        <button type="button" id="resend-2fa-code" class="btn btn-secondary btn-full" style="margin-top: 10px;">Kodu Tekrar Gönder</button>
+                    </form>
+                </div>
+
+                <div class="auth-footer-link">
+                    <p>Hesabın yok mu? <a href="/register">Hemen Kayıt Ol</a></p>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>

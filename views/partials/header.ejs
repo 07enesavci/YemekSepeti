@@ -1,0 +1,49 @@
+<header class="site-header">
+    <div class="header-content container">
+        <a href="/" class="logo">Ev Lezzetleri</a>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="nav-overlay" id="nav-overlay"></div>
+        <nav class="main-nav" id="main-nav">
+            <ul> 	
+                <% if (user && user.role === 'seller') { %>
+                    <!-- Satıcı için panel ve çıkış butonu -->
+                    <li><a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="btn btn-primary">Satıcı Paneli</a></li>
+                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                <% } else if (user && user.role === 'courier') { %>
+                    <!-- Kurye için panel ve çıkış butonu -->
+                    <% const courierId = user.courierId || user.id; %>
+                    <li><a href="/courier/<%= courierId %>/dashboard" class="btn btn-primary">Kurye Paneli</a></li>
+                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                <% } else if (user && user.role === 'admin') { %>
+                    <!-- Admin için panel ve çıkış butonu -->
+                    <li><a href="/admin/users" class="btn btn-primary">Admin Paneli</a></li>
+                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                <% } else { %>
+                    <!-- Buyer ve misafirler için normal menü -->
+                    <li><a href="/" class="btn btn-secondary">Ana Sayfa</a></li>
+                    
+                    <% if (user) { %>
+                        <% if(user.role === 'buyer') { %>
+                            <li><a href="/buyer/profile" class="btn btn-secondary">Profilim</a></li>
+                        <% } %>
+                        <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                    <% } else { %>
+                        <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>
+                        <li><a href="/register" class="btn btn-primary">Kayıt Ol</a></li>
+                    <% } %>
+                    
+                    <li id="cart-button-li" style="position: relative; display: none;"> 
+                        <a href="/buyer/cart" class="btn btn-primary" id="cart-button">
+                            Sepet (<span id="cart-count">0</span>) 
+                        </a>
+                    </li>
+                <% } %>
+
+            </ul>
+        </nav>
+    </div>
+</header>

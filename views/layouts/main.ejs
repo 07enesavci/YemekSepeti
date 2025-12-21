@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> | Ev Lezzetleri</title>
+    
+    <base href="/">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <link rel="stylesheet" href="/assets/css/layout.css">
+    <link rel="stylesheet" href="/assets/css/components.css">
+    <link rel="stylesheet" href="/assets/css/responsive.css">
+    <link rel="stylesheet" href="/assets/css/pages/floating-cart.css">
+    
+    <% if (typeof pageCss !== 'undefined' && pageCss) { %>
+        <link rel="stylesheet" href="/assets/css/pages/<%= pageCss %>">
+    <% } %>
+</head>
+<body class="bg-color">
+
+    <%- include('../partials/header') %>
+
+    <main>
+        <%- body %>
+    </main>
+
+    <%- include('../partials/footer') %>
+
+    <script src="/assets/js/api.js"></script>
+    <script src="/assets/js/main.js"></script>
+    <script src="/assets/js/modules/header.js"></script>
+    <script src="/assets/js/modules/cart.js"></script>
+    <script src="/assets/js/modules/floating-cart.js"></script>
+    <script src="/assets/js/modules/scroll-to-top.js"></script>
+
+    <% if (typeof pageJs !== 'undefined' && pageJs) { %>
+        <script src="/assets/js/modules/<%= pageJs %>"></script>
+    <% } %>
+
+</body>
+</html>

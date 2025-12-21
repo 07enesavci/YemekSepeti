@@ -1,0 +1,87 @@
+/* ==================================== */
+/* ÖDEME SAYFASI (pages/checkout.css)  */
+/* ==================================== */
+
+/* 2 Sütunlu (Detay + Özet) ana yerleşimi - Responsive */
+.checkout-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+}
+
+@media (max-width: 992px) {
+    .checkout-layout {
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .checkout-layout {
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .checkout-layout {
+        gap: 1rem;
+    }
+}
+
+/* 1. Sol Sütun (Adres/Ödeme) */
+.checkout-details {
+    flex-grow: 1;
+}
+
+@media (max-width: 768px) {
+    .checkout-details {
+        width: 100%;
+    }
+}
+
+/* 2. Sağ Sütun (Sipariş Özeti) */
+/* .order-summary stilleri 'cart.css' içindeydi,
+   bu yüzden onları 'components.css'e taşımak daha mantıklı.
+   (Bir sonraki adıma bakın) */
+
+/* Sol sütundaki kartlar */
+.checkout-card {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.checkout-card-title {
+    font-family: var(--font-family-heading);
+    font-size: 1.5rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* AA/YY ve CVC alanlarını yan yana getirmek için - Responsive */
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex-grow: 1;
+}
+
+@media (max-width: 480px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .checkout-card {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .checkout-card-title {
+        font-size: 1.25rem;
+        padding-bottom: 0.75rem;
+        margin-bottom: 1rem;
+    }
+}

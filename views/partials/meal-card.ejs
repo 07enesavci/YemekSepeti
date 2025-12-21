@@ -1,0 +1,20 @@
+<div class="card meal-card">
+    <img src="<%= meal.image || '/assets/images/placeholder.png' %>" 
+         alt="<%= meal.name %>" 
+         class="card-image">
+    
+    <div class="card-content">
+        <h3 class="card-title"><%= meal.name %></h3>
+        <p class="card-text">
+            <%= meal.description %>
+        </p>
+
+        <div class="meal-card-footer">
+            <span class="meal-price"><%= meal.price %> TL</span>
+            
+            <button class="btn btn-primary" data-meal-id="<%= meal.id %>">
+                <span class="icon">🛒</span> Sepete Ekle
+            </button>
+        </div>
+    </div>
+</div>

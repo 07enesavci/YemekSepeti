@@ -1,0 +1,60 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Profil ve Ayarlar</h1>
+        
+        <div class="card">
+            <div class="card-content">
+                
+                <div id="status-message" style="padding: 10px; margin-bottom: 15px; border-radius: 4px; display: none; font-weight: bold;">
+                    </div>
+
+                <form id="courier-profile-form">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Müsaitlik Durumu</label>
+                        <div class="role-selector">
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="status-online" name="courier-status" value="online" checked>
+                                <label for="status-online" style="border-color: #4CAF50;">
+                                    <strong style="color: #4CAF50;">Aktif (Görev Alabilir)</strong>
+                                </label>
+                            </div>
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="status-offline" name="courier-status" value="offline">
+                                <label for="status-offline" style="border-color: #E74C3C;">
+                                    <strong style="color: #E74C3C;">Pasif (Görev Alamaz)</strong>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <div class="form-group">
+                        <label for="courier-name" class="form-label">Ad Soyad</label>
+                        <input type="text" id="courier-name" class="form-input" placeholder="Ad Soyad" value="<%= user && user.fullname ? user.fullname : '' %>" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="courier-phone" class="form-label">Telefon Numarası</label>
+                        <input type="tel" id="courier-phone" class="form-input" value="<%= user && user.phone ? user.phone : '' %>" placeholder="Telefon Numarası">
+                    </div>
+                    <div class="form-group">
+                        <label for="courier-vehicle" class="form-label">Araç Tipi</label>
+                        <select id="courier-vehicle" class="form-input">
+                            <option value="motorcycle" selected>Motorsiklet</option>
+                            <option value="car">Araba</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Bilgileri Güncelle</button>
+                </form>
+            </div>
+        </div>
+
+    </main>
+</div>
