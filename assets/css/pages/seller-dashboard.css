@@ -327,3 +327,17 @@
     min-width: 100px;
     text-align: right;
 }
+
+/* Dark theme overrides */
+:root[data-theme="dark"] .panel-sidebar {
+    background: var(--card-bg);
+    backdrop-filter: var(--blur-md);
+    -webkit-backdrop-filter: var(--blur-md);
+    box-shadow: var(--shadow-md);
+    border-right: 1px solid var(--border-color);
+}
+:root[data-theme="dark"] .panel-nav li a { color: var(--text-color-light); }
+:root[data-theme="dark"] .panel-nav li a:hover {
+    background: var(--header-link-hover-bg);
+    color: var(--text-color);
+}

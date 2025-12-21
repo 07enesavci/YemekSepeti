@@ -104,18 +104,21 @@ async function initFloatingCart() {
         overlay.addEventListener('click', closeFloatingCart);
     }
     
-    // Toggle butonu
+    // Toggle butonu: paneli aç/kapat
     if (toggleBtn) {
-        toggleBtn.addEventListener('click', function(e) {
+        // Önceki listener'ları temizle
+        toggleBtn.onclick = null;
+        
+        toggleBtn.onclick = function(e) {
             e.preventDefault();
             e.stopPropagation();
             toggleFloatingCart(e);
-        }, true); // Capture phase'de çalışsın
+            return false;
+        };
         
-        // Ekstra güvenlik: badge'e tıklandığında da sepete git
         const badge = document.getElementById('floating-cart-toggle-count');
         if (badge && badge.parentElement === toggleBtn) {
-            badge.style.pointerEvents = 'none'; // CSS'de de var ama JS'de de emin ol
+            badge.style.pointerEvents = 'none';
         }
     }
     
@@ -153,12 +156,18 @@ function toggleFloatingCart(e) {
         e.stopPropagation();
     }
     
-    // Butona tıklayınca direkt sepete git
-    const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-    const cartUrl = `${baseUrl}/buyer/cart`;
+    const panel = document.getElementById('floating-cart-panel');
+    const isOpen = panel && panel.classList.contains('active');
     
-    // Direkt yönlendir
-    window.location.href = cartUrl;
+    if (isOpen) {
+        closeFloatingCart();
+    } else {
+        // Önce paneli aç, sonra içeriği güncelle
+        openFloatingCart();
+        updateFloatingCart().catch(() => {
+            // Hata olsa bile panel açık kalsın
+        });
+    }
 }
 
 // Floating cart'ı güncelle (sepet değiştiğinde çağrılır)

@@ -2,6 +2,63 @@
  * Header yönetimi - Login durumuna göre butonları göster/gizle
  */
 
+const THEME_STORAGE_KEY = 'ys-theme';
+
+function getPreferredTheme() {
+    try {
+        const saved = localStorage.getItem(THEME_STORAGE_KEY);
+        if (saved === 'dark' || saved === 'light') {
+            return saved;
+        }
+    } catch (error) {
+        console.warn('Tema tercihi okunamadı:', error);
+    }
+
+    const preset = document.documentElement.getAttribute('data-theme');
+    if (preset === 'dark' || preset === 'light') {
+        return preset;
+    }
+
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return prefersDark ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    if (document.body) {
+        document.body.setAttribute('data-theme', theme);
+    }
+
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('is-dark', theme === 'dark');
+        toggleBtn.setAttribute('aria-pressed', theme === 'dark');
+        toggleBtn.setAttribute('aria-label', theme === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç');
+    }
+}
+
+function initThemeToggle() {
+    const toggleBtn = document.getElementById('theme-toggle');
+    const initialTheme = getPreferredTheme();
+    applyTheme(initialTheme);
+
+    if (!toggleBtn) {
+        return;
+    }
+
+    toggleBtn.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme);
+        try {
+            localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+        } catch (error) {
+            console.warn('Tema tercihi kaydedilemedi:', error);
+        }
+    });
+}
+
 // Mevcut kullanıcı bilgisini al
 async function getCurrentUser() {
     // Auth sayfalarındaysak hiç API çağrısı yapma
@@ -250,6 +307,8 @@ function initMobileMenu() {
 document.addEventListener('DOMContentLoaded', async () => {
     // Mobil menüyü başlat
     initMobileMenu();
+    // Tema toggle'ı başlat
+    initThemeToggle();
     // Login/Register sayfalarındaysak session kontrolü yapma (gereksiz)
     const isAuthPage = window.location.pathname.includes('/login') || 
                        window.location.pathname.includes('/register') ||

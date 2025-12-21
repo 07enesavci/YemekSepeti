@@ -324,7 +324,7 @@
 .restaurant-card .card-image-wrapper {
     overflow: hidden;
     position: relative;
-    background: #F3F4F6;
+    background: var(--bg-secondary);
 }
 
 .restaurant-card .card-image-wrapper img {

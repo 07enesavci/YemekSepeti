@@ -35,8 +35,8 @@
     /* Hamburger Menu Button */
     .mobile-menu-toggle {
         display: block;
-        background: rgba(255, 255, 255, 0.2);
-        border: 2px solid rgba(255, 255, 255, 0.3);
+        background: var(--mobile-toggle-bg);
+        border: 2px solid var(--mobile-toggle-border);
         border-radius: 8px;
         padding: 0.5rem;
         cursor: pointer;
@@ -47,7 +47,7 @@
         display: block;
         width: 25px;
         height: 3px;
-        background: #FFFFFF;
+        background: var(--mobile-toggle-bar);
         margin: 4px 0;
         border-radius: 2px;
         transition: all 0.3s;
@@ -60,7 +60,7 @@
         width: 80%;
         max-width: 300px;
         height: 100vh;
-        background: linear-gradient(135deg, rgba(220, 38, 38, 0.98) 0%, rgba(239, 68, 68, 0.98) 100%);
+        background: var(--mobile-nav-bg);
         backdrop-filter: blur(20px);
         padding: 4rem 2rem 2rem;
         transition: right 0.3s ease;

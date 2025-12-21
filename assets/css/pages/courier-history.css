@@ -95,3 +95,13 @@
         height: 50px;
     }
 }
+
+/* Dark theme tweaks: soften icon backgrounds */
+:root[data-theme="dark"] .transaction-icon.income {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+}
+:root[data-theme="dark"] .transaction-icon.payout {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--primary-color);
+}

@@ -94,16 +94,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         
                         const couponHtml = `
-                            <div class="coupon-item" data-coupon-id="${coupon.id}" data-coupon-index="${index}" style="padding: 1.25rem; margin-bottom: 1rem; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #FF6B35; ${couponClickable ? 'cursor: pointer;' : ''} transition: all 0.3s;" ${couponClickable ? 'onclick="showCouponRestaurantsModal(' + index + ')"' : ''}>
+                            <div class="coupon-item" data-coupon-id="${coupon.id}" data-coupon-index="${index}" style="padding: 1.25rem; margin-bottom: 1rem; background: var(--card-bg); border-radius: 8px; border-left: 4px solid var(--primary-color); ${couponClickable ? 'cursor: pointer;' : ''} transition: all 0.3s;" ${couponClickable ? 'onclick="showCouponRestaurantsModal(' + index + ')"' : ''}>
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                                     <div style="flex: 1;">
-                                        <span class="coupon-code" style="font-weight: 700; font-size: 1.2rem; color: #FF6B35; display: block; margin-bottom: 0.5rem;">${coupon.code || 'KUPON'}</span>
-                                        <p style="margin: 0 0 0.5rem 0; color: #666; font-size: 0.95rem;">${coupon.description || 'Açıklama yok'}</p>
+                                        <span class="coupon-code" style="font-weight: 700; font-size: 1.2rem; color: var(--primary-color); display: block; margin-bottom: 0.5rem;">${coupon.code || 'KUPON'}</span>
+                                        <p style="margin: 0 0 0.5rem 0; color: var(--text-color-light); font-size: 0.95rem;">${coupon.description || 'Açıklama yok'}</p>
                                         ${restaurantInfo}
-                                        ${coupon.minOrderAmount > 0 ? `<p style="margin: 0.5rem 0 0 0; color: #666; font-size: 0.85rem;">Min. sipariş: ${(window.formatTL || ((amt) => (amt || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })))(coupon.minOrderAmount)}</p>` : ''}
+                                        ${coupon.minOrderAmount > 0 ? `<p style="margin: 0.5rem 0 0 0; color: var(--text-color-light); font-size: 0.85rem;">Min. sipariş: ${(window.formatTL || ((amt) => (amt || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })))(coupon.minOrderAmount)}</p>` : ''}
                                     </div>
                                     <div style="text-align: right; margin-left: 1rem;">
-                                        <strong style="color: #FF6B35; font-size: 1.5rem; display: block;">${discountText}</strong>
+                                        <strong style="color: var(--primary-color); font-size: 1.5rem; display: block;">${discountText}</strong>
                                     </div>
                                 </div>
                             </div>
@@ -123,9 +123,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!document.getElementById('coupon-restaurants-modal')) {
                         const modalHtml = `
                             <div id="coupon-restaurants-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
-                                <div style="background: white; border-radius: 12px; padding: 2rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative;">
-                                    <button id="close-coupon-modal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
-                                    <h3 style="margin: 0 0 1.5rem 0; color: #1F2937; font-size: 1.5rem;">Geçerli Restoranlar</h3>
+                                <div style="background: var(--card-bg); border-radius: 12px; padding: 2rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; border: 1px solid var(--border-color);">
+                                    <button id="close-coupon-modal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color-light);">&times;</button>
+                                    <h3 style="margin: 0 0 1.5rem 0; color: var(--text-color); font-size: 1.5rem;">Geçerli Restoranlar</h3>
                                     <div id="coupon-modal-content"></div>
                                 </div>
                             </div>
@@ -154,15 +154,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!modal || !content || !couponData) return;
                         
                         if (couponData.type === 'all') {
-                            content.innerHTML = '<p style="color: #666; margin-bottom: 1rem;">Bu kupon tüm restoranlarda geçerlidir.</p>';
+                            content.innerHTML = '<p style="color: var(--text-color-light); margin-bottom: 1rem;">Bu kupon tüm restoranlarda geçerlidir.</p>';
                         } else if (couponData.type === 'multiple' && couponData.sellers) {
                             content.innerHTML = `
-                                <p style="color: #666; margin-bottom: 1rem;">Bu kupon aşağıdaki restoranlarda geçerlidir:</p>
+                                <p style="color: var(--text-color-light); margin-bottom: 1rem;">Bu kupon aşağıdaki restoranlarda geçerlidir:</p>
                                 <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
                                     ${couponData.sellers.map(seller => `
-                                        <a href="/buyer/seller-profile/${seller.id}" style="display: inline-block; padding: 0.75rem 1.25rem; background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 8px; color: #2563EB; text-decoration: none; font-size: 0.95rem; transition: all 0.2s;" 
-                                           onmouseover="this.style.background='#EFF6FF'; this.style.borderColor='#2563EB';" 
-                                           onmouseout="this.style.background='#F3F4F6'; this.style.borderColor='#E5E7EB';">
+                                        <a href="/buyer/seller-profile/${seller.id}" style="display: inline-block; padding: 0.75rem 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--primary-color); text-decoration: none; font-size: 0.95rem; transition: all 0.2s;" 
+                                           onmouseover="this.style.borderColor='var(--primary-color)';" 
+                                           onmouseout="this.style.borderColor='var(--border-color)';">
                                             ${seller.name}
                                         </a>
                                     `).join('')}
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     };
                 } else {
                     couponsList.innerHTML = `
-                        <div class="coupon-item" style="text-align: center; padding: 2rem; color: #666;">
+                        <div class="coupon-item" style="text-align: center; padding: 2rem; color: var(--text-color-light); background: var(--card-bg);">
                             <p>Henüz aktif kupon bulunmamaktadır.</p>
                         </div>
                     `;

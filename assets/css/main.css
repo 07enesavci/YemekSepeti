@@ -87,6 +87,54 @@
     --blur-md: blur(8px);
     --blur-lg: blur(16px);
     --blur-xl: blur(24px);
+
+    /* Theming helpers */
+    --header-link-color: #1F2937;
+    --header-link-hover-bg: rgba(220, 38, 38, 0.05);
+    --mobile-toggle-bg: rgba(255, 255, 255, 0.2);
+    --mobile-toggle-border: rgba(255, 255, 255, 0.3);
+    --mobile-toggle-bar: #FFFFFF;
+    --mobile-nav-bg: linear-gradient(135deg, rgba(220, 38, 38, 0.98) 0%, rgba(239, 68, 68, 0.98) 100%);
+}
+
+:root[data-theme="dark"] {
+    --bg-color: #0B1220;
+    --bg-gradient: linear-gradient(135deg, #0F172A 0%, #0B1220 50%, #0F172A 100%);
+    --bg-secondary: linear-gradient(135deg, #0F172A 0%, #111827 50%, #0B1220 100%);
+    --bg-accent: linear-gradient(135deg, #0F172A 0%, #111827 100%);
+    --card-bg: rgba(15, 23, 42, 0.92);
+    --card-bg-hover: rgba(30, 41, 59, 0.94);
+    --card-bg-accent: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.85) 100%);
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-border: rgba(148, 163, 184, 0.2);
+    --border-color: rgba(148, 163, 184, 0.28);
+    --footer-bg: linear-gradient(135deg, #0B1220 0%, #0F172A 100%);
+    --secondary-color: #E5E7EB;
+    --secondary-color-light: #CBD5E1;
+    --text-color: #F8FAFC;
+    --text-color-light: #E2E8F0;
+    --text-color-lighter: #CBD5E1;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
+    --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.32), 0 4px 10px rgba(0, 0, 0, 0.2);
+    --shadow-xl: 0 20px 35px rgba(0, 0, 0, 0.35), 0 10px 16px rgba(0, 0, 0, 0.25);
+    --shadow-2xl: 0 25px 60px rgba(0, 0, 0, 0.45);
+    --shadow-primary: 0 8px 30px rgba(239, 68, 68, 0.35);
+    --shadow-glow: 0 0 40px rgba(239, 68, 68, 0.55);
+    --shadow-glow-soft: 0 0 60px rgba(239, 68, 68, 0.3);
+    --card-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+    --card-shadow-hover: 0 20px 60px rgba(0, 0, 0, 0.35);
+    --header-link-color: #E2E8F0;
+    --header-link-hover-bg: rgba(226, 232, 240, 0.08);
+    --mobile-toggle-bg: rgba(255, 255, 255, 0.08);
+    --mobile-toggle-border: rgba(255, 255, 255, 0.18);
+    --mobile-toggle-bar: #E2E8F0;
+    --mobile-nav-bg: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+}
+
+:root[data-theme="dark"] body {
+    background: var(--bg-gradient);
+    color: var(--text-color);
 }
 
 /* 2. GLOBAL RESET & SMOOTH SCROLLING
@@ -105,11 +153,10 @@ html {
 body {
     font-family: var(--font-family-body);
     background: var(--bg-gradient);
+    background-color: var(--bg-color);
     color: var(--text-color);
-    transition: background var(--transition-slow), color var(--transition-slow);
+    transition: background var(--transition-slow), color var(--transition-slow), background-color var(--transition-slow);
     font-weight: var(--font-weight-normal);
-    background: #FFFFFF;
-    color: var(--secondary-color);
     line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -176,6 +223,10 @@ h3 {
 p {
     margin-bottom: 1rem;
     color: var(--secondary-color-light);
+}
+
+:root[data-theme="dark"] p {
+    color: var(--text-color);
 }
 
 

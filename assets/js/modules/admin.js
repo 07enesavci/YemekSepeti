@@ -206,19 +206,19 @@ function kuponlariYukleVeListele() {
             var gecerlilikTarihi = gecerlilik ? new Date(gecerlilik).toLocaleDateString('tr-TR') : '';
             var kullanım = (k.usedCount || k.used_count || 0) + (k.usageLimit && k.usageLimit > 0 ? ' / ' + k.usageLimit : ' / Sınırsız');
             
-            html += '<div class="coupon-list-item" style="padding: 1.5rem; border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; margin-bottom: 1rem;">';
+            html += '<div class="coupon-list-item" style="padding: 1.5rem; margin-bottom: 1rem;">';
             html +=   '<div class="coupon-info" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">';
             html +=     '<div>';
             html +=       '<strong style="font-size: 1.2rem; color: var(--primary-color);">' + k.code + '</strong>';
-            html +=       (k.description ? '<p style="margin: 0.25rem 0; color: #666;">' + k.description + '</p>' : '');
+            html +=       (k.description ? '<p class="coupon-meta" style="margin: 0.25rem 0;">' + k.description + '</p>' : '');
             html +=     '</div>';
             html +=     '<div style="text-align: right;">';
             html +=       '<div style="font-size: 1.5rem; font-weight: bold; color: var(--primary-color);">' + indirimText + '</div>';
-            html +=       '<div style="font-size: 0.85rem; color: #666;">İndirim</div>';
+            html +=       '<div class="coupon-meta" style="font-size: 0.85rem;">İndirim</div>';
             html +=     '</div>';
             html +=   '</div>';
             html +=   '<div class="coupon-sellers" style="margin-bottom: 0.5rem;">' + saticilarHtml + '</div>';
-            html +=   '<div style="display: flex; gap: 1rem; font-size: 0.9rem; color: #666; margin-bottom: 1rem; flex-wrap: wrap;">';
+            html +=   '<div class="coupon-meta" style="display: flex; gap: 1rem; font-size: 0.9rem; margin-bottom: 1rem; flex-wrap: wrap;">';
             html +=     '<span>Min. Tutar: ' + minTutar + ' TL</span>';
             html +=     '<span>•</span>';
             html +=     '<span>Kullanım: ' + kullanım + '</span>';

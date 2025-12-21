@@ -60,7 +60,7 @@
 .map-placeholder {
     width: 100%;
     height: 350px;
-    background-color: var(--bg-color);
+    background: var(--card-bg);
     border: 2px dashed var(--border-color);
     border-radius: var(--border-radius);
     display: flex;
@@ -72,12 +72,12 @@
 .map-placeholder p {
     font-family: var(--font-family-heading);
     font-size: 1.5rem;
-    color: var(--secondary-color-light);
+    color: var(--text-color);
     margin: 0;
 }
 .map-placeholder span {
     font-size: 1rem;
-    color: var(--secondary-color-light);
+    color: var(--text-color-light);
 }
 
 /* 2. Görev Detayları
@@ -91,7 +91,7 @@
 
 .task-step {
     padding: 1rem;
-    background: var(--bg-color);
+    background: var(--card-bg);
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
 }
@@ -136,7 +136,7 @@
 /* Aktif görev adımı */
 .task-step.active {
     border-color: var(--primary-color);
-    background-color: #FFF7F0;
+    background: var(--card-bg-hover);
 }
 .task-step.active strong {
     color: var(--primary-color);

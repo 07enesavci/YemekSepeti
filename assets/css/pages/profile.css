@@ -135,15 +135,28 @@ input:checked + .slider:before {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--bg-color);
+    background: var(--card-bg-accent);
     padding: 1.5rem;
     border-radius: var(--border-radius);
     margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: var(--blur-sm);
+    -webkit-backdrop-filter: var(--blur-sm);
 }
 .wallet-balance span {
     font-size: 1.2rem;
     font-weight: 500;
 }
+
+/* Wallet helpers */
+.wallet-label {
+    display: block;
+    color: var(--text-color-light);
+    margin-bottom: 0.5rem;
+}
+
+.text-muted { color: var(--text-color-light); }
 
 /* RESPONSIVE DESIGN */
 @media (max-width: 992px) {
@@ -202,7 +215,7 @@ input:checked + .slider:before {
     padding: 1rem;
     border: 1px dashed var(--primary-color);
     border-radius: var(--border-radius);
-    background-color: #FFF7F0;
+    background: #FFF7F0;
 }
 .coupon-item .coupon-code {
     font-family: var(--font-family-body);
@@ -213,4 +226,18 @@ input:checked + .slider:before {
 .coupon-item p {
     font-size: 0.9rem;
     margin-bottom: 0;
+}
+
+/* Dark theme adjustments */
+:root[data-theme="dark"] .coupon-item {
+    background: var(--card-bg);
+    border-color: rgba(239, 68, 68, 0.35);
+}
+:root[data-theme="dark"] .coupon-item p { color: var(--text-color-light); }
+:root[data-theme="dark"] .coupon-item .coupon-code { color: var(--primary-color-light); }
+
+/* Dark theme balance box tweaks for clearer separation */
+:root[data-theme="dark"] .wallet-balance {
+    background: var(--card-bg-hover);
+    box-shadow: var(--shadow-lg);
 }

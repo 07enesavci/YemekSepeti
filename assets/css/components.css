@@ -422,6 +422,7 @@
     border: 2px solid var(--border-color);
     border-radius: var(--border-radius);
     background-color: var(--card-bg);
+    color: var(--text-color);
     outline: none;
     position: relative;
     transition: border-color 0.3s, box-shadow 0.3s;
@@ -430,7 +431,7 @@
 .form-input:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
-    background-color: #FFFFFF;
+    background-color: var(--card-bg);
     animation: inputGlow 2s ease infinite;
 }
 
@@ -461,15 +462,15 @@
 .form-input:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
-    background-color: #FFFFFF;
+    background-color: var(--card-bg);
 }
 
 .form-input::placeholder {
-    color: #999;
+    color: var(--text-color-light);
 }
 
 .form-input:focus::placeholder {
-    opacity: 0.5;
+    opacity: 0.7;
 }
 
 .form-group-inline {
@@ -642,10 +643,17 @@
 .coupon-form {
     display: flex;
     gap: 0.75rem;
+    align-items: center;
 }
 
 .coupon-form .form-input {
-    flex-grow: 1;
+    flex: 1;
+    min-width: 0;
+}
+
+.coupon-form .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .divider {
@@ -653,6 +661,11 @@
     height: 2px;
     background: linear-gradient(90deg, transparent, var(--border-color), transparent);
     margin: 2rem 0;
+}
+
+/* Utility: muted text color */
+.text-muted {
+    color: var(--text-color-light) !important;
 }
 
 /* Meal Card Extras */

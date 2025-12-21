@@ -90,6 +90,13 @@
     z-index: 1;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
 @media (max-width: 768px) {
     .header-content {
         flex-direction: column;
@@ -116,6 +123,58 @@
     color: var(--primary-color);
 }
 
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-toggle:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-color-light);
+}
+
+.theme-toggle:active {
+    transform: translateY(0);
+}
+
+.theme-toggle .theme-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: opacity var(--transition-normal), transform var(--transition-normal);
+    position: absolute;
+}
+
+.theme-toggle .sun {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.theme-toggle .moon {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.theme-toggle.is-dark .sun {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.theme-toggle.is-dark .moon {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 
 /* 3. MODERN NAVIGATION - Shef.com Style
 -------------------------------------- */
@@ -137,7 +196,7 @@
 
 .main-nav a {
     text-decoration: none;
-    color: #1F2937;
+    color: var(--header-link-color);
     font-weight: var(--font-weight-medium);
     font-size: clamp(0.875rem, 2vw, 1rem);
     padding: 0.625rem 1rem;
@@ -152,7 +211,7 @@
 
 .main-nav a:hover {
     color: var(--primary-color);
-    background: rgba(220, 38, 38, 0.05);
+    background: var(--header-link-hover-bg);
     transform: none !important;
 }
 
@@ -186,9 +245,9 @@
 }
 
 .site-header .btn-secondary {
-    background: #FFFFFF !important;
-    color: #1F2937 !important;
-    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    background: var(--card-bg) !important;
+    color: var(--header-link-color) !important;
+    border: 1px solid var(--border-color) !important;
     box-shadow: none !important;
     padding: 0.625rem 1.5rem !important;
     transition: background-color var(--transition-normal), color var(--transition-normal), border-color var(--transition-normal) !important;
@@ -216,7 +275,43 @@
 
 .main-nav a.active {
     color: var(--primary-color);
-    background: rgba(220, 38, 38, 0.08);
+    background: var(--header-link-hover-bg);
+}
+
+:root[data-theme="dark"] .site-header {
+    background: var(--card-bg);
+    border-bottom-color: var(--border-color);
+    box-shadow: var(--shadow-md);
+}
+
+:root[data-theme="dark"] .site-header .btn-secondary {
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Dark theme hover effect for header buttons */
+:root[data-theme="dark"] .site-header .btn-secondary:hover {
+    background: var(--gradient-primary) !important;
+    color: #FFFFFF !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: var(--shadow-primary) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Dark theme hover effect for plain nav links */
+:root[data-theme="dark"] .main-nav a:hover {
+    color: #FFFFFF;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.10) 100%);
+}
+
+:root[data-theme="dark"] .site-header .btn-primary {
+    box-shadow: var(--shadow-primary) !important;
+}
+
+:root[data-theme="dark"] .theme-toggle {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-color);
 }
 
 /* 4. MODERN FOOTER - Shef.com Style

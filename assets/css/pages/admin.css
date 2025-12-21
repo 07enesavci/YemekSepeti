@@ -83,12 +83,31 @@
     gap: 1rem;
     margin-top: 1.5rem;
     padding: 1rem;
-    background: var(--bg-color);
+    background: var(--card-bg);
     border-radius: var(--border-radius);
     max-height: 400px;
     overflow-y: auto;
 }
 /* .form-check stili components.css'den geliyor */
+
+/* Kupon Liste Kartları */
+.coupon-list-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--card-shadow);
+}
+.coupon-list-item:hover { box-shadow: var(--card-shadow-hover); }
+.coupon-info p, .coupon-meta, .coupon-sellers { color: var(--text-color-light); }
+.seller-tag {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-color-light);
+}
+
+:root[data-theme="dark"] .seller-checkbox-list { background: var(--card-bg); }
 
 /* RESPONSIVE DESIGN */
 @media (max-width: 992px) {
