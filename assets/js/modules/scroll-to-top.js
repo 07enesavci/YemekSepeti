@@ -31,29 +31,14 @@ function createScrollToTopButton() {
     document.body.appendChild(button);
     scrollToTopButton = button;
     
-    // Buton pozisyonunu ayarla
+    // Buton pozisyonunu ayarla - her zaman sağ alt köşeye
     function adjustButtonPosition() {
-        const isPanelPage = document.querySelector('.panel-layout') !== null;
-        const hasFloatingCart = document.getElementById('floating-cart-toggle') !== null;
-        
-        // Panel sayfalarında veya floating cart yoksa sağ alt köşeye yerleştir
-        if (isPanelPage || !hasFloatingCart) {
-            if (window.innerWidth <= 480) {
-                button.style.bottom = '1rem';
-            } else if (window.innerWidth <= 768) {
-                button.style.bottom = '1.5rem';
-            } else {
-                button.style.bottom = '2rem';
-            }
+        if (window.innerWidth <= 480) {
+            button.style.bottom = '1rem';
+        } else if (window.innerWidth <= 768) {
+            button.style.bottom = '1.5rem';
         } else {
-            // Floating cart var, üstüne yerleştir
-            if (window.innerWidth <= 480) {
-                button.style.bottom = '6.5rem';
-            } else if (window.innerWidth <= 768) {
-                button.style.bottom = '7rem';
-            } else {
-                button.style.bottom = '8rem';
-            }
+            button.style.bottom = '2rem';
         }
     }
     

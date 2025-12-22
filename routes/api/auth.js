@@ -75,16 +75,19 @@ async function saveVerificationCode(email, code, type) {
     expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 dakika geçerli
     
     try {
+        // Kodu normalize et: string'e çevir, trim et, boşlukları temizle
+        const normalizedCode = String(code).trim().replace(/\s+/g, '');
+        
         // Önce eski kodları sil (aynı email ve type için)
         await db.execute(
             "DELETE FROM email_verification_codes WHERE email = ? AND type = ?",
             [email, type]
         );
         
-        // Yeni kodu kaydet
+        // Yeni kodu kaydet (her zaman string olarak)
         await db.execute(
             "INSERT INTO email_verification_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)",
-            [email, code, type, expiresAt]
+            [email, normalizedCode, type, expiresAt]
         );
     } catch (error) {
         console.error("Verification code save error:", error);
@@ -95,22 +98,65 @@ async function saveVerificationCode(email, code, type) {
 // Doğrulama kodunu kontrol et
 async function verifyCode(email, code, type) {
     try {
-        const results = await db.query(
-            `SELECT * FROM email_verification_codes 
-             WHERE email = ? AND code = ? AND type = ? AND expires_at > NOW() AND used = FALSE
-             ORDER BY created_at DESC LIMIT 1`,
-            [email, code, type]
-        );
+        // Kodu normalize et: string'e çevir, trim et, boşlukları temizle
+        const normalizedCode = String(code).trim().replace(/\s+/g, '');
         
-        if (results && results.length > 0) {
-            // Kodu kullanıldı olarak işaretle
-            await db.execute(
-                "UPDATE email_verification_codes SET used = TRUE WHERE id = ?",
-                [results[0].id]
-            );
-            return true;
+        if (!normalizedCode || normalizedCode.length !== 6) {
+            console.error("Verification code invalid format:", { code, normalizedCode, length: normalizedCode?.length });
+            return false;
         }
         
+        // Veritabanından email ve type'a göre tüm kodları çek (JavaScript'te karşılaştır)
+        const allCodes = await db.query(
+            `SELECT id, code, expires_at, used, created_at 
+             FROM email_verification_codes 
+             WHERE email = ? AND type = ? 
+             ORDER BY created_at DESC`,
+            [email, type]
+        );
+        
+        if (!allCodes || allCodes.length === 0) {
+            console.log("No verification codes found for:", { email, type });
+            return false;
+        }
+        
+        // En son kod ile karşılaştır (kullanılmamış ve geçerli olanı bul)
+        const now = new Date();
+        for (const dbCode of allCodes) {
+            // Kodun geçerlilik süresini kontrol et
+            const expiresAt = new Date(dbCode.expires_at);
+            if (expiresAt <= now) {
+                continue; // Süresi dolmuş, sonrakine bak
+            }
+            
+            if (dbCode.used) {
+                continue; // Kullanılmış, sonrakine bak
+            }
+            
+            // Kodu string olarak karşılaştır (veritabanındaki kod INT veya VARCHAR olabilir)
+            const dbCodeStr = String(dbCode.code).trim().replace(/\s+/g, '');
+            
+            console.log("Comparing codes:", {
+                email,
+                type,
+                inputCode: normalizedCode,
+                dbCode: dbCode.code,
+                dbCodeStr: dbCodeStr,
+                match: dbCodeStr === normalizedCode
+            });
+            
+            if (dbCodeStr === normalizedCode) {
+                // Kodu kullanıldı olarak işaretle
+                await db.execute(
+                    "UPDATE email_verification_codes SET used = TRUE WHERE id = ?",
+                    [dbCode.id]
+                );
+                console.log("Verification code matched and marked as used:", dbCode.id);
+                return true;
+            }
+        }
+        
+        console.log("Verification code not found, expired, or already used");
         return false;
     } catch (error) {
         console.error("Verification code verify error:", error);
@@ -460,15 +506,25 @@ router.post("/verify-email", async (req, res) => {
     const displayName = (name || fullname || '').trim();
 
     try {
-        if (!email || !code || !displayName || !password) {
+        // Kodu normalize et
+        const normalizedCode = code ? String(code).trim().replace(/\s+/g, '') : '';
+        
+        if (!email || !normalizedCode || !displayName || !password) {
             return res.status(400).json({
                 success: false,
                 message: "Tüm alanlar gereklidir."
             });
         }
+        
+        if (normalizedCode.length !== 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Doğrulama kodu 6 haneli olmalıdır."
+            });
+        }
 
         // Kodu doğrula
-        const isValid = await verifyCode(email, code, 'registration');
+        const isValid = await verifyCode(email, normalizedCode, 'registration');
         if (!isValid) {
             return res.status(400).json({
                 success: false,
@@ -517,15 +573,25 @@ router.post("/verify-2fa", async (req, res) => {
     const { email, code } = req.body;
 
     try {
-        if (!email || !code) {
+        // Kodu normalize et
+        const normalizedCode = code ? String(code).trim().replace(/\s+/g, '') : '';
+        
+        if (!email || !normalizedCode) {
             return res.status(400).json({
                 success: false,
                 message: "Email ve kod gereklidir."
             });
         }
+        
+        if (normalizedCode.length !== 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Doğrulama kodu 6 haneli olmalıdır."
+            });
+        }
 
         // Kodu doğrula
-        const isValid = await verifyCode(email, code, 'two_factor');
+        const isValid = await verifyCode(email, normalizedCode, 'two_factor');
         if (!isValid) {
             return res.status(400).json({
                 success: false,

@@ -45,10 +45,6 @@ function createFloatingCartHTML() {
                 </div>
             </div>
         </div>
-        <button class="floating-cart-toggle" id="floating-cart-toggle" aria-label="Sepeti Aç">
-            🛒
-            <span class="cart-count-badge" id="floating-cart-toggle-count" style="display: none;">0</span>
-        </button>
     `;
     
     document.body.insertAdjacentHTML('beforeend', cartHTML);
@@ -92,7 +88,6 @@ async function initFloatingCart() {
     const overlay = document.getElementById('floating-cart-overlay');
     const panel = document.getElementById('floating-cart-panel');
     const closeBtn = document.getElementById('floating-cart-close');
-    const toggleBtn = document.getElementById('floating-cart-toggle');
     
     // Kapat butonu
     if (closeBtn) {
@@ -102,24 +97,6 @@ async function initFloatingCart() {
     // Overlay'e tıklanınca kapat
     if (overlay) {
         overlay.addEventListener('click', closeFloatingCart);
-    }
-    
-    // Toggle butonu: paneli aç/kapat
-    if (toggleBtn) {
-        // Önceki listener'ları temizle
-        toggleBtn.onclick = null;
-        
-        toggleBtn.onclick = function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleFloatingCart(e);
-            return false;
-        };
-        
-        const badge = document.getElementById('floating-cart-toggle-count');
-        if (badge && badge.parentElement === toggleBtn) {
-            badge.style.pointerEvents = 'none';
-        }
     }
     
     floatingCartInitialized = true;
@@ -154,17 +131,27 @@ function toggleFloatingCart(e) {
     if (e) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
     }
     
+    console.log('toggleFloatingCart called');
+    
     const panel = document.getElementById('floating-cart-panel');
-    const isOpen = panel && panel.classList.contains('active');
+    if (!panel) {
+        console.error('Floating cart panel not found!');
+        return;
+    }
+    
+    const isOpen = panel.classList.contains('active');
+    console.log('Panel is open:', isOpen);
     
     if (isOpen) {
         closeFloatingCart();
     } else {
         // Önce paneli aç, sonra içeriği güncelle
         openFloatingCart();
-        updateFloatingCart().catch(() => {
+        updateFloatingCart().catch((error) => {
+            console.error('Error updating floating cart:', error);
             // Hata olsa bile panel açık kalsın
         });
     }
@@ -200,7 +187,6 @@ async function updateFloatingCart() {
     const totals = window.getSepetTotals ? (await window.getSepetTotals()) : { ara: 0, teslimat: 15.00, toplam: 15.00 };
     
     const countBadge = document.getElementById('floating-cart-count');
-    const toggleCountBadge = document.getElementById('floating-cart-toggle-count');
     const emptyDiv = document.getElementById('floating-cart-empty');
     const itemsDiv = document.getElementById('floating-cart-items');
     const footerDiv = document.getElementById('floating-cart-footer');
@@ -213,15 +199,6 @@ async function updateFloatingCart() {
     
     if (countBadge) {
         countBadge.textContent = totalItems;
-    }
-    
-    if (toggleCountBadge) {
-        if (totalItems > 0) {
-            toggleCountBadge.textContent = totalItems;
-            toggleCountBadge.style.display = 'flex';
-        } else {
-            toggleCountBadge.style.display = 'none';
-        }
     }
     
     // Sepet boşsa
@@ -407,12 +384,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(() => {
             updateFloatingCart();
         }, 500);
-    } else {
-        // Panel kullanıcıları için floating cart toggle butonunu gizle
-        const toggleBtn = document.getElementById('floating-cart-toggle');
-        if (toggleBtn) {
-            toggleBtn.style.display = 'none';
-        }
     }
 });
 

@@ -95,6 +95,8 @@
     align-items: center;
     gap: 0.75rem;
     margin-left: auto;
+    position: relative;
+    z-index: 100;
 }
 
 @media (max-width: 768px) {
@@ -129,6 +131,8 @@
     justify-content: center;
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 12px;
     border: 1px solid var(--border-color);
     background: var(--card-bg);
@@ -136,6 +140,12 @@
     box-shadow: var(--shadow-sm);
     cursor: pointer;
     transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+    position: relative;
+    z-index: 1000;
+    pointer-events: auto !important;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    outline: none;
 }
 
 .theme-toggle:hover {
@@ -153,26 +163,42 @@
     line-height: 1;
     transition: opacity var(--transition-normal), transform var(--transition-normal);
     position: absolute;
+    top: 50%;
+    left: 50%;
+    pointer-events: none !important;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .theme-toggle .sun {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, -50%);
+}
+
+.theme-toggle .sun svg,
+.theme-toggle .moon svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    pointer-events: none;
+    color: currentColor;
 }
 
 .theme-toggle .moon {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translate(-50%, calc(-50% + 8px));
 }
 
 .theme-toggle.is-dark .sun {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translate(-50%, calc(-50% - 8px));
 }
 
 .theme-toggle.is-dark .moon {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate(-50%, -50%);
 }
 
 
@@ -414,6 +440,4 @@
     opacity: 1;
 }
 
-.spinner {
-    /* Spinner animasyonu kaldırıldı */
-}
+/* Spinner animasyonu kaldırıldı */

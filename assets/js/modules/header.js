@@ -47,16 +47,26 @@ function initThemeToggle() {
         return;
     }
 
-    toggleBtn.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-        const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        applyTheme(nextTheme);
-        try {
-            localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-        } catch (error) {
-            console.warn('Tema tercihi kaydedilemedi:', error);
-        }
-    });
+    // Event listener ekle (birden fazla kez eklenmesini önlemek için önce kaldır)
+    toggleBtn.removeEventListener('click', handleThemeToggle);
+    toggleBtn.addEventListener('click', handleThemeToggle, true); // Capture phase'de dinle
+}
+
+function handleThemeToggle(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
+    const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    } catch (error) {
+        console.warn('Tema tercihi kaydedilemedi:', error);
+    }
+    
+    return false;
 }
 
 // Mevcut kullanıcı bilgisini al
