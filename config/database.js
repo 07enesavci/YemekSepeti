@@ -6,16 +6,15 @@ require('dotenv').config();
 // ============================================
 
 // Bulut veritabanı için SSL yapılandırması
-// TiDB Cloud SSL zorunludur - insecure transport yasaktır
-// TiDB Cloud host kontrolü yaparak otomatik SSL aktif et
+// Aiven Cloud SSL zorunludur - insecure transport yasaktır
+// Aiven Cloud host kontrolü yaparak otomatik SSL aktif et
 const isCloudDB = process.env.DB_HOST && 
-                  (process.env.DB_HOST.includes('tidbcloud.com') || 
-                   process.env.DB_HOST.includes('tidb') ||
+                  (process.env.DB_HOST.includes('aivencloud.com') || 
                    process.env.DB_SSL === 'true');
 
 const sslConfig = isCloudDB ? {
-    // TiDB Cloud için SSL zorunlu - rejectUnauthorized: false kullanıyoruz
-    // çünkü TiDB Cloud'un kendi sertifikası var ve genellikle self-signed
+    // Aiven Cloud için SSL zorunlu - rejectUnauthorized: false kullanıyoruz
+    // çünkü Aiven Cloud'un kendi sertifikası var ve genellikle self-signed
     rejectUnauthorized: false,
     // SSL modunu açıkça belirt
     minVersion: 'TLSv1.2',
@@ -78,7 +77,7 @@ async function testConnection() {
             console.error('❌ Veritabanı bağlantı hatası: SSL bağlantısı zorunlu!');
             console.log('💡 Çözüm:');
             console.log('   - .env dosyasında DB_SSL=true olduğundan emin olun');
-            console.log('   - TiDB Cloud SSL bağlantısı zorunludur');
+            console.log('   - Aiven Cloud SSL bağlantısı zorunludur');
             console.log('   - Veritabanı yapılandırmasını kontrol edin');
         } else {
             console.error('❌ Veritabanı bağlantı hatası:', error.message);
@@ -129,10 +128,19 @@ async function execute(sql, params = []) {
     }
 }
 
+// Sequelize'i de export et (yeni kodlar için)
+const { sequelize: sequelizeInstance, testConnection: sequelizeTestConnection } = require('./sequelize');
+const dbModels = require('../models');
+
 module.exports = {
+    // Eski mysql2 metodları (geriye dönük uyumluluk için)
     pool,
     testConnection,
     query,
-    execute
+    execute,
+    // Yeni Sequelize instance ve modelleri
+    sequelize: sequelizeInstance,
+    sequelizeTestConnection,
+    models: dbModels
 };
 

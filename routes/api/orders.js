@@ -2,6 +2,9 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { authenticateToken, requireAuth, requireRole } = require("../../middleware/auth");
+const { sequelize } = require("../../config/database");
+const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage } = require("../../models");
+const { Op } = require("sequelize");
 
 // ============================================
 // ROUTES
@@ -32,10 +35,10 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
         }
 
-        let connection = null;
+        // Sequelize transaction kullan
+        const transaction = await sequelize.transaction();
+        
         try {
-            connection = await db.pool.getConnection();
-
             // Sepetten ilk yemek kaynağında seller_id bul
             const firstCartItem = cart[0];
             
@@ -54,21 +57,19 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             if (!sellerId) {
                 const firstMealId = firstCartItem?.urun?.id || firstCartItem?.meal_id;
                 if (firstMealId) {
-                    const [mealRows] = await connection.execute(
-                        "SELECT seller_id FROM meals WHERE id = ?",
-                        [firstMealId]
-                    );
-                    if (mealRows && mealRows.length > 0) {
-                        sellerId = mealRows[0].seller_id;
+                    const meal = await Meal.findByPk(firstMealId, {
+                        attributes: ['seller_id'],
+                        transaction
+                    });
+                    if (meal) {
+                        sellerId = meal.seller_id;
                     }
                 }
             }
             
             // Seller ID bulunamadıysa hata ver
             if (!sellerId) {
-                if (connection) {
-                    connection.release();
-                }
+                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: "Satıcı bilgisi bulunamadı. Lütfen sepete ürün ekleyin." 
@@ -80,12 +81,13 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             
             // Address ID geçerli mi kontrol et
             if (addressId) {
-                const [addressCheck] = await connection.execute(
-                    "SELECT id FROM addresses WHERE id = ? AND user_id = ?",
-                    [addressId, userId]
-                );
+                const addressCheck = await Address.findOne({
+                    where: { id: addressId, user_id: userId },
+                    attributes: ['id'],
+                    transaction
+                });
                 
-                if (!addressCheck || addressCheck.length === 0) {
+                if (!addressCheck) {
                     // Address ID geçersiz, varsayılan adres oluştur
                     addressId = null;
                 }
@@ -94,35 +96,31 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             // Eğer address ID yoksa, kullanıcı için varsayılan adres oluştur
             if (!addressId) {
                 // Önce kullanıcının varsayılan adresini kontrol et
-                const [defaultAddress] = await connection.execute(
-                    "SELECT id FROM addresses WHERE user_id = ? AND is_default = TRUE LIMIT 1",
-                    [userId]
-                );
+                const defaultAddress = await Address.findOne({
+                    where: { user_id: userId, is_default: true },
+                    attributes: ['id'],
+                    transaction
+                });
                 
-                if (defaultAddress && defaultAddress.length > 0) {
-                    addressId = defaultAddress[0].id;
+                if (defaultAddress) {
+                    addressId = defaultAddress.id;
                 } else {
                     // Varsayılan adres yoksa, yeni bir adres oluştur
-                    const [userInfo] = await connection.execute(
-                        "SELECT fullname, phone FROM users WHERE id = ?",
-                        [userId]
-                    );
+                    const userInfo = await User.findByPk(userId, {
+                        attributes: ['fullname', 'phone'],
+                        transaction
+                    });
                     
-                    const userName = userInfo && userInfo.length > 0 ? userInfo[0].fullname : 'Kullanıcı';
+                    const newAddress = await Address.create({
+                        user_id: userId,
+                        title: 'Ev Adresi',
+                        full_address: 'Adres bilgisi girilmemiş, lütfen profil sayfanızdan güncelleyin',
+                        district: 'İstanbul',
+                        city: 'İstanbul',
+                        is_default: true
+                    }, { transaction });
                     
-                    const [newAddressResult] = await connection.execute(
-                        `INSERT INTO addresses (user_id, title, full_address, district, city, is_default) 
-                         VALUES (?, ?, ?, ?, ?, TRUE)`,
-                        [
-                            userId,
-                            'Ev Adresi',
-                            'Adres bilgisi girilmemiş, lütfen profil sayfanızdan güncelleyin',
-                            'İstanbul',
-                            'İstanbul'
-                        ]
-                    );
-                    
-                    addressId = newAddressResult.insertId;
+                    addressId = newAddress.id;
                 }
             }
 
@@ -132,24 +130,27 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 .filter(id => id != null);
             
             if (mealIds.length === 0) {
-                connection.release();
+                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: "Geçersiz sepet içeriği." 
                 });
             }
 
-            // Veritabanından meal fiyatlarını çek
-            const mealPlaceholders = mealIds.map(() => '?').join(',');
-            const [mealRows] = await connection.execute(
-                `SELECT id, name, price FROM meals WHERE id IN (${mealPlaceholders}) AND is_available = TRUE`,
-                mealIds
-            );
+            // Veritabanından meal fiyatlarını çek (Sequelize)
+            const meals = await Meal.findAll({
+                where: {
+                    id: { [Op.in]: mealIds },
+                    is_available: true
+                },
+                attributes: ['id', 'name', 'price'],
+                transaction
+            });
 
             // Meal fiyatlarını map'e çevir (hızlı erişim için)
             const mealPriceMap = {};
             const mealNameMap = {};
-            mealRows.forEach(meal => {
+            meals.forEach(meal => {
                 mealPriceMap[meal.id] = parseFloat(meal.price);
                 mealNameMap[meal.id] = meal.name;
             });
@@ -157,28 +158,28 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             // Eksik meal kontrolü
             const missingMeals = mealIds.filter(id => !mealPriceMap[id]);
             if (missingMeals.length > 0) {
-                connection.release();
+                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: `Bazı ürünler bulunamadı veya satışta değil. Ürün ID'leri: ${missingMeals.join(', ')}` 
                 });
             }
 
-            // Seller'ın delivery fee'sini veritabanından çek
-            const [sellerRows] = await connection.execute(
-                "SELECT delivery_fee FROM sellers WHERE id = ?",
-                [sellerId]
-            );
+            // Seller'ın delivery fee'sini veritabanından çek (Sequelize)
+            const seller = await Seller.findByPk(sellerId, {
+                attributes: ['delivery_fee'],
+                transaction
+            });
 
-            if (!sellerRows || sellerRows.length === 0) {
-                connection.release();
+            if (!seller) {
+                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: "Satıcı bilgisi bulunamadı." 
                 });
             }
 
-            let deliveryFee = parseFloat(sellerRows[0].delivery_fee) || 15.00;
+            let deliveryFee = parseFloat(seller.delivery_fee) || 15.00;
 
             // Subtotal'i veritabanından gelen fiyatlarla hesapla
             let subtotal = 0;
@@ -188,7 +189,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 const mealPrice = mealPriceMap[mealId];
                 
                 if (!mealPrice) {
-                    connection.release();
+                    await transaction.rollback();
                     return res.status(400).json({ 
                         success: false, 
                         message: `Ürün ID ${mealId} için fiyat bulunamadı.` 
@@ -204,34 +205,27 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             const totalAmount = Math.round((subtotal + deliveryFee) * 100) / 100;
 
             // Sipariş numarası oluştur (ORD-2025-000001 formatında)
-            // Rastgele bir ID oluştur (timestamp + random)
             const timestamp = Date.now().toString().slice(-6);
             const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
             const orderNumber = `ORD-${new Date().getFullYear()}-${timestamp}${random}`;
 
-            // 1. Orders tablosuna sipariş ekle
-            const orderQuery = `
-                INSERT INTO orders 
-                (order_number, user_id, seller_id, address_id, payment_method, subtotal, delivery_fee, total_amount, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-            `;
-            
-            const orderValues = [
-                orderNumber,
-                userId,
-                sellerId,
-                addressId,
-                paymentMethod || 'credit_card',
-                subtotal.toFixed(2),
-                deliveryFee.toFixed(2),
-                totalAmount.toFixed(2)
-            ];
-            
-            const [orderResult] = await connection.execute(orderQuery, orderValues);
+            // 1. Orders tablosuna sipariş ekle (Sequelize)
+            const order = await Order.create({
+                order_number: orderNumber,
+                user_id: userId,
+                seller_id: sellerId,
+                address_id: addressId,
+                payment_method: paymentMethod || 'credit_card',
+                subtotal: subtotal.toFixed(2),
+                delivery_fee: deliveryFee.toFixed(2),
+                total_amount: totalAmount.toFixed(2),
+                status: 'pending'
+            }, { transaction });
 
-            const orderId = orderResult.insertId;
+            const orderId = order.id;
 
             // 2. Order_items tablosuna ürünleri ekle (veritabanından gelen fiyatlarla)
+            const orderItems = [];
             for (const item of cart) {
                 const mealId = item.urun?.id || item.urun?.meal_id || item.meal_id;
                 const quantity = item.adet || item.quantity || 1;
@@ -247,29 +241,27 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 
                 const itemSubtotal = (mealPrice * quantity).toFixed(2);
 
-                const itemQuery = `
-                    INSERT INTO order_items 
-                    (order_id, meal_id, meal_name, meal_price, quantity, subtotal)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `;
-
-                await connection.execute(itemQuery, [
-                    orderId,
-                    mealId,
-                    mealName,
-                    mealPrice.toFixed(2),
-                    quantity,
-                    itemSubtotal
-                ]);
+                orderItems.push({
+                    order_id: orderId,
+                    meal_id: mealId,
+                    meal_name: mealName,
+                    meal_price: mealPrice.toFixed(2),
+                    quantity: quantity,
+                    subtotal: itemSubtotal
+                });
             }
             
-            if (connection) {
-                connection.release();
+            // Bulk create ile tüm order items'ı ekle
+            if (orderItems.length > 0) {
+                await OrderItem.bulkCreate(orderItems, { transaction });
             }
+            
+            // Transaction'ı commit et
+            await transaction.commit();
 
             res.json({ 
                 success: true, 
-                orderId: orderId,
+                orderId: order.id,
                 orderNumber: orderNumber,
                 sellerId: sellerId,
                 subtotal: subtotal.toFixed(2),
@@ -279,19 +271,14 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
 
         } catch (dbError) {
-            // Connection'ı her durumda release et
-            if (connection) {
-                try {
-                    connection.release();
-                } catch (releaseError) {
-                    console.error('Connection release hatası:', releaseError);
-                }
+            // Transaction'ı rollback et
+            if (transaction && !transaction.finished) {
+                await transaction.rollback();
             }
             
             console.error("❌ Veritabanı hatası:", dbError.message);
             console.error("❌ Hata detayı:", dbError);
             console.error("❌ Hata stack:", dbError.stack);
-            console.error("❌ Hata kodu:", dbError.code);
             
             // Veritabanı hatasını kullanıcıya bildir
             return res.status(500).json({ 
@@ -320,40 +307,38 @@ router.get("/active/:userId", async (req, res) => {
         const userId = parseInt(req.params.userId);
 
         try {
-            const connection = await db.pool.getConnection();
-
-            const query = `
-                SELECT 
-                    o.id,
-                    o.order_number,
-                    o.status,
-                    o.created_at as date,
-                    o.total_amount as total,
-                    s.shop_name as sellerName,
-                    GROUP_CONCAT(oi.meal_name) as items
-                FROM orders o
-                LEFT JOIN sellers s ON o.seller_id = s.id
-                LEFT JOIN order_items oi ON o.id = oi.order_id
-                WHERE o.user_id = ? 
-                AND o.status IN ('pending', 'confirmed', 'preparing', 'ready', 'on_delivery')
-                GROUP BY o.id
-                ORDER BY o.created_at DESC
-            `;
-
-            const [rows] = await connection.execute(query, [userId]);
-            connection.release();
+            // Aktif siparişleri getir (Sequelize)
+            const activeOrdersData = await Order.findAll({
+                where: {
+                    user_id: userId,
+                    status: { [Op.in]: ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery'] }
+                },
+                include: [
+                    {
+                        model: Seller,
+                        as: 'seller',
+                        attributes: ['shop_name']
+                    },
+                    {
+                        model: OrderItem,
+                        as: 'items',
+                        attributes: ['meal_name']
+                    }
+                ],
+                order: [['created_at', 'DESC']]
+            });
 
             // Sonuçları formatla
-            const activeOrders = rows.map(row => ({
-                id: row.id,
-                orderNumber: row.order_number,
-                status: row.status,
-                statusText: getStatusText(row.status),
-                date: new Date(row.date).toLocaleString('tr-TR'),
-                seller: row.sellerName || "Ev Lezzetleri",
-                total: parseFloat(row.total) || 0,
-                items: row.items || "Belirtilmemiş",
-                canCancel: ['pending', 'confirmed', 'preparing', 'ready'].includes(row.status),
+            const activeOrders = activeOrdersData.map(order => ({
+                id: order.id,
+                orderNumber: order.order_number,
+                status: order.status,
+                statusText: getStatusText(order.status),
+                date: new Date(order.created_at).toLocaleString('tr-TR'),
+                seller: order.seller?.shop_name || "Ev Lezzetleri",
+                total: parseFloat(order.total_amount) || 0,
+                items: order.items.map(item => item.meal_name).join(', ') || "Belirtilmemiş",
+                canCancel: ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status),
                 canDetail: true,
                 type: 'active'
             }));
@@ -390,41 +375,39 @@ router.get("/past/:userId", async (req, res) => {
         const userId = parseInt(req.params.userId);
 
         try {
-            const connection = await db.pool.getConnection();
-
-            const query = `
-                SELECT 
-                    o.id,
-                    o.order_number,
-                    o.status,
-                    o.created_at as date,
-                    o.total_amount as total,
-                    s.shop_name as sellerName,
-                    GROUP_CONCAT(oi.meal_name) as items
-                FROM orders o
-                LEFT JOIN sellers s ON o.seller_id = s.id
-                LEFT JOIN order_items oi ON o.id = oi.order_id
-                WHERE o.user_id = ? 
-                AND o.status IN ('delivered', 'cancelled')
-                GROUP BY o.id
-                ORDER BY o.created_at DESC
-            `;
-
-            const [rows] = await connection.execute(query, [userId]);
-            connection.release();
+            // Geçmiş siparişleri getir (Sequelize)
+            const pastOrdersData = await Order.findAll({
+                where: {
+                    user_id: userId,
+                    status: { [Op.in]: ['delivered', 'cancelled'] }
+                },
+                include: [
+                    {
+                        model: Seller,
+                        as: 'seller',
+                        attributes: ['shop_name']
+                    },
+                    {
+                        model: OrderItem,
+                        as: 'items',
+                        attributes: ['meal_name']
+                    }
+                ],
+                order: [['created_at', 'DESC']]
+            });
 
             // Sonuçları formatla
-            const pastOrders = rows.map(row => ({
-                id: row.id,
-                orderNumber: row.order_number,
-                status: row.status,
-                statusText: getStatusText(row.status),
-                date: new Date(row.date).toLocaleString('tr-TR'),
-                seller: row.sellerName || "Ev Lezzetleri",
-                total: parseFloat(row.total) || 0,
-                items: row.items || "Belirtilmemiş",
-                canRepeat: row.status === 'delivered',
-                canRate: row.status === 'delivered', // Frontend'de API'den kontrol edilecek
+            const pastOrders = pastOrdersData.map(order => ({
+                id: order.id,
+                orderNumber: order.order_number,
+                status: order.status,
+                statusText: getStatusText(order.status),
+                date: new Date(order.created_at).toLocaleString('tr-TR'),
+                seller: order.seller?.shop_name || "Ev Lezzetleri",
+                total: parseFloat(order.total_amount) || 0,
+                items: order.items.map(item => item.meal_name).join(', ') || "Belirtilmemiş",
+                canRepeat: order.status === 'delivered',
+                canRate: order.status === 'delivered',
                 type: 'past'
             }));
 

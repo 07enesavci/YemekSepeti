@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
+const { Seller } = require("../../models");
 
 // ============================================
 // ROUTES
@@ -19,76 +20,41 @@ router.get("/", async (req, res) => {
     try {
         const { location, rating } = req.query;
         
-        // Veritabanından TÜM satıcıları çek (aktif + pasif) - Limit yok, hepsi gösterilecek
-        // SADECE is_active = 1 olanları göster (aktif satıcılar)
-        const query = `
-            SELECT 
-                s.id,
-                s.shop_name as name,
-                s.location,
-                s.rating,
-                s.logo_url as imageUrl,
-                s.banner_url as bannerUrl,
-                s.description,
-                s.delivery_fee,
-                s.min_order_amount,
-                s.total_reviews,
-                s.is_active
-            FROM sellers s
-            WHERE s.is_active = 1
-            ORDER BY s.rating DESC, s.total_reviews DESC
-        `;
-        
-        // Veritabanı bilgilerini logla
-        console.log('🔍 Veritabanı bilgileri:', {
-            host: process.env.DB_HOST || 'localhost',
-            port: process.env.DB_PORT || 3306,
-            database: process.env.DB_NAME || 'yemek_sepeti',
-            user: process.env.DB_USER || 'root'
-        });
-        
-        console.log('🔍 SQL sorgusu çalıştırılıyor...');
-        console.log('🔍 SQL Query:', query);
+        // Aktif satıcıları getir (Sequelize)
         let dbSellers = [];
         try {
-            dbSellers = await db.query(query);
+            dbSellers = await Seller.findAll({
+                where: { is_active: true },
+                attributes: [
+                    'id', 
+                    'shop_name', 
+                    'location', 
+                    'rating', 
+                    'logo_url', 
+                    'banner_url', 
+                    'description', 
+                    'delivery_fee', 
+                    'min_order_amount', 
+                    'total_reviews', 
+                    'is_active'
+                ],
+                order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
+            });
+            
             console.log(`✅ Veritabanı sorgusu başarılı: ${dbSellers ? dbSellers.length : 0} satıcı bulundu`);
-            console.log(`✅ dbSellers tipi: ${typeof dbSellers}, Array mi: ${Array.isArray(dbSellers)}`);
-            if (dbSellers && dbSellers.length > 0) {
-                console.log(`✅ İlk satıcı örneği:`, JSON.stringify(dbSellers[0]).substring(0, 200));
-            }
         } catch (dbError) {
             console.error("❌ Veritabanı sorgu hatası:", dbError);
             console.error("❌ Hata detayı:", dbError.message);
             console.error("❌ Hata stack:", dbError.stack);
-            // Veritabanı hatası durumunda boş array döndür
             dbSellers = [];
-            // Hata durumunda bile devam et, boş liste döndür
         }
         
         if (dbSellers && dbSellers.length > 0) {
             try {
                 console.log(`📋 ${dbSellers.length} satıcı bulundu:`);
                 dbSellers.forEach((s, index) => {
-                    console.log(`  ${index + 1}. ${s.name || 'İsimsiz'} (ID: ${s.id || 'N/A'}, Aktif: ${s.is_active || false})`);
+                    console.log(`  ${index + 1}. ${s.shop_name || 'İsimsiz'} (ID: ${s.id || 'N/A'}, Aktif: ${s.is_active || false})`);
                 });
-                
-                // "Mehmet Usta'nın Kebabı" özel kontrolü
-                const mehmetKebab = dbSellers.find(s => 
-                    s.name && (
-                        s.name.toLowerCase().includes('mehmet') && 
-                        s.name.toLowerCase().includes('kebab')
-                    )
-                );
-                if (mehmetKebab) {
-                    console.log(`✅ "Mehmet Usta'nın Kebabı" bulundu:`, {
-                        id: mehmetKebab.id,
-                        name: mehmetKebab.name,
-                        isActive: mehmetKebab.is_active
-                    });
-                } else {
-                    console.warn('⚠️ "Mehmet Usta\'nın Kebabı" sorgu sonuçlarında bulunamadı!');
-                }
             } catch (logError) {
                 console.error("Log hatası:", logError);
             }
@@ -157,7 +123,7 @@ router.get("/", async (req, res) => {
                         
                         const mappedSeller = {
                             id: seller.id || 0,
-                            name: (seller.name && typeof seller.name === 'string') ? seller.name : 'İsimsiz Satıcı',
+                            name: (seller.shop_name && typeof seller.shop_name === 'string') ? seller.shop_name : 'İsimsiz Satıcı',
                             location: (seller.location && typeof seller.location === 'string') ? seller.location : 'Konum belirtilmemiş',
                             rating: sellerRating,
                             imageUrl: imageUrl,

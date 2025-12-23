@@ -121,91 +121,21 @@ async function loadSellerProfile() {
  * Satıcı yorumlarını API'den çekip gösterir
  */
 async function loadSellerReviews(sellerId) {
-    try {
-        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const reviewsResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/reviews`);
-        
-        if (!reviewsResponse.ok) {
-            throw new Error('Yorumlar yüklenemedi');
-        }
-        
-        const data = await reviewsResponse.json();
-        const reviews = data.success ? data.reviews : [];
-        
-        const reviewsContent = document.getElementById('reviews-content');
-        if (!reviewsContent) {
-            console.warn('reviews-content bulunamadı');
-            return;
-        }
-        
-        if (reviews.length === 0) {
-            reviewsContent.innerHTML = `
-                <div class="card">
-                    <div class="card-content">
-                        <p style="text-align: center; padding: 2rem; color: #666;">Henüz yorum yapılmamış.</p>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-        
-        // Yorumları göster
-        let reviewsHTML = '<div class="card"><div class="card-content">';
-        
-        reviews.forEach((review, index) => {
-            // Kullanıcı adını maskele (sadece ilk ve son harfi göster)
-            const userName = review.userName || 'Anonim';
-            const maskedName = userName.length > 2 
-                ? `${userName.substring(0, 1)}*** ${userName.substring(userName.length - 1)}`
-                : userName;
-            
-            // Yıldızları oluştur
-            let starsHTML = '';
-            for (let i = 1; i <= 5; i++) {
-                if (i <= review.rating) {
-                    starsHTML += '<span style="color: #FFA500;">★</span>';
-                } else {
-                    starsHTML += '<span style="color: #ddd;">☆</span>';
-                }
-            }
-            
-            const reviewDate = new Date(review.createdAt).toLocaleDateString('tr-TR', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            
-            reviewsHTML += `
-                <div class="review-item" style="padding: 1rem 0; ${index < reviews.length - 1 ? 'border-bottom: 1px solid rgba(0,0,0,0.1); margin-bottom: 1rem;' : ''}">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <strong class="review-author" style="font-size: 1rem; color: var(--secondary-color);">${maskedName}</strong>
-                        <span class="review-rating" style="display: flex; align-items: center; gap: 0.25rem;">
-                            ${starsHTML}
-                            <span style="margin-left: 0.5rem; font-weight: 600; color: var(--primary-color);">${review.rating.toFixed(1)}</span>
-                        </span>
-                    </div>
-                    ${review.comment ? `<p class="review-text" style="margin: 0.5rem 0; color: var(--secondary-color-light); line-height: 1.6;">${review.comment.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
-                    <span class="review-date" style="font-size: 0.85rem; color: #999; display: block; margin-top: 0.5rem;">${reviewDate}</span>
-                </div>
-            `;
-        });
-        
-        reviewsHTML += '</div></div>';
-        reviewsContent.innerHTML = reviewsHTML;
-        
-    } catch (error) {
-        console.error('Yorumlar yüklenirken hata:', error);
-        const reviewsContent = document.getElementById('reviews-content');
-        if (reviewsContent) {
-            reviewsContent.innerHTML = `
-                <div class="card">
-                    <div class="card-content">
-                        <p style="text-align: center; padding: 2rem; color: red;">Yorumlar yüklenirken bir hata oluştu.</p>
-                    </div>
-                </div>
-            `;
-        }
+    const reviewsContent = document.getElementById('reviews-content');
+    if (!reviewsContent) {
+        console.warn('reviews-content bulunamadı');
+        return;
     }
+    
+    // Yorumlar özelliği henüz aktif edilmedi mesajını göster
+    reviewsContent.innerHTML = `
+        <div class="card">
+            <div class="card-content" style="text-align: center; padding: 3rem 2rem;">
+                <p style="font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;">Yorumlar özelliği henüz aktif edilmedi.</p>
+                <p style="font-size: 0.9rem; color: #999;">Bu özellik yakında kullanıma sunulacaktır.</p>
+            </div>
+        </div>
+    `;
 }
 
 /**

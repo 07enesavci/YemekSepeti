@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require("../../config/database");
 const bcrypt = require("bcryptjs"); 
 const { requireAuth, requireRole } = require("../../middleware/auth");
+const { User, Seller } = require("../../models");
+const { Op } = require("sequelize");
 
 // Session tabanlı authentication - önce giriş kontrolü, sonra admin kontrolü
 router.use((req, res, next) => {
@@ -26,13 +28,14 @@ router.get("/users", async (req, res) => {
             isAuthenticated: req.session?.isAuthenticated
         });
         
-        const sql = `
-            SELECT id, fullname, email, role, is_active, created_at 
-            FROM users 
-            WHERE role IN ('seller', 'courier') 
-            ORDER BY created_at DESC
-        `;
-        const users = await db.query(sql);
+        // Kullanıcıları getir (Sequelize)
+        const users = await User.findAll({
+            where: {
+                role: { [Op.in]: ['seller', 'courier'] }
+            },
+            attributes: ['id', 'fullname', 'email', 'role', 'is_active', 'created_at'],
+            order: [['created_at', 'DESC']]
+        });
 
         console.log(`✅ ${users.length} kullanıcı bulundu`);
 
@@ -65,30 +68,39 @@ router.post("/users", async (req, res) => {
             return res.status(400).json({ success: false, message: "Tüm alanlar gereklidir." });
         }
 
-        const checkSql = "SELECT id FROM users WHERE email = ?";
-        const existingUsers = await db.query(checkSql, [email]);
+        // Email kontrolü (Sequelize)
+        const existingUser = await User.findOne({
+            where: { email: email },
+            attributes: ['id']
+        });
 
-        if (existingUsers.length > 0) {
+        if (existingUser) {
             return res.status(400).json({ success: false, message: "Bu e-posta adresi zaten kayıtlı." });
         }
 
+        // Şifreyi hashle
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        // ----------------------------------------------
 
-        const insertUserSql = `
-            INSERT INTO users (fullname, email, password, role, is_active) 
-            VALUES (?, ?, ?, ?, 1)
-        `;
-        const result = await db.execute(insertUserSql, [fullname, email, hashedPassword, role]);
-        const newUserId = result.insertId;
+        // Kullanıcıyı oluştur (Sequelize)
+        const newUser = await User.create({
+            fullname: fullname,
+            email: email,
+            password: hashedPassword,
+            role: role,
+            is_active: true
+        });
 
+        const newUserId = newUser.id;
+
+        // Eğer seller ise, seller kaydı oluştur
         if (role === 'seller') {
-            const insertSellerSql = `
-                INSERT INTO sellers (user_id, shop_name, location, is_active) 
-                VALUES (?, ?, ?, 1)
-            `;
-            await db.execute(insertSellerSql, [newUserId, `${fullname}'nın Mutfağı`, 'İstanbul']);
+            await Seller.create({
+                user_id: newUserId,
+                shop_name: `${fullname}'nın Mutfağı`,
+                location: 'İstanbul',
+                is_active: true
+            });
         }
 
         res.json({
@@ -105,18 +117,37 @@ router.post("/users", async (req, res) => {
 
 router.put("/users/:id/suspend", async (req, res) => {
     try {
-        const userId = req.params.id;
-        const sql = "UPDATE users SET is_active = NOT is_active WHERE id = ?";
-        const result = await db.execute(sql, [userId]);
+        const userId = parseInt(req.params.id);
+        
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json({ success: false, message: "Geçersiz kullanıcı ID'si." });
+        }
 
-        if (result.affectedRows === 0) {
+        // Kullanıcıyı bul (Sequelize)
+        const user = await User.findByPk(userId);
+        
+        if (!user) {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
-        const userResult = await db.query("SELECT is_active FROM users WHERE id = ?", [userId]);
-        const newStatus = userResult[0].is_active ? 'active' : 'suspended';
+
+        // Mevcut durumu al
+        const currentStatus = user.is_active;
+        
+        // is_active durumunu tersine çevir (Sequelize)
+        await user.update({ 
+            is_active: !currentStatus 
+        });
+
+        // Kullanıcıyı yeniden yükle (güncel durumu almak için)
+        await user.reload();
+        
+        const newStatus = user.is_active ? 'active' : 'suspended';
+        
+        console.log(`✅ Kullanıcı durumu güncellendi - User ID: ${userId}, Eski durum: ${currentStatus}, Yeni durum: ${newStatus}`);
+        
         res.json({ success: true, status: newStatus });
     } catch (error) {
-        console.error("Hata:", error);
+        console.error("❌ Kullanıcı durumu güncelleme hatası:", error);
         res.status(500).json({ success: false, message: "İşlem başarısız." });
     }
 });
@@ -124,16 +155,27 @@ router.put("/users/:id/suspend", async (req, res) => {
 
 router.delete("/users/:id", async (req, res) => {
     try {
-        const userId = req.params.id;
-        const sql = "DELETE FROM users WHERE id = ?";
-        const result = await db.execute(sql, [userId]);
+        const userId = parseInt(req.params.id);
+        
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json({ success: false, message: "Geçersiz kullanıcı ID'si." });
+        }
 
-        if (result.affectedRows === 0) {
+        // Kullanıcıyı bul (Sequelize)
+        const user = await User.findByPk(userId);
+        
+        if (!user) {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
+
+        // Kullanıcıyı sil (Sequelize) - CASCADE ile ilişkili kayıtlar da silinecek
+        await user.destroy();
+
+        console.log(`✅ Kullanıcı silindi - User ID: ${userId}`);
+        
         res.json({ success: true, message: "Kullanıcı silindi." });
     } catch (error) {
-        console.error("Hata:", error);
+        console.error("❌ Kullanıcı silme hatası:", error);
         res.status(500).json({ success: false, message: "Kullanıcı silinemedi." });
     }
 });

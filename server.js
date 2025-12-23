@@ -85,18 +85,33 @@ try {
         });
     });
 
-    // Veritabanı bağlantısını test et
+    // Veritabanı bağlantısını test et (mysql2 - geriye dönük uyumluluk için)
     let db;
     try {
         db = require("./config/database");
         db.testConnection().then(() => {
-            writeLog('INFO', 'Veritabanı bağlantısı başarılı');
+            writeLog('INFO', 'Veritabanı bağlantısı başarılı (mysql2)');
         }).catch((err) => {
-            writeLog('ERROR', 'Veritabanı bağlantı hatası', { error: err.message });
+            writeLog('ERROR', 'Veritabanı bağlantı hatası (mysql2)', { error: err.message });
         });
     } catch (err) {
         console.error('❌ Veritabanı modülü yüklenemedi:', err.message);
         writeLog('ERROR', 'Veritabanı modülü yüklenemedi', { error: err.message });
+    }
+
+    // Sequelize bağlantısını test et
+    try {
+        const { sequelizeTestConnection } = require("./config/database");
+        sequelizeTestConnection().then(() => {
+            writeLog('INFO', 'Sequelize bağlantısı başarılı');
+            // Modelleri yükle (ilişkileri initialize etmek için)
+            require("./models");
+        }).catch((err) => {
+            writeLog('ERROR', 'Sequelize bağlantı hatası', { error: err.message });
+        });
+    } catch (err) {
+        console.error('❌ Sequelize modülü yüklenemedi:', err.message);
+        writeLog('ERROR', 'Sequelize modülü yüklenemedi', { error: err.message });
     }
 
     // ============================================
@@ -181,7 +196,7 @@ try {
         if (mysqlSessionModule) {
             try {
                 const MySQLStore = require('connect-mysql2')(session);
-                const isCloudDB = process.env.DB_HOST && (process.env.DB_HOST.includes('tidb') || process.env.DB_HOST.includes('aivencloud') || process.env.DB_SSL === 'true');
+                const isCloudDB = process.env.DB_HOST && (process.env.DB_HOST.includes('aivencloud.com') || process.env.DB_SSL === 'true');
                 
                 const sslConfig = isCloudDB ? {
                     rejectUnauthorized: false,

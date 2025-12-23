@@ -4,6 +4,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("../../config/database");
+const { User, EmailVerificationCode, Seller } = require("../../models");
+const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
 
 
@@ -69,7 +71,7 @@ function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Doğrulama kodunu veritabanına kaydet
+// Doğrulama kodunu veritabanına kaydet (Sequelize)
 async function saveVerificationCode(email, code, type) {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 dakika geçerli
@@ -79,23 +81,28 @@ async function saveVerificationCode(email, code, type) {
         const normalizedCode = String(code).trim().replace(/\s+/g, '');
         
         // Önce eski kodları sil (aynı email ve type için)
-        await db.execute(
-            "DELETE FROM email_verification_codes WHERE email = ? AND type = ?",
-            [email, type]
-        );
+        await EmailVerificationCode.destroy({
+            where: {
+                email: email,
+                type: type
+            }
+        });
         
-        // Yeni kodu kaydet (her zaman string olarak)
-        await db.execute(
-            "INSERT INTO email_verification_codes (email, code, type, expires_at) VALUES (?, ?, ?, ?)",
-            [email, normalizedCode, type, expiresAt]
-        );
+        // Yeni kodu kaydet
+        await EmailVerificationCode.create({
+            email: email,
+            code: normalizedCode,
+            type: type,
+            expires_at: expiresAt,
+            used: false
+        });
     } catch (error) {
         console.error("Verification code save error:", error);
         throw error;
     }
 }
 
-// Doğrulama kodunu kontrol et
+// Doğrulama kodunu kontrol et (Sequelize)
 async function verifyCode(email, code, type) {
     try {
         // Kodu normalize et: string'e çevir, trim et, boşlukları temizle
@@ -106,14 +113,14 @@ async function verifyCode(email, code, type) {
             return false;
         }
         
-        // Veritabanından email ve type'a göre tüm kodları çek (JavaScript'te karşılaştır)
-        const allCodes = await db.query(
-            `SELECT id, code, expires_at, used, created_at 
-             FROM email_verification_codes 
-             WHERE email = ? AND type = ? 
-             ORDER BY created_at DESC`,
-            [email, type]
-        );
+        // Veritabanından email ve type'a göre tüm kodları çek
+        const allCodes = await EmailVerificationCode.findAll({
+            where: {
+                email: email,
+                type: type
+            },
+            order: [['created_at', 'DESC']]
+        });
         
         if (!allCodes || allCodes.length === 0) {
             console.log("No verification codes found for:", { email, type });
@@ -133,7 +140,7 @@ async function verifyCode(email, code, type) {
                 continue; // Kullanılmış, sonrakine bak
             }
             
-            // Kodu string olarak karşılaştır (veritabanındaki kod INT veya VARCHAR olabilir)
+            // Kodu string olarak karşılaştır
             const dbCodeStr = String(dbCode.code).trim().replace(/\s+/g, '');
             
             console.log("Comparing codes:", {
@@ -147,10 +154,7 @@ async function verifyCode(email, code, type) {
             
             if (dbCodeStr === normalizedCode) {
                 // Kodu kullanıldı olarak işaretle
-                await db.execute(
-                    "UPDATE email_verification_codes SET used = TRUE WHERE id = ?",
-                    [dbCode.id]
-                );
+                await dbCode.update({ used: true });
                 console.log("Verification code matched and marked as used:", dbCode.id);
                 return true;
             }
@@ -180,30 +184,27 @@ router.post("/login", async (req, res) => {
             });
         }
 
-        // Kullanıcıyı veritabanından bul
-        let users;
+        // Kullanıcıyı veritabanından bul (Sequelize)
+        let user;
         try {
-            users = await db.query("SELECT id, email, password, fullname, role, two_factor_enabled FROM users WHERE email = ?", [email]);
-        } catch (dbError) {
-            console.error("Database query error:", dbError);
-            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
-                return res.status(500).json({ 
-                    success: false, 
-                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
+            user = await User.findOne({
+                where: { email: email },
+                attributes: ['id', 'email', 'password', 'fullname', 'role', 'two_factor_enabled', 'phone']
+            });
+
+            if (!user) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Geçersiz kimlik bilgileri."
                 });
             }
-            throw dbError;
-        }
-
-        // Kullanıcı yoksa genel hata (gizlilik için)
-        if (!users || users.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Geçersiz kimlik bilgileri."
+        } catch (dbError) {
+            console.error("Database query error:", dbError);
+            return res.status(500).json({ 
+                success: false, 
+                message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin." 
             });
         }
-
-        const user = users[0];
 
         // Şifre kontrolü
         const isMatch = await comparePassword(password, user.password);
@@ -238,16 +239,17 @@ router.post("/login", async (req, res) => {
             role: user.role
         };
 
-        // Eğer seller ise, seller bilgilerini de ekle
+        // Eğer seller ise, seller bilgilerini de ekle (Sequelize)
         if (user.role === 'seller') {
             try {
-                const sellerInfo = await db.query(
-                    "SELECT id, shop_name FROM sellers WHERE user_id = ?",
-                    [user.id]
-                );
-                if (sellerInfo && sellerInfo.length > 0) {
-                    userData.sellerId = sellerInfo[0].id;
-                    userData.shopName = sellerInfo[0].shop_name;
+                const { Seller } = require("../../models");
+                const sellerInfo = await Seller.findOne({
+                    where: { user_id: user.id },
+                    attributes: ['id', 'shop_name']
+                });
+                if (sellerInfo) {
+                    userData.sellerId = sellerInfo.id;
+                    userData.shopName = sellerInfo.shop_name;
                 }
             } catch (sellerError) {
                 console.error("Seller info error:", sellerError.message);
@@ -257,24 +259,10 @@ router.post("/login", async (req, res) => {
 
         // Eğer courier ise, courier bilgilerini de ekle
         if (user.role === 'courier') {
-            try {
-                // Courier bilgileri users tablosunda, courierId = user.id
-                userData.courierId = user.id;
-                
-                // Courier'ın telefon bilgisini de ekle
-                const courierInfo = await db.query(
-                    "SELECT phone FROM users WHERE id = ? AND role = 'courier'",
-                    [user.id]
-                );
-                if (courierInfo && courierInfo.length > 0) {
-                    userData.phone = courierInfo[0].phone;
-                }
-                
-            } catch (courierError) {
-                console.error("Courier info error:", courierError.message);
-                // Courier bilgisi alınamazsa devam et, kritik değil
-                // Yine de courierId'yi ekle (user.id olarak)
-                userData.courierId = user.id;
+            // Courier bilgileri users tablosunda, courierId = user.id
+            userData.courierId = user.id;
+            if (user.phone) {
+                userData.phone = user.phone;
             }
         }
 
@@ -333,25 +321,24 @@ router.post("/register", async (req, res) => {
             });
         }
 
-        // E-posta kontrolü
-        let existingUsers;
+        // E-posta kontrolü (Sequelize)
         try {
-            existingUsers = await db.query("SELECT id FROM users WHERE email = ?", [email]);
-        } catch (dbError) {
-            console.error("Database query error:", dbError);
-            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
-                return res.status(500).json({
+            const existingUser = await User.findOne({
+                where: { email: email },
+                attributes: ['id']
+            });
+
+            if (existingUser) {
+                return res.status(400).json({
                     success: false,
-                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin."
+                    message: "Bu e-posta adresi zaten kayıtlı."
                 });
             }
-            throw dbError;
-        }
-
-        if (existingUsers && existingUsers.length > 0) {
-            return res.status(400).json({
+        } catch (dbError) {
+            console.error("Database query error:", dbError);
+            return res.status(500).json({
                 success: false,
-                message: "Bu e-posta adresi zaten kayıtlı."
+                message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin."
             });
         }
 
@@ -395,30 +382,18 @@ router.post("/forgot-password", async (req, res) => {
 
 
     try {
-        // Kullanıcıyı bul
-        let users;
-        try {
-            users = await db.query("SELECT id, email, fullname, role FROM users WHERE email = ?", [email]);
-        } catch (dbError) {
-            console.error("Database query error:", dbError);
-            if (dbError.code === 'ER_NO_SUCH_TABLE' || dbError.code === 'ER_BAD_FIELD_ERROR') {
-                return res.status(500).json({
-                    success: false,
-                    message: "Veritabanı yapılandırma hatası. Lütfen veritabanını kontrol edin."
-                });
-            }
-            throw dbError;
-        }
+        // Kullanıcıyı bul (Sequelize)
+        const user = await User.findOne({
+            where: { email: email },
+            attributes: ['id', 'email', 'fullname', 'role']
+        });
 
-        // Kullanıcı yoksa hata mesajı döndür
-        if (!users || users.length === 0) {
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "Kayıtlı mail bulunamadı."
             });
         }
-
-        const user = users[0];
 
         // İzin verilen roller (yalnızca bu roller için reset e-posta'sı gönder)
         const allowedRoles = ['buyer', 'seller', 'courier', 'admin'];
@@ -459,14 +434,14 @@ router.post("/forgot-password", async (req, res) => {
             });
         }
 
-        // Token'ı veritabanına kaydet
+        // Token'ı veritabanına kaydet (User modelinde password_reset_token ve password_reset_expires alanlarını kullan)
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 1); // 1 saat geçerli
         
-        await db.execute(
-            "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)",
-            [user.id, resetToken, expiresAt]
-        );
+        await user.update({
+            password_reset_token: resetToken,
+            password_reset_expires: expiresAt
+        });
         
         // Reset linki oluştur
         const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${resetToken}`;
@@ -532,28 +507,57 @@ router.post("/verify-email", async (req, res) => {
             });
         }
 
-        // Kullanıcıyı kaydet
+        // Kullanıcıyı kaydet (Sequelize)
         const hashedPassword = await hashPassword(password);
-        const result = await db.execute(
-            "INSERT INTO users (email, password, fullname, role, email_verified) VALUES (?, ?, ?, ?, ?)",
-            [email, hashedPassword, displayName, role, true]
-        );
-
-        const userId = result.insertId;
-        const user = {
-            id: userId,
+        const user = await User.create({
             email: email,
+            password: hashedPassword,
             fullname: displayName,
-            role: role
+            role: role,
+            email_verified: true
+        });
+        
+        const userData = {
+            id: user.id,
+            email: user.email,
+            fullname: user.fullname,
+            role: user.role
         };
         
-        const token = generateToken(user);
-        req.session.user = user;
+        // Eğer seller ise, seller kaydı oluştur (Sequelize)
+        if (role === 'seller') {
+            try {
+                const seller = await Seller.create({
+                    user_id: user.id,
+                    shop_name: `${displayName}'nın Mutfağı`,
+                    location: 'İstanbul',
+                    is_active: true
+                });
+                userData.sellerId = seller.id;
+                console.log(`✅ Seller kaydı oluşturuldu - User ID: ${user.id}, Seller ID: ${seller.id}`);
+            } catch (sellerError) {
+                console.error("❌ Seller kaydı oluşturma hatası:", sellerError);
+                // Seller kaydı oluşturulamazsa kullanıcıyı sil
+                await user.destroy();
+                return res.status(500).json({
+                    success: false,
+                    message: "Satıcı kaydı oluşturulurken bir hata oluştu."
+                });
+            }
+        }
+        
+        // Eğer courier ise, courierId = user.id (courier bilgileri users tablosunda)
+        if (role === 'courier') {
+            userData.courierId = user.id;
+        }
+        
+        const token = generateToken(userData);
+        req.session.user = userData;
         req.session.isAuthenticated = true;
 
         res.status(201).json({
             success: true,
-            user: user,
+            user: userData,
             token: token
         });
 
@@ -599,21 +603,18 @@ router.post("/verify-2fa", async (req, res) => {
             });
         }
 
-        // Kullanıcıyı bul
-        const users = await db.query(
-            "SELECT id, email, password, fullname, role FROM users WHERE email = ?",
-            [email]
-        );
+        // Kullanıcıyı bul (Sequelize)
+        const user = await User.findOne({
+            where: { email: email },
+            attributes: ['id', 'email', 'password', 'fullname', 'role']
+        });
 
-        if (users.length === 0) {
+        if (!user) {
             return res.status(400).json({
                 success: false,
                 message: "Kullanıcı bulunamadı."
             });
         }
-
-        const user = users[0];
-        const token = generateToken(user);
         const userData = {
             id: user.id,
             email: user.email,
@@ -621,15 +622,19 @@ router.post("/verify-2fa", async (req, res) => {
             role: user.role
         };
 
-        // Seller bilgilerini ekle
+        // Seller bilgilerini ekle (Sequelize)
         if (user.role === 'seller') {
-            const sellerInfo = await db.query(
-                "SELECT id, shop_name FROM sellers WHERE user_id = ?",
-                [user.id]
-            );
-            if (sellerInfo && sellerInfo.length > 0) {
-                userData.sellerId = sellerInfo[0].id;
-                userData.shopName = sellerInfo[0].shop_name;
+            try {
+                const sellerInfo = await Seller.findOne({
+                    where: { user_id: user.id },
+                    attributes: ['id', 'shop_name']
+                });
+                if (sellerInfo) {
+                    userData.sellerId = sellerInfo.id;
+                    userData.shopName = sellerInfo.shop_name;
+                }
+            } catch (sellerError) {
+                console.error("Seller info error:", sellerError.message);
             }
         }
 
@@ -637,6 +642,8 @@ router.post("/verify-2fa", async (req, res) => {
         if (user.role === 'courier') {
             userData.courierId = user.id;
         }
+
+        const token = generateToken(userData);
 
         req.session.user = userData;
         req.session.isAuthenticated = true;
@@ -679,34 +686,31 @@ router.post("/reset-password", async (req, res) => {
             });
         }
 
-        // Token'ı veritabanından kontrol et
-        const tokens = await db.query(
-            `SELECT user_id FROM password_reset_tokens 
-             WHERE token = ? AND used = FALSE AND expires_at > NOW()`,
-            [token]
-        );
+        // Token'ı veritabanından kontrol et (User modelindeki password_reset_token alanını kullan)
+        const user = await User.findOne({
+            where: {
+                password_reset_token: token,
+                password_reset_expires: {
+                    [Op.gt]: new Date() // expires_at > NOW()
+                }
+            },
+            attributes: ['id']
+        });
 
-        if (tokens.length === 0) {
+        if (!user) {
             return res.status(400).json({
                 success: false,
                 message: "Geçersiz veya süresi dolmuş token."
             });
         }
 
-        const userId = tokens[0].user_id;
-
-        // Şifreyi güncelle
+        // Şifreyi güncelle ve token'ı temizle
         const hashedPassword = await hashPassword(password);
-        await db.execute(
-            "UPDATE users SET password = ? WHERE id = ?",
-            [hashedPassword, userId]
-        );
-
-        // Token'ı kullanıldı olarak işaretle
-        await db.execute(
-            "UPDATE password_reset_tokens SET used = TRUE WHERE token = ?",
-            [token]
-        );
+        await user.update({
+            password: hashedPassword,
+            password_reset_token: null,
+            password_reset_expires: null
+        });
 
         res.json({
             success: true,
@@ -737,9 +741,10 @@ router.put("/toggle-2fa", async (req, res) => {
         const userId = req.session.user.id;
         const { enabled } = req.body;
 
-        await db.execute(
-            "UPDATE users SET two_factor_enabled = ? WHERE id = ?",
-            [enabled ? 1 : 0, userId]
+        // 2FA durumunu güncelle (Sequelize)
+        await User.update(
+            { two_factor_enabled: enabled },
+            { where: { id: userId } }
         );
 
         res.json({
@@ -763,31 +768,30 @@ router.get("/me", async (req, res) => {
     // Önce session kontrolü yap
     if (req.session && req.session.isAuthenticated && req.session.user) {
         
-        // Kullanıcının 2FA durumunu veritabanından al
+        // Kullanıcının 2FA durumunu veritabanından al (Sequelize)
         try {
-            const userInfo = await db.query(
-                "SELECT two_factor_enabled FROM users WHERE id = ?",
-                [req.session.user.id]
-            );
-            if (userInfo && userInfo.length > 0) {
-                req.session.user.two_factor_enabled = userInfo[0].two_factor_enabled === 1 || userInfo[0].two_factor_enabled === true;
+            const userInfo = await User.findByPk(req.session.user.id, {
+                attributes: ['two_factor_enabled']
+            });
+            if (userInfo) {
+                req.session.user.two_factor_enabled = userInfo.two_factor_enabled === true || userInfo.two_factor_enabled === 1;
             }
         } catch (error) {
             console.error("2FA durumu alınamadı:", error);
         }
         
-        // Eğer seller ise, seller ID'yi de ekle
+        // Eğer seller ise, seller ID'yi de ekle (Sequelize)
         let userData = { ...req.session.user };
         if (req.session.user.role === 'seller' && !req.session.user.sellerId) {
             try {
-                const sellerQuery = await db.query(
-                    "SELECT id FROM sellers WHERE user_id = ?",
-                    [req.session.user.id]
-                );
-                if (sellerQuery && sellerQuery.length > 0) {
-                    userData.sellerId = sellerQuery[0].id;
+                const sellerInfo = await Seller.findOne({
+                    where: { user_id: req.session.user.id },
+                    attributes: ['id']
+                });
+                if (sellerInfo) {
+                    userData.sellerId = sellerInfo.id;
                     // Session'ı da güncelle
-                    req.session.user.sellerId = sellerQuery[0].id;
+                    req.session.user.sellerId = sellerInfo.id;
                 }
             } catch (sellerError) {
             }

@@ -2,6 +2,9 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole } = require("../../middleware/auth");
+const { User, Order, Seller, Address, CourierTask } = require("../../models");
+const { Op, Sequelize } = require("sequelize");
+const { sequelize } = require("../../config/database");
 
 // ============================================
 // COURIER API ROUTES
@@ -16,13 +19,12 @@ router.get("/available", requireRole('courier'), async (req, res) => {
         const courierId = req.session.user.id || req.session.user.courierId;
         console.log("✅ Alınabilir görevler isteği - Courier ID:", courierId, "User:", req.session.user);
         
-        // Kuryenin aktif olup olmadığını kontrol et
-        const courierStatusQuery = await db.query(
-            "SELECT COALESCE(courier_status, 'online') as status FROM users WHERE id = ?",
-            [courierId]
-        );
+        // Kuryenin aktif olup olmadığını kontrol et (Sequelize)
+        const courier = await User.findByPk(courierId, {
+            attributes: ['courier_status']
+        });
         
-        const courierStatus = courierStatusQuery.length > 0 ? courierStatusQuery[0].status : 'online';
+        const courierStatus = courier?.courier_status || 'online';
         
         if (courierStatus === 'offline') {
             return res.json({
@@ -32,40 +34,57 @@ router.get("/available", requireRole('courier'), async (req, res) => {
             });
         }
         
-        const query = `
-            SELECT 
-                o.id,
-                o.order_number,
-                o.total_amount,
-                o.delivery_fee,
-                s.shop_name as pickup_location,
-                CONCAT(COALESCE(a.district, ''), ', ', COALESCE(a.city, '')) as delivery_location,
-                CONCAT(COALESCE(u.fullname, 'Müşteri'), ' (', SUBSTRING(COALESCE(u.phone, '000'), 1, 3), '***)') as customer_name,
-                o.estimated_delivery_time,
-                o.created_at
-            FROM orders o
-            LEFT JOIN sellers s ON o.seller_id = s.id
-            LEFT JOIN addresses a ON o.address_id = a.id
-            LEFT JOIN users u ON o.user_id = u.id
-            WHERE o.courier_id IS NULL 
-            AND o.status = 'ready'
-            AND o.created_at >= DATE_SUB(NOW(), INTERVAL 2 HOUR)
-            ORDER BY o.created_at DESC
-        `;
+        // 2 saat içindeki hazır siparişleri getir (Sequelize)
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
         
-        const tasks = await db.query(query);
+        const tasks = await Order.findAll({
+            where: {
+                courier_id: null,
+                status: 'ready',
+                created_at: { [Op.gte]: twoHoursAgo }
+            },
+            include: [
+                {
+                    model: Seller,
+                    as: 'seller',
+                    attributes: ['shop_name']
+                },
+                {
+                    model: Address,
+                    as: 'address',
+                    attributes: ['district', 'city']
+                },
+                {
+                    model: User,
+                    as: 'buyer',
+                    attributes: ['fullname', 'phone']
+                }
+            ],
+            order: [['created_at', 'DESC']]
+        });
         
         // Format response
-        const formattedTasks = (tasks || []).map(task => ({
-            id: task.id,
-            orderNumber: task.order_number || `SIP-${task.id}`,
-            pickup: task.pickup_location || 'Restoran',
-            dropoff: task.delivery_location || 'Adres bilgisi yok',
-            customer: task.customer_name || 'Müşteri',
-            payout: parseFloat(task.delivery_fee) || 25.00,
-            estimatedTime: task.estimated_delivery_time || '30 dakika',
-            createdAt: task.created_at
-        }));
+        const formattedTasks = tasks.map(task => {
+            const deliveryLocation = task.address 
+                ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '')
+                : 'Adres bilgisi yok';
+            
+            const phoneStr = task.buyer?.phone || '000';
+            const customerName = task.buyer 
+                ? `${task.buyer.fullname || 'Müşteri'} (${phoneStr.substring(0, 3)}***)`
+                : 'Müşteri';
+            
+            return {
+                id: task.id,
+                orderNumber: task.order_number || `SIP-${task.id}`,
+                pickup: task.seller?.shop_name || 'Restoran',
+                dropoff: deliveryLocation,
+                customer: customerName,
+                payout: parseFloat(task.delivery_fee) || 25.00,
+                estimatedTime: task.estimated_delivery_time || '30 dakika',
+                createdAt: task.created_at
+            };
+        });
         
         res.json({
             success: true,
@@ -341,7 +360,7 @@ router.put("/tasks/:id/complete", requireRole('courier'), async (req, res) => {
 
 /**
  * GET /api/courier/tasks/history
- * Geçmiş görevleri getir
+ * Geçmiş görevleri getir (Sequelize)
  */
 router.get("/tasks/history", requireRole('courier'), async (req, res) => {
     try {
@@ -350,52 +369,100 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
         const { page = 1, limit = 20 } = req.query;
         const offset = (parseInt(page) - 1) * parseInt(limit);
         
-        const query = `
-            SELECT 
-                o.id,
-                o.order_number,
-                o.total_amount,
-                o.delivery_fee,
-                s.shop_name as pickup_location,
-                CONCAT(COALESCE(a.district, ''), ', ', COALESCE(a.city, '')) as delivery_location,
-                CONCAT(COALESCE(u.fullname, 'Müşteri'), ' (', SUBSTRING(COALESCE(u.phone, '000'), 1, 3), '***)') as customer_name,
-                o.status,
-                ct.delivered_at,
-                ct.actual_payout,
-                o.created_at
-            FROM orders o
-            LEFT JOIN sellers s ON o.seller_id = s.id
-            LEFT JOIN addresses a ON o.address_id = a.id
-            LEFT JOIN users u ON o.user_id = u.id
-            LEFT JOIN courier_tasks ct ON o.id = ct.order_id
-            WHERE o.courier_id = ?
-            AND o.status = 'delivered'
-            ORDER BY COALESCE(ct.delivered_at, o.created_at) DESC
-            LIMIT ? OFFSET ?
-        `;
+        if (!courierId) {
+            return res.status(400).json({
+                success: false,
+                message: "Kurye ID bulunamadı."
+            });
+        }
         
-        const tasks = await db.query(query, [courierId, parseInt(limit), offset]);
+        // Geçmiş görevleri getir (Sequelize)
+        let count, tasks;
+        try {
+            const result = await Order.findAndCountAll({
+                where: {
+                    courier_id: courierId,
+                    status: 'delivered'
+                },
+                include: [
+                    {
+                        model: Seller,
+                        as: 'seller',
+                        attributes: ['shop_name'],
+                        required: false
+                    },
+                    {
+                        model: Address,
+                        as: 'address',
+                        attributes: ['district', 'city'],
+                        required: false
+                    },
+                    {
+                        model: User,
+                        as: 'buyer',
+                        attributes: ['fullname', 'phone'],
+                        required: false
+                    },
+                    {
+                        model: CourierTask,
+                        as: 'courierTask',
+                        attributes: ['delivered_at', 'actual_payout'],
+                        required: false
+                    }
+                ],
+                attributes: ['id', 'order_number', 'total_amount', 'delivery_fee', 'status', 'created_at'],
+                order: [['created_at', 'DESC']],
+                limit: parseInt(limit) || 20,
+                offset: offset || 0
+            });
+            
+            count = result.count;
+            tasks = result.rows || [];
+            console.log(`✅ ${tasks.length} görev bulundu, toplam: ${count}`);
+        } catch (dbError) {
+            console.error("❌ Sequelize sorgu hatası:", dbError);
+            console.error("❌ Hata name:", dbError.name);
+            console.error("❌ Hata message:", dbError.message);
+            if (dbError.original) {
+                console.error("❌ Original error:", dbError.original);
+            }
+            throw dbError;
+        }
         
-        // Toplam sayıyı al
-        const countQuery = `
-            SELECT COUNT(*) as total
-            FROM orders
-            WHERE courier_id = ? AND status = 'delivered'
-        `;
-        const countResult = await db.query(countQuery, [courierId]);
-        const total = countResult && countResult.length > 0 ? countResult[0].total : 0;
+        // delivered_at'e göre sıralama yapmak için JavaScript'te sıralayalım
+        tasks.sort((a, b) => {
+            const dateA = a.courierTask?.delivered_at || a.created_at;
+            const dateB = b.courierTask?.delivered_at || b.created_at;
+            return new Date(dateB) - new Date(dateA);
+        });
         
-        const formattedTasks = (tasks || []).map(task => ({
-            id: task.id,
-            orderNumber: task.order_number || `SIP-${task.id}`,
-            pickup: task.pickup_location || 'Restoran',
-            dropoff: task.delivery_location || 'Adres bilgisi yok',
-            customer: task.customer_name || 'Müşteri',
-            payout: parseFloat(task.actual_payout || task.delivery_fee) || 25.00,
-            status: task.status || 'delivered',
-            deliveredAt: task.delivered_at || task.created_at,
-            createdAt: task.created_at
-        }));
+        const total = count;
+        
+        const formattedTasks = tasks.map(task => {
+            // Delivery location'ı oluştur
+            const deliveryLocation = task.address 
+                ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '').trim() || 'Adres bilgisi yok'
+                : 'Adres bilgisi yok';
+            
+            // Customer name oluştur
+            const phoneStr = task.buyer?.phone || '000';
+            const phonePrefix = phoneStr.substring(0, 3);
+            const customerName = task.buyer 
+                ? `${task.buyer.fullname || 'Müşteri'} (${phonePrefix}***)`
+                : 'Müşteri';
+            
+            return {
+                id: task.id,
+                orderNumber: task.order_number || `SIP-${task.id}`,
+                pickup: task.seller?.shop_name || 'Restoran',
+                dropoff: deliveryLocation,
+                customer: customerName,
+                payout: parseFloat(task.courierTask?.actual_payout || task.delivery_fee) || 25.00,
+                status: task.status || 'delivered',
+                deliveredAt: task.courierTask?.delivered_at || task.created_at,
+                createdAt: task.created_at
+            };
+        });
         
         res.json({
             success: true,

@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
+const { Meal, Seller, Coupon } = require("../../models");
+const { Op } = require("sequelize");
 
 
 // ============================================
@@ -15,43 +17,37 @@ router.get("/product/:id", async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
         
-        // Veritabanından ürünü bul
-        const mealQuery = `
-            SELECT 
-                m.id,
-                m.name,
-                m.description,
-                m.price,
-                m.image_url as imageUrl,
-                m.category,
-                s.id as seller_id,
-                s.shop_name as seller_name
-            FROM meals m
-            INNER JOIN sellers s ON m.seller_id = s.id
-            WHERE m.id = ? AND m.is_available = TRUE
-        `;
+        // Veritabanından ürünü bul (Sequelize)
+        const meal = await Meal.findOne({
+            where: {
+                id: productId,
+                is_available: true
+            },
+            include: [{
+                model: Seller,
+                as: 'seller',
+                attributes: ['id', 'shop_name']
+            }],
+            attributes: ['id', 'name', 'description', 'price', 'image_url', 'category']
+        });
         
-        const meals = await db.query(mealQuery, [productId]);
-        
-        if (meals.length === 0) {
+        if (!meal) {
             return res.status(404).json({ 
                 success: false, 
                 message: "Ürün bulunamadı." 
             });
         }
         
-        const meal = meals[0];
-        
         res.json({
             id: meal.id,
             name: meal.name,
             description: meal.description,
             price: parseFloat(meal.price),
-            imageUrl: meal.imageUrl,
+            imageUrl: meal.image_url,
             category: meal.category,
-            satici: meal.seller_name || "Ev Lezzetleri",
+            satici: meal.seller?.shop_name || "Ev Lezzetleri",
             fiyat: parseFloat(meal.price),
-            gorsel: meal.imageUrl,
+            gorsel: meal.image_url,
             ad: meal.name
         });
     } catch (error) {
@@ -78,60 +74,25 @@ router.post("/validate-coupon", async (req, res) => {
             });
         }
         
-        // Kupon kodunu veritabanından bul
-        const couponQuery = `
-            SELECT 
-                id,
-                code,
-                description,
-                discount_type,
-                discount_value,
-                min_order_amount,
-                max_discount_amount,
-                applicable_seller_ids,
-                usage_limit,
-                used_count,
-                valid_from,
-                valid_until,
-                is_active
-            FROM coupons
-            WHERE code = ? AND is_active = TRUE
-        `;
+        // Kupon kodunu veritabanından bul (Sequelize)
+        const coupon = await Coupon.findOne({
+            where: {
+                code: code.toUpperCase().trim(),
+                is_active: true
+            }
+        });
         
-        const coupons = await db.query(couponQuery, [code.toUpperCase().trim()]);
-        
-        if (coupons.length === 0) {
+        if (!coupon) {
             return res.status(404).json({
                 success: false,
                 message: "Geçersiz kupon kodu."
             });
         }
         
-        const coupon = coupons[0];
-        
-        // Tarih kontrolü - MySQL tarihlerini doğru şekilde karşılaştır
+        // Tarih kontrolü (Sequelize Date objesi döner)
         const now = new Date();
-        
-        // MySQL'den gelen tarihleri parse et (TIMESTAMP formatı)
-        let validFrom, validUntil;
-        
-        // MySQL TIMESTAMP formatını parse et
-        if (coupon.valid_from instanceof Date) {
-            validFrom = coupon.valid_from;
-        } else if (typeof coupon.valid_from === 'string') {
-            // String ise parse et
-            validFrom = new Date(coupon.valid_from);
-        } else {
-            validFrom = new Date(coupon.valid_from);
-        }
-        
-        if (coupon.valid_until instanceof Date) {
-            validUntil = coupon.valid_until;
-        } else if (typeof coupon.valid_until === 'string') {
-            validUntil = new Date(coupon.valid_until);
-        } else {
-            validUntil = new Date(coupon.valid_until);
-        }
+        const validFrom = new Date(coupon.valid_from);
+        const validUntil = new Date(coupon.valid_until);
         
         // Tarih kontrolü - valid_until dahil (gece yarısına kadar geçerli)
         const validUntilEnd = new Date(validUntil);
@@ -166,7 +127,11 @@ router.post("/validate-coupon", async (req, res) => {
         // ÖNEMLİ: Eğer kupon belirli satıcılar için ise, sepetteki satıcı o listede olmalı
         if (coupon.applicable_seller_ids) {
             try {
-                const applicableSellers = JSON.parse(coupon.applicable_seller_ids);
+                // Sequelize JSON alanını otomatik parse eder
+                const applicableSellers = Array.isArray(coupon.applicable_seller_ids) 
+                    ? coupon.applicable_seller_ids 
+                    : JSON.parse(coupon.applicable_seller_ids);
+                    
                 if (Array.isArray(applicableSellers) && applicableSellers.length > 0) {
                     // Kupon belirli satıcılar için ise, sellerId mutlaka olmalı ve listede olmalı
                     const sellerIdNum = sellerId ? parseInt(sellerId) : null;
@@ -195,8 +160,6 @@ router.post("/validate-coupon", async (req, res) => {
                     message: "Kupon kodu doğrulanırken bir hata oluştu."
                 });
             }
-        } else {
-            // Kupon tüm satıcılar için geçerli (applicable_seller_ids NULL veya boş)
         }
         
         // İndirim tutarını hesapla

@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../../config/database");
 const { requireRole } = require("../../middleware/auth");
 const bcrypt = require("bcryptjs");
+const { User } = require("../../models");
 
 
 // ============================================
@@ -25,28 +26,17 @@ router.get("/profile", requireRole('buyer'), async (req, res) => {
             });
         }
         
-        const query = `
-            SELECT 
-                id,
-                email,
-                fullname,
-                phone,
-                role,
-                created_at
-            FROM users
-            WHERE id = ?
-        `;
+        // Kullanıcıyı getir (Sequelize)
+        const user = await User.findByPk(userId, {
+            attributes: ['id', 'email', 'fullname', 'phone', 'role', 'created_at']
+        });
         
-        const result = await db.query(query, [userId]);
-        
-        if (result.length === 0) {
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "Kullanıcı bulunamadı."
             });
         }
-        
-        const user = result[0];
         
         res.json({
             success: true,
@@ -96,10 +86,15 @@ router.put("/profile", requireRole('buyer'), async (req, res) => {
         
         updateValues.push(userId);
         
-        await db.execute(
-            `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
-            updateValues
-        );
+        // Profil güncelle (Sequelize)
+        const updateData = { fullname: fullname.trim() };
+        if (phone) {
+            updateData.phone = phone.trim();
+        }
+        
+        await User.update(updateData, {
+            where: { id: userId }
+        });
         
         // Güncellenmiş kullanıcı bilgilerini al
         const updatedUser = await db.query(

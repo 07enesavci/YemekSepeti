@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole } = require("../../middleware/auth");
+const { Seller, Meal } = require("../../models");
 
 // ============================================
 // SELLER MENU ENDPOINTS (Satıcı menü yönetimi)
@@ -16,13 +17,13 @@ router.get("/menu", requireRole('seller'), async (req, res) => {
         const userId = req.session.user.id;
         console.log('📥 GET /api/seller/menu - User ID:', userId);
         
-        // Kullanıcının seller_id'sini bul
-        const sellerQuery = await db.query(
-            "SELECT id FROM sellers WHERE user_id = ?",
-            [userId]
-        );
+        // Kullanıcının seller_id'sini bul (Sequelize)
+        const seller = await Seller.findOne({
+            where: { user_id: userId },
+            attributes: ['id']
+        });
         
-        if (sellerQuery.length === 0) {
+        if (!seller) {
             console.log('❌ Satıcı kaydı bulunamadı, user_id:', userId);
             return res.status(404).json({
                 success: false,
@@ -30,28 +31,19 @@ router.get("/menu", requireRole('seller'), async (req, res) => {
             });
         }
         
-        const shopId = sellerQuery[0].id;
+        const shopId = seller.id;
         console.log('✅ Seller ID bulundu:', shopId);
         
-        const menuQuery = `
-            SELECT 
-                id,
-                category,
-                name,
-                description,
-                price,
-                image_url as imageUrl,
-                is_available as isAvailable
-            FROM meals
-            WHERE seller_id = ?
-            ORDER BY category, name
-        `;
-        
-        const meals = await db.query(menuQuery, [shopId]);
+        // Menüyü getir (Sequelize)
+        const meals = await Meal.findAll({
+            where: { seller_id: shopId },
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available'],
+            order: [['category', 'ASC'], ['name', 'ASC']]
+        });
         console.log(`✅ ${meals.length} meal bulundu`);
         
         const menu = meals.map(meal => {
-            let mealImageUrl = meal.imageUrl;
+            let mealImageUrl = meal.image_url;
             // Relative path'leri de kabul et (/uploads/...)
             if (!mealImageUrl || 
                 mealImageUrl.trim() === '' || 
@@ -69,7 +61,7 @@ router.get("/menu", requireRole('seller'), async (req, res) => {
                 description: meal.description || "",
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
-                isAvailable: meal.isAvailable
+                isAvailable: meal.is_available
             };
         });
         
