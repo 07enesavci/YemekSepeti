@@ -42,38 +42,33 @@ Projeyi test etmek için hazır kullanıcı hesapları:
 
 ### 🔑 Admin Kullanıcısı
 
-- **Email**: `admin@yemeksepeti.com`
-- **Şifre**: `password`
+- **Email**: `admin@gmail.com`
+- **Şifre**: `123456`
 - **Rol**: Admin
 - **Erişim**: Tüm sistem yönetimi yetkileri
 
 ### 🛒 Müşteri (Buyer) Kullanıcıları
 
 1. **Enes Avcı**
-   - **Email**: `enes@mail.com`
-   - **Şifre**: `password`
-   - **Rol**: Buyer
-
-2. **Ahmet Eren**
-   - **Email**: `ahmet@mail.com`
-   - **Şifre**: `password`
+   - **Email**: `enes@gmail.com`
+   - **Şifre**: `123456`
    - **Rol**: Buyer
 
 ### 🏪 Satıcı (Seller) Kullanıcısı
 
-- **Email**: `satici@mail.com`
-- **Şifre**: `password`
+- **Email**: `veganlezzetler@gmail.com`
+- **Şifre**: `123456`
 - **Rol**: Seller
 - **Satıcı Adı**: "Vegan Lezzetler"
 - **Konum**: Moda
 
 ### 🚴 Kurye (Courier) Kullanıcısı
 
-- **Email**: `kurye@mail.com`
-- **Şifre**: `password`
+- **Email**: `kurye@gmail.com`
+- **Şifre**: `123456`
 - **Rol**: Courier
 
-> **Not**: Tüm test kullanıcıları için şifre: `password` (küçük harf)
+> **Not**: Tüm test kullanıcıları için şifre: `123456`
 
 ---
 
@@ -189,7 +184,7 @@ Müşteri → Sipariş Verir → Satıcı Onaylar → Hazırlanır → Hazır Ol
 ### 💰 Ödeme ve Cüzdan Sistemi
 
 - Kullanıcı cüzdanı ile ödeme
-- Kredi kartı ile ödeme (altyapı hazır)
+- Kredi kartı ile ödeme
 - Kupon indirimleri
 - Otomatik bakiye güncelleme
 - İşlem geçmişi
@@ -261,7 +256,7 @@ Müşteri → Sipariş Verir → Satıcı Onaylar → Hazırlanır → Hazır Ol
 ### Adım 1: Projeyi Klonlayın
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/07enesavci/YemekSepeti
 cd Yemek-Sepeti
 ```
 
