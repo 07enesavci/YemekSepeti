@@ -42,8 +42,8 @@ Projeyi test etmek için hazır kullanıcı hesapları:
 
 ### 🔑 Admin Kullanıcısı
 
-- **Email**: `admin@yemeksepeti.com`
-- **Şifre**: `password`
+- **Email**: `admin@gmail.com`
+- **Şifre**: `123456`
 - **Rol**: Admin
 - **Erişim**: Tüm sistem yönetimi yetkileri
 
@@ -51,18 +51,13 @@ Projeyi test etmek için hazır kullanıcı hesapları:
 
 1. **Enes Avcı**
    - **Email**: `enes@mail.com`
-   - **Şifre**: `password`
-   - **Rol**: Buyer
-
-2. **Ahmet Eren**
-   - **Email**: `ahmet@mail.com`
-   - **Şifre**: `password`
+   - **Şifre**: `123456`
    - **Rol**: Buyer
 
 ### 🏪 Satıcı (Seller) Kullanıcısı
 
-- **Email**: `satici@mail.com`
-- **Şifre**: `password`
+- **Email**: `veganlezzetler@mail.com`
+- **Şifre**: `123456`
 - **Rol**: Seller
 - **Satıcı Adı**: "Vegan Lezzetler"
 - **Konum**: Moda
@@ -70,7 +65,7 @@ Projeyi test etmek için hazır kullanıcı hesapları:
 ### 🚴 Kurye (Courier) Kullanıcısı
 
 - **Email**: `kurye@mail.com`
-- **Şifre**: `password`
+- **Şifre**: `123456`
 - **Rol**: Courier
 
 > **Not**: Tüm test kullanıcıları için şifre: `password` (küçük harf)
