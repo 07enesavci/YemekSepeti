@@ -1,69 +1,86 @@
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-// Email transporter oluştur
+let cachedTransporter = null;
+let cachedMode = null;
+
 const createTransporter = () => {
-    // Eğer email ayarları varsa kullan, yoksa test modunda çalış
-    if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        return nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: process.env.EMAIL_PORT || 587,
-            secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+    if (cachedTransporter) return cachedTransporter;
+
+    const hasLiveCreds = Boolean(process.env.EMAIL_USER && (process.env.EMAIL_HOST || process.env.EMAIL_SERVICE));
+
+    if (!hasLiveCreds) {
+        cachedMode = 'test';
+        cachedTransporter = {
+            async sendMail(opts) {
+                return { messageId: 'test-message-id' };
+            }
+        };
+        return cachedTransporter;
+    }
+
+    cachedMode = 'live';
+
+    const allowSelfSigned = process.env.EMAIL_SSL_ALLOW_SELF_SIGNED === 'true';
+    const common = {
+        pool: process.env.EMAIL_POOL === 'true',
+        maxConnections: parseInt(process.env.EMAIL_MAX_CONNECTIONS || '5'),
+        maxMessages: parseInt(process.env.EMAIL_MAX_MESSAGES || '100'),
+        rateDelta: parseInt(process.env.EMAIL_RATE_DELTA || '1000'),
+        rateLimit: parseInt(process.env.EMAIL_RATE_LIMIT || '5'),
+        tls: allowSelfSigned ? { rejectUnauthorized: false, minVersion: 'TLSv1.2' } : { minVersion: 'TLSv1.2' }
+    };
+
+    if (process.env.EMAIL_SERVICE) {
+        cachedTransporter = nodemailer.createTransport({
+            service: process.env.EMAIL_SERVICE,
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
-            }
+            },
+            ...common
         });
-    } else {
-        // Test modu - gerçek email göndermez, console'a yazar
-        return nodemailer.createTransport({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            auth: {
-                user: 'test@example.com',
-                pass: 'test'
-            }
-        });
+        return cachedTransporter;
     }
+
+    cachedTransporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST,
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: process.env.EMAIL_SECURE === 'true',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        },
+        ...common
+    });
+    return cachedTransporter;
 };
 
-/**
- * Email gönder
- * @param {string} to - Alıcı email adresi
- * @param {string} subject - Email konusu
- * @param {string} html - Email içeriği (HTML)
- * @param {string} text - Email içeriği (Plain text, opsiyonel)
- */
 async function sendEmail(to, subject, html, text = null) {
     try {
         const transporter = createTransporter();
-        
-        // Eğer test modundaysa, email'i console'a yaz
-        if (!process.env.EMAIL_HOST) {
-            console.log('📧 EMAIL (TEST MODE):');
-            console.log('To:', to);
-            console.log('Subject:', subject);
-            console.log('Content:', text || html);
-            return { success: true, message: 'Email test modunda gösterildi' };
-        }
-        
+        const fromAddress = (process.env.EMAIL_FROM_NAME
+            ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@example.com'}>`
+            : (process.env.EMAIL_FROM || process.env.EMAIL_USER || 'no-reply@example.com'));
+
         const info = await transporter.sendMail({
-            from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+            from: fromAddress,
             to: to,
             subject: subject,
-            text: text || html.replace(/<[^>]*>/g, ''), // HTML'den text çıkar
+            text: text || html.replace(/<[^>]*>/g, ''),
             html: html
         });
         
+        if (cachedMode === 'test') {
+            return { success: true, message: 'Email test modunda gösterildi', messageId: info.messageId };
+        }
+
         return { success: true, messageId: info.messageId };
     } catch (error) {
-        console.error('Email gönderme hatası:', error);
         return { success: false, error: error.message };
     }
 }
 
-/**
- * 6 haneli doğrulama kodu gönder
- */
 async function sendVerificationCode(email, code, type = 'registration') {
     const typeNames = {
         'registration': 'Kayıt Doğrulama',
@@ -111,9 +128,6 @@ async function sendVerificationCode(email, code, type = 'registration') {
     return await sendEmail(email, `${typeName} - Doğrulama Kodu`, html);
 }
 
-/**
- * Şifre sıfırlama linki gönder
- */
 async function sendPasswordResetLink(email, resetLink) {
     const html = `
         <!DOCTYPE html>
@@ -162,4 +176,3 @@ module.exports = {
     sendVerificationCode,
     sendPasswordResetLink
 };
-

@@ -4,25 +4,11 @@ const db = require("../../config/database");
 const { Meal, Seller, Coupon } = require("../../models");
 const { Op } = require("sequelize");
 
-
-// ============================================
-// ROUTES
-// ============================================
-
-/**
- * GET /api/cart/product/:id
- * Belirli bir ürünü getir (veritabanından)
- */
 router.get("/product/:id", async (req, res) => {
     try {
         const productId = parseInt(req.params.id);
-        
-        // Veritabanından ürünü bul (Sequelize)
         const meal = await Meal.findOne({
-            where: {
-                id: productId,
-                is_available: true
-            },
+            where: { id: productId, is_available: true },
             include: [{
                 model: Seller,
                 as: 'seller',
@@ -51,18 +37,10 @@ router.get("/product/:id", async (req, res) => {
             ad: meal.name
         });
     } catch (error) {
-        console.error("Ürün getirme hatası:", error);
-        res.status(500).json({ 
-            success: false, 
-            message: "Sunucu hatası." 
-        });
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 
-/**
- * POST /api/cart/validate-coupon
- * Kupon kodunu doğrula ve indirim tutarını hesapla
- */
 router.post("/validate-coupon", async (req, res) => {
     try {
         const { code, subtotal, sellerId } = req.body;
@@ -74,7 +52,6 @@ router.post("/validate-coupon", async (req, res) => {
             });
         }
         
-        // Kupon kodunu veritabanından bul (Sequelize)
         const coupon = await Coupon.findOne({
             where: {
                 code: code.toUpperCase().trim(),
@@ -89,116 +66,85 @@ router.post("/validate-coupon", async (req, res) => {
             });
         }
         
-        // Tarih kontrolü (Sequelize Date objesi döner)
         const now = new Date();
         const validFrom = new Date(coupon.valid_from);
         const validUntil = new Date(coupon.valid_until);
+        validUntil.setHours(23, 59, 59, 999);
         
-        // Tarih kontrolü - valid_until dahil (gece yarısına kadar geçerli)
-        const validUntilEnd = new Date(validUntil);
-        validUntilEnd.setHours(23, 59, 59, 999);
-        
-        if (now < validFrom || now > validUntilEnd) {
+        if (now < validFrom) {
             return res.status(400).json({
                 success: false,
-                message: "Bu kupon kodunun süresi dolmuş veya henüz geçerli değil."
+                message: "Bu kupon henüz geçerli değil."
             });
         }
         
-        
-        // Kullanım limiti kontrolü
-        if (coupon.usage_limit !== -1 && coupon.used_count >= coupon.usage_limit) {
+        if (now > validUntil) {
             return res.status(400).json({
                 success: false,
-                message: "Bu kupon kodunun kullanım limiti dolmuş."
+                message: "Bu kupon süresi dolmuş."
             });
         }
         
-        // Minimum sipariş tutarı kontrolü
-        const subtotalNum = parseFloat(subtotal);
-        if (subtotalNum < parseFloat(coupon.min_order_amount)) {
+        if (parseFloat(subtotal) < parseFloat(coupon.min_order_amount || 0)) {
             return res.status(400).json({
                 success: false,
-                message: `Bu kupon için minimum ${parseFloat(coupon.min_order_amount).toFixed(2)} TL tutarında sipariş gereklidir.`
+                message: `Bu kupon minimum ${parseFloat(coupon.min_order_amount)} TL sipariş için geçerlidir.`
             });
         }
         
-        // Satıcı kontrolü (eğer kupon belirli satıcılar için ise)
-        // ÖNEMLİ: Eğer kupon belirli satıcılar için ise, sepetteki satıcı o listede olmalı
-        if (coupon.applicable_seller_ids) {
+        if (coupon.applicable_seller_ids && sellerId) {
+            let applicableSellers = [];
             try {
-                // Sequelize JSON alanını otomatik parse eder
-                const applicableSellers = Array.isArray(coupon.applicable_seller_ids) 
-                    ? coupon.applicable_seller_ids 
-                    : JSON.parse(coupon.applicable_seller_ids);
-                    
-                if (Array.isArray(applicableSellers) && applicableSellers.length > 0) {
-                    // Kupon belirli satıcılar için ise, sellerId mutlaka olmalı ve listede olmalı
-                    const sellerIdNum = sellerId ? parseInt(sellerId) : null;
-                    
-                    if (!sellerIdNum) {
-                        return res.status(400).json({
-                            success: false,
-                            message: "Geçersiz kupon kodu. Bu kupon bu restoran için geçerli değil."
-                        });
-                    }
-                    
-                    // Seller ID'yi integer array'e çevir
-                    const applicableSellerIds = applicableSellers.map(id => parseInt(id));
-                    
-                    if (!applicableSellerIds.includes(sellerIdNum)) {
-                        return res.status(400).json({
-                            success: false,
-                            message: "Geçersiz kupon kodu. Bu kupon bu restoran için geçerli değil."
-                        });
-                    }
-                }
+                applicableSellers = typeof coupon.applicable_seller_ids === 'string' 
+                    ? JSON.parse(coupon.applicable_seller_ids) 
+                    : coupon.applicable_seller_ids;
             } catch (e) {
-                console.error("Kupon satıcı ID parse hatası:", e);
-                return res.status(400).json({
-                    success: false,
-                    message: "Kupon kodu doğrulanırken bir hata oluştu."
-                });
+                applicableSellers = [];
             }
-        }
-        
-        // İndirim tutarını hesapla
-        let discountAmount = 0;
-        if (coupon.discount_type === 'fixed') {
-            // Sabit tutar indirimi
-            discountAmount = parseFloat(coupon.discount_value);
-        } else if (coupon.discount_type === 'percentage') {
-            // Yüzde indirimi
-            discountAmount = (subtotalNum * parseFloat(coupon.discount_value)) / 100;
             
-            // Maksimum indirim tutarı kontrolü
-            if (coupon.max_discount_amount && discountAmount > parseFloat(coupon.max_discount_amount)) {
-                discountAmount = parseFloat(coupon.max_discount_amount);
+            if (Array.isArray(applicableSellers) && applicableSellers.length > 0) {
+                const sellerIdNum = parseInt(sellerId);
+                if (!applicableSellers.includes(sellerIdNum)) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Bu kupon bu satıcı için geçerli değil."
+                    });
+                }
             }
         }
         
-        // İndirim tutarı ara toplamdan fazla olamaz
-        discountAmount = Math.min(discountAmount, subtotalNum);
+        if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
+            return res.status(400).json({
+                success: false,
+                message: "Bu kupon kullanım limiti dolmuş."
+            });
+        }
+        
+        let discountAmount = 0;
+        if (coupon.discount_type === 'percentage') {
+            discountAmount = (parseFloat(subtotal) * parseFloat(coupon.discount_value)) / 100;
+            if (coupon.max_discount_amount) {
+                discountAmount = Math.min(discountAmount, parseFloat(coupon.max_discount_amount));
+            }
+        } else {
+            discountAmount = parseFloat(coupon.discount_value);
+        }
+        
+        discountAmount = Math.min(discountAmount, parseFloat(subtotal));
         
         res.json({
             success: true,
+            message: "Kupon geçerli!",
             coupon: {
-                id: coupon.id,
                 code: coupon.code,
-                description: coupon.description,
+                discountAmount: parseFloat(discountAmount.toFixed(2)),
                 discountType: coupon.discount_type,
-                discountValue: parseFloat(coupon.discount_value),
-                discountAmount: Math.round(discountAmount * 100) / 100
+                discountValue: parseFloat(coupon.discount_value)
             }
         });
     } catch (error) {
-        console.error("Kupon doğrulama hatası:", error);
-        res.status(500).json({
-            success: false,
-            message: "Kupon doğrulanırken bir hata oluştu."
-        });
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 
 module.exports = router;
-

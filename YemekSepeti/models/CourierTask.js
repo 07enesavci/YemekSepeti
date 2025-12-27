@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const CourierTask = sequelize.define('CourierTask', {
+// CourierTask model - Kurye görevi tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const CourierTask=sequelize.define('CourierTask', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,

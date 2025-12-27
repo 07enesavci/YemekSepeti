@@ -1,42 +1,23 @@
-// =================================================================
 // SELLER API FONKSİYONLARI
-// =================================================================
+// getApiBaseUrl: api.js'de window.getApiBaseUrl olarak tanımlı
 
-// getApiBaseUrl fonksiyonu api.js'de window.getApiBaseUrl olarak tanımlı
-// Direkt olarak window.getApiBaseUrl() kullanıyoruz
-
-// =================================================================
-// MENU YÖNETİMİ
-// =================================================================
-
-/**
- * Satıcının menüsünü backend'den çek
- */
 async function fetchSellerMenu() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        console.log('📡 Menü API çağrısı yapılıyor:', `${baseUrl}/api/seller/menu`);
         const response = await fetch(`${baseUrl}/api/seller/menu`, {
             credentials: 'include'
         });
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ API hatası:', response.status, errorText);
             throw new Error(`Menü yüklenemedi: ${response.status}`);
         }
         const data = await response.json();
-        console.log('✅ Menü API yanıtı:', data);
         return data.success ? data.menu : [];
     } catch (error) {
-        console.error('❌ Menü yükleme hatası:', error);
         return [];
     }
 }
 
-/**
- * Yeni yemek ekle
- */
-// Global fonksiyonlar (modal'dan erişim için)
+// Global fonksiyonlar
 window.addMeal = addMeal;
 window.updateMeal = updateMeal;
 window.loadMenuPage = loadMenuPage;
@@ -57,14 +38,10 @@ async function addMeal(mealData) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Yemek ekleme hatası:', error);
         throw error;
     }
 }
 
-/**
- * Yemek güncelle
- */
 async function updateMeal(mealId, mealData) {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -81,14 +58,10 @@ async function updateMeal(mealId, mealData) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Yemek güncelleme hatası:', error);
         throw error;
     }
 }
 
-/**
- * Yemek sil
- */
 async function deleteMeal(mealId) {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -103,7 +76,6 @@ async function deleteMeal(mealId) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Yemek silme hatası:', error);
         throw error;
     }
 }
@@ -125,7 +97,6 @@ async function fetchSellerEarnings(period = 'month') {
         const data = await response.json();
         return data.success ? data : null;
     } catch (error) {
-        console.error('Kazanç raporları yükleme hatası:', error);
         return null;
     }
 }
@@ -136,9 +107,6 @@ async function fetchSellerEarnings(period = 'month') {
 
 function createMealCardHTML(meal) {
     let imageUrl = meal.imageUrl || '';
-    console.log('🖼️ createMealCardHTML - Meal:', meal.name, 'imageUrl:', imageUrl);
-    
-    // Eğer imageUrl varsa ve relative path ise cache-busting ekle
     if (imageUrl && imageUrl.trim() !== '') {
         // Placeholder kontrolü
         if (imageUrl.includes('via.placeholder.com') || 
@@ -199,20 +167,13 @@ function createMealCardHTML(meal) {
 }
 
 async function loadMenuPage() {
-    console.log('📋 loadMenuPage() çağrıldı');
     const menuListContainer = document.querySelector('.menu-list');
     if (!menuListContainer) {
-        console.error('❌ .menu-list container bulunamadı!');
         return;
     }
-
-    console.log('⏳ Menü yükleniyor...');
     menuListContainer.innerHTML = '<p>Yükleniyor...</p>';
-
     try {
         const menu = await fetchSellerMenu();
-        console.log('📦 Menü verisi alındı:', menu.length, 'item');
-        console.log('📦 Menü verisi detay:', menu.map(m => ({ id: m.id, name: m.name, imageUrl: m.imageUrl })));
         menuListContainer.innerHTML = '';
 
         if (menu.length === 0) {
@@ -223,14 +184,9 @@ async function loadMenuPage() {
         menu.forEach(meal => {
             menuListContainer.insertAdjacentHTML('beforeend', createMealCardHTML(meal));
         });
-
-        console.log('✅ Menü render edildi, event listener\'lar ekleniyor...');
-        // Event listener'ları ekle
         attachMenuEventListeners();
-        console.log('✅ Menü sayfası yükleme tamamlandı');
     } catch (error) {
         menuListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Menü yüklenirken hata oluştu.</p>';
-        console.error('❌ Menü yükleme hatası:', error);
     }
 }
 
@@ -279,31 +235,21 @@ function attachMenuEventListeners() {
         
         newAddMealBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            console.log('➕ Yeni yemek ekle butonuna tıklandı');
-            
-            // Modal'ı yükle (eğer yoksa)
             if (!document.getElementById('meal-modal')) {
-                console.log('📦 Modal oluşturuluyor...');
                 if (window.createMealModal) {
                     window.createMealModal();
                 } else {
-                    console.error('❌ createMealModal fonksiyonu bulunamadı');
                     alert('Modal yükleniyor... Lütfen sayfayı yenileyin.');
                     return;
                 }
             }
-            
-            // Modal'ı aç
             if (window.openAddMealModal) {
-                console.log('✅ Modal açılıyor...');
                 window.openAddMealModal();
             } else {
-                console.error('❌ openAddMealModal fonksiyonu bulunamadı');
                 alert('Modal açılamadı. Lütfen sayfayı yenileyin.');
             }
         });
-    } else {
-        console.warn('⚠️ add-new-meal-btn bulunamadı');
+    } else {}
     }
 }
 
@@ -342,7 +288,6 @@ async function updateEarningsStats(period = 'month') {
         const earnings = await fetchSellerEarnings(period);
         
         if (!earnings || !earnings.stats) {
-            console.error('Kazanç verisi alınamadı');
             const transactionList = document.querySelector('.transaction-list');
             if (transactionList) {
                 transactionList.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Veri yüklenemedi.</p>';
@@ -425,7 +370,6 @@ async function updateEarningsStats(period = 'month') {
             }
         }
     } catch (error) {
-        console.error('Kazanç istatistikleri güncelleme hatası:', error);
         const transactionList = document.querySelector('.transaction-list');
         if (transactionList) {
             transactionList.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Veri yüklenirken hata oluştu.</p>';
@@ -454,7 +398,6 @@ async function fetchSellerOrders(tab = 'new') {
         const data = await response.json();
         return data.success ? data.orders : [];
     } catch (error) {
-        console.error('Siparişler yükleme hatası:', error);
         return [];
     }
 }
@@ -478,7 +421,6 @@ async function updateOrderStatus(orderId, status) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Sipariş durumu güncelleme hatası:', error);
         throw error;
     }
 }
@@ -607,7 +549,6 @@ async function loadOrdersForTab(tab) {
         attachOrderEventListeners();
     } catch (error) {
         tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
-        console.error('Siparişler yükleme hatası:', error);
     }
 }
 
@@ -713,7 +654,6 @@ async function fetchDashboardData() {
         const data = await response.json();
         return data.success ? data : null;
     } catch (error) {
-        console.error('Dashboard verileri yükleme hatası:', error);
         return null;
     }
 }
@@ -792,7 +732,6 @@ async function loadDashboardPage() {
             }
         }
     } catch (error) {
-        console.error('Dashboard yükleme hatası:', error);
         const subtitle = document.getElementById('dashboard-subtitle');
         if (subtitle) subtitle.textContent = 'Veri yüklenirken hata oluştu.';
     }
@@ -812,31 +751,18 @@ function initializeDashboardPage() {
 async function fetchSellerProfile() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        console.log('📡 Profil API çağrısı yapılıyor:', `${baseUrl}/api/seller/profile`);
-        
         const response = await fetch(`${baseUrl}/api/seller/profile`, {
             credentials: 'include'
         });
-        
-        console.log('📥 Profil API yanıtı:', response.status, response.statusText);
-        
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('❌ API hatası:', response.status, errorText);
-            
             let errorMessage = 'Profil yüklenemedi';
             let errorDetails = null;
             try {
                 const errorData = JSON.parse(errorText);
                 errorMessage = errorData.message || errorMessage;
                 errorDetails = errorData.error || null;
-                if (errorDetails) {
-                    console.error('❌ Backend hata detayı:', errorDetails);
-                }
-            } catch (e) {
-                // JSON parse edilemezse text olarak kullan
-                console.error('❌ Error response parse edilemedi:', e);
-            }
+            } catch (e) {}
             
             const finalError = new Error(errorMessage);
             if (errorDetails) {
@@ -846,17 +772,12 @@ async function fetchSellerProfile() {
         }
         
         const data = await response.json();
-        console.log('✅ Profil API yanıtı:', data);
-        
         if (!data.success) {
-            console.error('❌ API başarısız:', data.message);
             return null;
         }
         
         return data.profile || null;
     } catch (error) {
-        console.error('❌ Profil yükleme hatası:', error);
-        console.error('❌ Hata detayı:', error.message);
         return null;
     }
 }
@@ -867,9 +788,6 @@ async function fetchSellerProfile() {
 async function updateSellerProfile(profileData) {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        console.log('📤 PUT /api/seller/profile - Request:', profileData);
-        console.log('📤 PUT /api/seller/profile - URL:', `${baseUrl}/api/seller/profile`);
-        
         const response = await fetch(`${baseUrl}/api/seller/profile`, {
             method: 'PUT',
             credentials: 'include',
@@ -877,8 +795,7 @@ async function updateSellerProfile(profileData) {
             body: JSON.stringify(profileData)
         });
         
-        console.log('📥 PUT /api/seller/profile - Response status:', response.status, response.statusText);
-        console.log('📥 PUT /api/seller/profile - Response headers:', {
+        if (!response.ok) {
             'content-type': response.headers.get('content-type')
         });
         
@@ -892,14 +809,11 @@ async function updateSellerProfile(profileData) {
                     const error = await response.json();
                     errorMessage = error.message || errorMessage;
                 } catch (jsonError) {
-                    console.error('❌ JSON parse hatası:', jsonError);
                     errorMessage = `Sunucu hatası (${response.status}): ${response.statusText}`;
                 }
             } else {
                 // HTML veya başka bir format geliyorsa
                 const errorText = await response.text();
-                console.error('❌ HTML/Text yanıt alındı:', errorText.substring(0, 200));
-                
                 if (response.status === 405) {
                     errorMessage = 'Bu işlem için kullanılan HTTP metodu desteklenmiyor. Lütfen sayfayı yenileyin ve tekrar deneyin.';
                 } else {
@@ -911,10 +825,8 @@ async function updateSellerProfile(profileData) {
         }
         
         const data = await response.json();
-        console.log('✅ PUT /api/seller/profile - Success:', data);
         return data;
     } catch (error) {
-        console.error('❌ Profil güncelleme hatası:', error);
         throw error;
     }
 }
@@ -986,8 +898,6 @@ async function loadProfilePage() {
                     // Logo ve banner artık ayrı endpoint'lerden yükleniyor, buraya eklemiyoruz
                 };
                 
-                console.log('📤 Profil güncelleme verisi:', profileData);
-                
                 try {
                     await updateSellerProfile(profileData);
                     alert('✅ Profil başarıyla güncellendi!');
@@ -1044,8 +954,6 @@ async function loadProfilePage() {
                         }
                         
                         const data = await response.json();
-                        console.log('✅ Logo yüklendi:', data.url);
-                        
                         // Preview'ı güncelle
                         if (logoPreview) {
                             logoPreview.src = data.url;
@@ -1058,7 +966,6 @@ async function loadProfilePage() {
                         
                         alert('✅ Logo başarıyla yüklendi!');
                     } catch (error) {
-                        console.error('❌ Logo yükleme hatası:', error);
                         alert('❌ Logo yüklenirken hata oluştu: ' + error.message);
                         e.target.value = ''; // Input'u temizle
                         if (logoPreview) {
@@ -1107,8 +1014,6 @@ async function loadProfilePage() {
                         }
                         
                         const data = await response.json();
-                        console.log('✅ Banner yüklendi:', data.url);
-                        
                         // Preview'ı güncelle
                         if (bannerPreview) {
                             bannerPreview.src = data.url;
@@ -1121,7 +1026,6 @@ async function loadProfilePage() {
                         
                         alert('✅ Banner başarıyla yüklendi!');
                     } catch (error) {
-                        console.error('❌ Banner yükleme hatası:', error);
                         alert('❌ Banner yüklenirken hata oluştu: ' + error.message);
                         e.target.value = ''; // Input'u temizle
                         if (bannerPreview) {
@@ -1158,7 +1062,6 @@ async function loadProfilePage() {
                     
                     alert('✅ Logo başarıyla kaldırıldı!');
                 } catch (error) {
-                    console.error('❌ Logo kaldırma hatası:', error);
                     alert('❌ Logo kaldırılırken hata oluştu: ' + error.message);
                 }
             });
@@ -1190,14 +1093,11 @@ async function loadProfilePage() {
                     
                     alert('✅ Banner başarıyla kaldırıldı!');
                 } catch (error) {
-                    console.error('❌ Banner kaldırma hatası:', error);
                     alert('❌ Banner kaldırılırken hata oluştu: ' + error.message);
                 }
             });
         }
-    } catch (error) {
-        console.error('Profil sayfası yükleme hatası:', error);
-    }
+    } catch (error) {}
 }
 
 function initializeProfilePage() {
@@ -1269,7 +1169,6 @@ async function loadSellerCoupons() {
         }).join('');
         
     } catch (error) {
-        console.error('Kuponlar yükleme hatası:', error);
         container.innerHTML = '<p style="color: red;">Kuponlar yüklenirken bir hata oluştu.</p>';
     }
 }
@@ -1349,7 +1248,6 @@ function initializeCouponsPage() {
             loadSellerCoupons();
             
         } catch (error) {
-            console.error('Kupon oluşturma hatası:', error);
             alert('Kupon oluşturulurken bir hata oluştu.');
         }
     });
@@ -1388,11 +1286,8 @@ function updateSellerSidebarLinks(sellerId) {
  */
 async function updateSellerSidebarOwnerName() {
     try {
-        console.log('🔄 Sidebar owner name güncelleniyor...');
         const ownerNameEl = document.getElementById('seller-owner-name');
-        
         if (!ownerNameEl) {
-            console.warn('⚠️ seller-owner-name elementi bulunamadı');
             return;
         }
         
@@ -1406,16 +1301,12 @@ async function updateSellerSidebarOwnerName() {
             
             if (dashboardResponse.ok) {
                 const dashboardData = await dashboardResponse.json();
-                console.log('📥 Dashboard API yanıtı:', dashboardData);
-                
                 if (dashboardData.success && dashboardData.fullname) {
                     ownerNameEl.textContent = dashboardData.fullname;
-                    console.log('✅ Sidebar owner name güncellendi (dashboard):', dashboardData.fullname);
                     return;
                 }
             }
-        } catch (dashboardError) {
-            console.warn('⚠️ Dashboard API hatası:', dashboardError);
+        } catch (dashboardError) {}
         }
         
         // Fallback: Profil API'sinden al
@@ -1426,27 +1317,16 @@ async function updateSellerSidebarOwnerName() {
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('📥 Profil API yanıtı:', data);
-                
                 if (data.success && data.profile && data.profile.fullname) {
                     ownerNameEl.textContent = data.profile.fullname;
-                    console.log('✅ Sidebar owner name güncellendi (profile):', data.profile.fullname);
                     return;
                 }
-            } else {
-                console.warn('⚠️ Profil API yanıt hatası:', response.status);
-            }
-        } catch (profileError) {
-            console.warn('⚠️ Profil API hatası:', profileError);
-        }
-        
-        // Hiçbir yerden veri gelmediyse fallback göster
+            } else {}
+        } catch (profileError) {}
         if (ownerNameEl.textContent === 'Yükleniyor...' || ownerNameEl.textContent === '') {
             ownerNameEl.textContent = 'Bilinmiyor';
-            console.warn('⚠️ Owner name bulunamadı, "Bilinmiyor" gösteriliyor');
         }
-    } catch (error) {
-        console.error('❌ Sidebar owner name yüklenemedi:', error);
+    } catch (error) {}
         const ownerNameEl = document.getElementById('seller-owner-name');
         if (ownerNameEl) {
             ownerNameEl.textContent = 'Hata';
@@ -1495,9 +1375,7 @@ async function initializeSellerPages() {
                     sellerId = data.user.sellerId;
                 }
             }
-        } catch (error) {
-            console.warn('Seller ID alınamadı:', error);
-        }
+        } catch (error) {}
     }
     
     // Sidebar linklerini güncelle

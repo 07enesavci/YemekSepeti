@@ -31,18 +31,19 @@ async function loadRestaurants() {
             throw new Error(`Restoranlar yüklenemedi: ${response.status} ${response.statusText}`);
         }
 
-        const sellers = await response.json();
-        console.log('📦 API yanıtı parse edildi:', typeof sellers, Array.isArray(sellers) ? sellers.length : 'array değil');
-        console.log('📦 API yanıtı içeriği:', JSON.stringify(sellers).substring(0, 500));
+        const data = await response.json();
+        console.log('📦 API yanıtı parse edildi:', typeof data, Array.isArray(data) ? data.length : 'array değil');
+        console.log('📦 API yanıtı içeriği:', JSON.stringify(data).substring(0, 500));
         
         // Response'un array olup olmadığını kontrol et
-        if (!Array.isArray(sellers)) {
-            console.error('❌ API response array değil:', sellers);
-            // Eğer response objesi ise ve sellers property'si varsa onu kullan
-            if (sellers && Array.isArray(sellers.sellers)) {
-                console.log('✅ sellers.sellers array bulundu, kullanılıyor');
-                return sellers.sellers;
-            }
+        let sellers;
+        if (Array.isArray(data)) {
+            sellers = data;
+        } else if (data && Array.isArray(data.sellers)) {
+            console.log('✅ sellers.sellers array bulundu, kullanılıyor');
+            sellers = data.sellers;
+        } else {
+            console.error('❌ API response beklenmeyen formatta:', data);
             throw new Error('API yanıtı beklenmeyen formatta');
         }
 
@@ -367,7 +368,8 @@ function displayRestaurants(sellers) {
                              alt="${safeName.replace(/'/g, '&#39;')}" 
                              class="card-image"
                              style="width: 100%; height: 100%; object-fit: cover;"
-                             onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div style=\\'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; text-align: center; padding: 20px; background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);\\'>' + this.alt.replace(/&#39;/g, '\\'') + '</div>';">
+                             loading="lazy"
+                             onerror="this.onerror=null; this.style.display='none'; const parent=this.parentElement; if(parent) { parent.innerHTML='<div style=\\'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\'>' + this.alt.replace(/&#39;/g, '\\'') + '</div>'; }">
                     `}
                     <div class="rating-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.95); padding: 6px 12px; border-radius: 20px; font-weight: bold; color: #333; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
                         <span style="color: #FFA500;">★</span>
@@ -541,10 +543,20 @@ async function loadHeroSlider() {
             throw new Error('Restoranlar yüklenemedi');
         }
 
-        const sellers = await response.json();
+        const data = await response.json();
+        
+        // Response'un array olup olmadığını kontrol et
+        let sellers;
+        if (Array.isArray(data)) {
+            sellers = data;
+        } else if (data && Array.isArray(data.sellers)) {
+            sellers = data.sellers;
+        } else {
+            sellers = [];
+        }
         
         // Banner görseli olan tüm restoranları filtrele
-        const sellersWithImages = (Array.isArray(sellers) ? sellers : [])
+        const sellersWithImages = sellers
             .filter(seller => {
                 const bannerUrl = seller.bannerUrl || seller.imageUrl;
                 if (!bannerUrl || typeof bannerUrl !== 'string') return false;
@@ -580,7 +592,7 @@ async function loadHeroSlider() {
                 .replace(/'/g, '&#39;');
             sliderHTML += `
                 <div class="hero-slide ${activeClass}" data-seller-id="${seller.id}">
-                    <img src="${bannerUrl}" alt="${safeName}" class="hero-slide-image" onerror="this.onerror=null; this.style.display='none';">
+                    <img src="${bannerUrl}" alt="${safeName}" class="hero-slide-image" loading="lazy" onerror="this.onerror=null; this.style.display='none';">
                     <div class="hero-slide-overlay"></div>
                 </div>
             `;

@@ -1,81 +1,116 @@
-/**
- * Yetkisiz erişim kontrolü - Sayfa yüklendiğinde kullanıcının yetkisini kontrol eder
- */
-
-// Sayfa yüklendiğinde yetki kontrolü yap
-document.addEventListener('DOMContentLoaded', async () => {
-    // Mevcut sayfa yolunu al
-    const currentPath = window.location.pathname;
+document.addEventListener('DOMContentLoaded', async ()=>{
+    var currentPath=window.location.pathname;
     
-    // Eğer login/register sayfalarındaysa kontrol yapma
-    if (currentPath.includes('/login') || currentPath.includes('/register')) {
+    if (currentPath.includes('/login')) 
+    {
+        return;
+    }
+    if (currentPath.includes('/register')) 
+    {
         return;
     }
     
-    // Sayfa tipini belirle (EJS route'larına göre)
-    let requiredRole = null;
-    if (currentPath.includes('/buyer/')) {
-        requiredRole = 'buyer';
-    } else if (currentPath.includes('/seller/')) {
-        requiredRole = 'seller';
-    } else if (currentPath.includes('/admin/')) {
-        requiredRole = 'admin';
-    } else if (currentPath.includes('/courier/')) {
-        requiredRole = 'courier';
+    var requiredRole=null;
+    if (currentPath.includes('/buyer/')) 
+    {
+        requiredRole='buyer';
+    } 
+    else if (currentPath.includes('/seller/')) 
+    {
+        requiredRole='seller';
+    } 
+    else if (currentPath.includes('/admin/')) 
+    {
+        requiredRole='admin';
+    } 
+    else if (currentPath.includes('/courier/')) 
+    {
+        requiredRole='courier';
     }
     
-    // Eğer role gerektiren bir sayfadaysa kontrol yap
-    if (requiredRole) {
-        try {
-            const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-            const response = await fetch(`${baseUrl}/api/auth/me`, {
+    if (requiredRole) 
+    {
+        try 
+        {
+            var baseUrl;
+            if (window.getBaseUrl) 
+            {
+                baseUrl=window.getBaseUrl();
+            } 
+            else 
+            {
+                baseUrl='';
+            }
+            var response=await fetch(baseUrl + '/api/auth/me', {
                 credentials: 'include'
             });
             
-            if (!response.ok) {
-                // Giriş yapılmamış - login sayfasına yönlendir
-                window.location.href = `${baseUrl}/login`;
+            if (!response.ok) 
+            {
+                window.location.href=baseUrl + '/login';
                 return;
             }
             
-            const data = await response.json();
-            if (data.success && data.user) {
-                const userRole = data.user.role;
+            var data=await response.json();
+            if (data.success) 
+            {
+                if (data.user) 
+                {
+                    var userRole=data.user.role;
                 
-                // Yetki kontrolü
-                if (userRole !== requiredRole) {
-                    // Yetkisiz erişim - kullanıcıyı kendi paneline yönlendir
-                    let redirectPath = '/';
+                if (userRole !== requiredRole) 
+                {
+                    var redirectPath='/';
                     
-                    switch(userRole) {
-                        case 'buyer':
-                            redirectPath = '/';
-                            break;
-                        case 'seller':
-                            redirectPath = '/seller/dashboard';
-                            break;
-                        case 'admin':
-                            redirectPath = '/admin/users';
-                            break;
-                        case 'courier':
-                            // Courier ID'yi al
-                            const courierId = data.user.courierId || data.user.id;
-                            redirectPath = `/courier/${courierId}/dashboard`;
-                            break;
+                    if (userRole==='buyer') 
+                    {
+                        redirectPath='/';
+                    } 
+                    else if (userRole==='seller') 
+                    {
+                        redirectPath='/seller/dashboard';
+                    } 
+                    else if (userRole==='admin') 
+                    {
+                        redirectPath='/admin/users';
+                    } 
+                    else if (userRole==='courier') 
+                    {
+                        var courierId;
+                        if (data.user.courierId) 
+                        {
+                            courierId=data.user.courierId;
+                        } 
+                        else 
+                        {
+                            courierId=data.user.id;
+                        }
+                        redirectPath='/courier/' + courierId + '/dashboard';
                     }
                     
                     alert('Bu sayfaya erişim yetkiniz yok. Kendi panelinize yönlendiriliyorsunuz.');
-                    window.location.href = `${baseUrl}${redirectPath}`;
+                    window.location.href=baseUrl + redirectPath;
                 }
-            } else {
-                // Kullanıcı bilgisi alınamadı - login sayfasına yönlendir
-                window.location.href = `${baseUrl}/login`;
+                }
+            } 
+            else 
+            {
+                window.location.href=baseUrl + '/login';
             }
-        } catch (error) {
-            console.error('Yetki kontrolü hatası:', error);
-            // Hata durumunda login sayfasına yönlendir
-            const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-            window.location.href = `${baseUrl}/login`;
+        } 
+        catch (error) 
+        {
+            console.log('Yetki kontrolü hatası: ' + error);
+            var baseUrl2;
+            if (window.getBaseUrl) 
+            {
+                baseUrl2=window.getBaseUrl();
+            } 
+            else 
+            {
+                baseUrl2='';
+            }
+            window.location.href=baseUrl2 + '/login';
         }
     }
 });

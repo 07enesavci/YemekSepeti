@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const Coupon = sequelize.define('Coupon', {
+//Kupon tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const Coupon=sequelize.define('Coupon', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
@@ -37,7 +38,7 @@ module.exports = (sequelize, DataTypes) => {
         },
         usage_limit: {
             type: DataTypes.INTEGER,
-            defaultValue: -1 // -1 = sınırsız
+            defaultValue: -1
         },
         used_count: {
             type: DataTypes.INTEGER,

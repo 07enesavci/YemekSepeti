@@ -3,23 +3,12 @@ const router = express.Router();
 const db = require("../../config/database");
 const { requireRole } = require("../../middleware/auth");
 const { User, Order, Seller, Address, CourierTask } = require("../../models");
-const { Op, Sequelize } = require("sequelize");
+const { Op, Sequelize, QueryTypes } = require("sequelize");
 const { sequelize } = require("../../config/database");
 
-// ============================================
-// COURIER API ROUTES
-// ============================================
-
-/**
- * GET /api/courier/available
- * Alınabilir görevleri getir (courier_id olmayan ve ready status'ünde olan siparişler)
- */
 router.get("/available", requireRole('courier'), async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
-        console.log("✅ Alınabilir görevler isteği - Courier ID:", courierId, "User:", req.session.user);
-        
-        // Kuryenin aktif olup olmadığını kontrol et (Sequelize)
         const courier = await User.findByPk(courierId, {
             attributes: ['courier_status']
         });
@@ -33,8 +22,6 @@ router.get("/available", requireRole('courier'), async (req, res) => {
                 message: "Pasif durumdasınız. Görev almak için durumunuzu aktif yapın."
             });
         }
-        
-        // 2 saat içindeki hazır siparişleri getir (Sequelize)
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
         
         const tasks = await Order.findAll({
@@ -62,8 +49,6 @@ router.get("/available", requireRole('courier'), async (req, res) => {
             ],
             order: [['created_at', 'DESC']]
         });
-        
-        // Format response
         const formattedTasks = tasks.map(task => {
             const deliveryLocation = task.address 
                 ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '')
@@ -92,9 +77,6 @@ router.get("/available", requireRole('courier'), async (req, res) => {
             message: formattedTasks.length === 0 ? "Henüz aktif görev bulunmamaktadır." : null
         });
     } catch (error) {
-        console.error("❌ Alınabilir görevler getirme hatası:", error);
-        console.error("Hata detayı:", error.message);
-        console.error("Stack trace:", error.stack);
         res.status(500).json({
             success: false,
             message: "Görevler yüklenirken bir hata oluştu.",
@@ -103,79 +85,65 @@ router.get("/available", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * POST /api/courier/tasks/:id/accept
- * Görevi kabul et
- */
 router.post("/tasks/:id/accept", requireRole('courier'), async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id || req.session.user.courierId;
-        console.log("✅ Görev kabul isteği - Courier ID:", courierId, "Order ID:", orderId, "User:", req.session.user);
-        
-        // Siparişin durumunu kontrol et
-        const orderCheck = await db.query(
-            "SELECT id, courier_id, status FROM orders WHERE id = ?",
-            [orderId]
-        );
-        
-        if (orderCheck.length === 0) {
+        const orderRecord = await Order.findByPk(orderId, {
+            attributes: ['id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time'],
+            include: [
+                { model: Seller, as: 'seller', attributes: ['shop_name'] },
+                { model: Address, as: 'address', attributes: ['district', 'city'] }
+            ]
+        });
+
+        if (!orderRecord) {
             return res.status(404).json({
                 success: false,
                 message: "Sipariş bulunamadı."
             });
         }
-        
-        if (orderCheck[0].courier_id !== null) {
+
+        if (orderRecord.courier_id !== null) {
             return res.status(400).json({
                 success: false,
                 message: "Bu sipariş zaten bir kuryeye atanmış."
             });
         }
-        
-        if (orderCheck[0].status !== 'ready') {
+
+        if (orderRecord.status !== 'ready') {
             return res.status(400).json({
                 success: false,
                 message: "Bu sipariş henüz hazır değil."
             });
         }
         
-        // Siparişi kuryeye ata
-        await db.execute(
-            "UPDATE orders SET courier_id = ?, status = 'on_delivery' WHERE id = ?",
-            [courierId, orderId]
-        );
-        
-        // Courier task kaydı oluştur
-        const order = await db.query(
-            `SELECT o.delivery_fee, s.shop_name, CONCAT(a.district, ', ', a.city) as delivery_location
-             FROM orders o
-             INNER JOIN sellers s ON o.seller_id = s.id
-             INNER JOIN addresses a ON o.address_id = a.id
-             WHERE o.id = ?`,
-            [orderId]
-        );
-        
-        if (order.length > 0) {
-            await db.execute(
-                `INSERT INTO courier_tasks (order_id, courier_id, pickup_location, delivery_location, estimated_payout, status)
-                 VALUES (?, ?, ?, ?, ?, 'assigned')`,
-                [
-                    orderId,
-                    courierId,
-                    order[0].shop_name,
-                    order[0].delivery_location,
-                    parseFloat(order[0].delivery_fee) || 25.00
-                ]
-            );
+
+
+        // Transaction ile güncelleme ve courier_task oluştur
+        const t = await sequelize.transaction();
+        try {
+            await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId }, transaction: t });
+            const pickup = orderRecord.seller?.shop_name || 'Restoran';
+            const deliveryLoc = orderRecord.address ? `${orderRecord.address.district || ''}, ${orderRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : '';
+            const estimatedPayout = parseFloat(orderRecord.delivery_fee) || 25.00;
+
+            await CourierTask.create({
+                order_id: orderId,
+                courier_id: courierId,
+                pickup_location: pickup,
+                delivery_location: deliveryLoc,
+                estimated_payout: estimatedPayout,
+                status: 'assigned'
+            }, { transaction: t });
+
+            await t.commit();
+        } catch (err) {
+            await t.rollback();
+            return res.status(500).json({ success: false, message: 'Görev kabul edilirken hata oluştu.' });
         }
-        
-        res.json({
-            success: true,
-            message: "Görev başarıyla kabul edildi."
-        });
+        res.json({ success: true, message: 'Görev başarıyla kabul edildi.' });
     } catch (error) {
-        console.error("Görev kabul etme hatası:", error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası."
@@ -183,52 +151,34 @@ router.post("/tasks/:id/accept", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * GET /api/courier/tasks/active
- * Aktif görevleri getir
- */
 router.get("/tasks/active", requireRole('courier'), async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
-        console.log("✅ Aktif görevler isteği - Courier ID:", courierId, "User:", req.session.user);
+        const tasksRaw = await Order.findAll({
+            where: {
+                courier_id: courierId,
+                status: { [Op.in]: ['on_delivery', 'ready'] }
+            },
+            include: [
+                { model: Seller, as: 'seller', attributes: ['shop_name'], required: true },
+                { model: Address, as: 'address', attributes: ['district', 'city'], required: true },
+                { model: User, as: 'buyer', attributes: ['fullname', 'phone'], required: true },
+                { model: CourierTask, as: 'courierTask', attributes: ['picked_up_at', 'delivered_at'], required: false }
+            ],
+            order: [['created_at', 'DESC']]
+        });
         
-        const query = `
-            SELECT 
-                o.id,
-                o.order_number,
-                o.total_amount,
-                o.delivery_fee,
-                s.shop_name as pickup_location,
-                CONCAT(a.district, ', ', a.city) as delivery_location,
-                CONCAT(u.fullname, ' (', SUBSTRING(u.phone, 1, 3), '***)') as customer_name,
-                o.status,
-                o.estimated_delivery_time,
-                ct.picked_up_at,
-                ct.delivered_at,
-                o.created_at
-            FROM orders o
-            INNER JOIN sellers s ON o.seller_id = s.id
-            INNER JOIN addresses a ON o.address_id = a.id
-            INNER JOIN users u ON o.user_id = u.id
-            LEFT JOIN courier_tasks ct ON o.id = ct.order_id
-            WHERE o.courier_id = ?
-            AND o.status IN ('on_delivery', 'ready')
-            ORDER BY o.created_at DESC
-        `;
-        
-        const tasks = await db.query(query, [courierId]);
-        
-        const formattedTasks = tasks.map(task => ({
+        const formattedTasks = tasksRaw.map(task => ({
             id: task.id,
             orderNumber: task.order_number,
-            pickup: task.pickup_location,
-            dropoff: task.delivery_location,
-            customer: task.customer_name,
+            pickup: task.seller?.shop_name || 'Restoran',
+            dropoff: task.address ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : 'Adres bilgisi yok',
+            customer: task.buyer ? `${task.buyer.fullname || 'Müşteri'} (${(task.buyer.phone || '000').substring(0,3)}***)` : 'Müşteri',
             payout: parseFloat(task.delivery_fee) || 25.00,
             status: task.status,
             estimatedTime: task.estimated_delivery_time,
-            pickedUpAt: task.picked_up_at,
-            deliveredAt: task.delivered_at,
+            pickedUpAt: task.courierTask?.picked_up_at || null,
+            deliveredAt: task.courierTask?.delivered_at || null,
             createdAt: task.created_at
         }));
         
@@ -237,7 +187,6 @@ router.get("/tasks/active", requireRole('courier'), async (req, res) => {
             tasks: formattedTasks
         });
     } catch (error) {
-        console.error("Aktif görevler getirme hatası:", error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası."
@@ -245,56 +194,39 @@ router.get("/tasks/active", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * PUT /api/courier/tasks/:id/pickup
- * Siparişi restorandan al (picked up)
- */
 router.put("/tasks/:id/pickup", requireRole('courier'), async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id;
-        
-        // Siparişin bu kuryeye ait olduğunu kontrol et
-        const orderCheck = await db.query(
-            "SELECT id, courier_id, status FROM orders WHERE id = ?",
-            [orderId]
-        );
-        
-        if (orderCheck.length === 0) {
+        const orderCheck = await Order.findByPk(orderId, { attributes: ['id', 'courier_id', 'status'] });
+
+        if (!orderCheck) {
             return res.status(404).json({
                 success: false,
                 message: "Sipariş bulunamadı."
             });
         }
-        
-        if (orderCheck[0].courier_id !== courierId) {
+
+        if (orderCheck.courier_id !== courierId) {
             return res.status(403).json({
                 success: false,
                 message: "Bu sipariş size ait değil."
             });
         }
-        
-        if (orderCheck[0].status !== 'on_delivery' && orderCheck[0].status !== 'ready') {
+
+        if (orderCheck.status !== 'on_delivery' && orderCheck.status !== 'ready') {
             return res.status(400).json({
                 success: false,
                 message: "Bu sipariş alınabilir durumda değil."
             });
         }
-        
-        // Courier task'ı güncelle
-        await db.execute(
-            `UPDATE courier_tasks 
-             SET status = 'picked_up', picked_up_at = NOW()
-             WHERE order_id = ? AND courier_id = ?`,
-            [orderId, courierId]
+        await CourierTask.update(
+            { status: 'picked_up', picked_up_at: new Date() },
+            { where: { order_id: orderId, courier_id: courierId } }
         );
-        
-        res.json({
-            success: true,
-            message: "Sipariş başarıyla alındı olarak işaretlendi."
-        });
+
+        res.json({ success: true, message: 'Sipariş başarıyla alındı olarak işaretlendi.' });
     } catch (error) {
-        console.error("Sipariş alma hatası:", error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası."
@@ -302,55 +234,34 @@ router.put("/tasks/:id/pickup", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * PUT /api/courier/tasks/:id/complete
- * Görevi tamamla
- */
 router.put("/tasks/:id/complete", requireRole('courier'), async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id;
-        
-        // Siparişin bu kuryeye ait olduğunu kontrol et
-        const orderCheck = await db.query(
-            "SELECT id, courier_id, status FROM orders WHERE id = ?",
-            [orderId]
-        );
-        
-        if (orderCheck.length === 0) {
+        const orderCheck = await Order.findByPk(orderId, { attributes: ['id', 'courier_id', 'status'] });
+
+        if (!orderCheck) {
             return res.status(404).json({
                 success: false,
                 message: "Sipariş bulunamadı."
             });
         }
-        
-        if (orderCheck[0].courier_id !== courierId) {
+
+        if (orderCheck.courier_id !== courierId) {
             return res.status(403).json({
                 success: false,
                 message: "Bu sipariş size ait değil."
             });
         }
-        
-        // Siparişi tamamla
-        await db.execute(
-            "UPDATE orders SET status = 'delivered', delivered_at = NOW() WHERE id = ?",
-            [orderId]
+        await Order.update({ status: 'delivered', delivered_at: new Date() }, { where: { id: orderId } });
+
+        await CourierTask.update(
+            { status: 'delivered', delivered_at: new Date(), actual_payout: sequelize.literal('estimated_payout') },
+            { where: { order_id: orderId, courier_id: courierId } }
         );
-        
-        // Courier task'ı güncelle
-        await db.execute(
-            `UPDATE courier_tasks 
-             SET status = 'delivered', delivered_at = NOW(), actual_payout = estimated_payout
-             WHERE order_id = ? AND courier_id = ?`,
-            [orderId, courierId]
-        );
-        
-        res.json({
-            success: true,
-            message: "Görev başarıyla tamamlandı."
-        });
+
+        res.json({ success: true, message: 'Görev başarıyla tamamlandı.' });
     } catch (error) {
-        console.error("Görev tamamlama hatası:", error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası."
@@ -358,14 +269,9 @@ router.put("/tasks/:id/complete", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * GET /api/courier/tasks/history
- * Geçmiş görevleri getir (Sequelize)
- */
 router.get("/tasks/history", requireRole('courier'), async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
-        console.log("✅ Geçmiş görevler isteği - Courier ID:", courierId, "User:", req.session.user);
         const { page = 1, limit = 20 } = req.query;
         const offset = (parseInt(page) - 1) * parseInt(limit);
         
@@ -375,8 +281,6 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
                 message: "Kurye ID bulunamadı."
             });
         }
-        
-        // Geçmiş görevleri getir (Sequelize)
         let count, tasks;
         try {
             const result = await Order.findAndCountAll({
@@ -415,21 +319,11 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
                 limit: parseInt(limit) || 20,
                 offset: offset || 0
             });
-            
             count = result.count;
             tasks = result.rows || [];
-            console.log(`✅ ${tasks.length} görev bulundu, toplam: ${count}`);
         } catch (dbError) {
-            console.error("❌ Sequelize sorgu hatası:", dbError);
-            console.error("❌ Hata name:", dbError.name);
-            console.error("❌ Hata message:", dbError.message);
-            if (dbError.original) {
-                console.error("❌ Original error:", dbError.original);
-            }
             throw dbError;
         }
-        
-        // delivered_at'e göre sıralama yapmak için JavaScript'te sıralayalım
         tasks.sort((a, b) => {
             const dateA = a.courierTask?.delivered_at || a.created_at;
             const dateB = b.courierTask?.delivered_at || b.created_at;
@@ -439,12 +333,9 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
         const total = count;
         
         const formattedTasks = tasks.map(task => {
-            // Delivery location'ı oluştur
             const deliveryLocation = task.address 
                 ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '').trim() || 'Adres bilgisi yok'
                 : 'Adres bilgisi yok';
-            
-            // Customer name oluştur
             const phoneStr = task.buyer?.phone || '000';
             const phonePrefix = phoneStr.substring(0, 3);
             const customerName = task.buyer 
@@ -476,9 +367,6 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
             message: formattedTasks.length === 0 ? "Henüz teslimat geçmişi bulunmamaktadır." : null
         });
     } catch (error) {
-        console.error("❌ Geçmiş görevler getirme hatası:", error);
-        console.error("Hata detayı:", error.message);
-        console.error("Stack trace:", error.stack);
         res.status(500).json({
             success: false,
             message: "Geçmiş görevler yüklenirken bir hata oluştu.",
@@ -487,15 +375,10 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * GET /api/courier/earnings
- * Kazanç istatistikleri
- */
 router.get("/earnings", requireRole('courier'), async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
-        console.log("✅ Kurye kazanç isteği - Courier ID:", courierId, "User:", req.session.user);
-        const { period = 'month' } = req.query; // day, week, month
+        const { period = 'month' } = req.query;
         
         let dateFilter = '';
         if (period === 'day') {
@@ -505,32 +388,38 @@ router.get("/earnings", requireRole('courier'), async (req, res) => {
         } else if (period === 'month') {
             dateFilter = "ct.delivered_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
         }
-        
-        const query = `
-            SELECT 
-                COUNT(*) as total_deliveries,
-                COALESCE(SUM(ct.actual_payout), 0) as total_earnings,
-                COALESCE(AVG(ct.actual_payout), 0) as avg_earnings_per_delivery
-            FROM courier_tasks ct
-            INNER JOIN orders o ON ct.order_id = o.id
-            WHERE ct.courier_id = ?
-            AND ct.status = 'delivered'
-            ${dateFilter ? `AND ${dateFilter}` : ''}
-        `;
-        
-        const stats = await db.query(query, [courierId]);
-        
+        const whereClause = { courier_id: courierId, status: 'delivered' };
+        if (period === 'day') {
+            const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+            whereClause.delivered_at = { [Op.gte]: startOfDay };
+        } else if (period === 'week') {
+            whereClause.delivered_at = { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+        } else if (period === 'month') {
+            whereClause.delivered_at = { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
+        }
+
+        const statsRaw = await CourierTask.findAll({
+            attributes: [
+                [sequelize.fn('COUNT', sequelize.col('id')), 'total_deliveries'],
+                [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('actual_payout')), 0), 'total_earnings'],
+                [sequelize.fn('COALESCE', sequelize.fn('AVG', sequelize.col('actual_payout')), 0), 'avg_earnings_per_delivery']
+            ],
+            where: whereClause,
+            raw: true
+        });
+
+        const stats = statsRaw[0] || { total_deliveries: 0, total_earnings: 0, avg_earnings_per_delivery: 0 };
+
         res.json({
             success: true,
             period: period,
             stats: {
-                totalDeliveries: parseInt(stats[0].total_deliveries) || 0,
-                totalEarnings: parseFloat(stats[0].total_earnings) || 0,
-                avgEarningsPerDelivery: parseFloat(stats[0].avg_earnings_per_delivery) || 0
+                totalDeliveries: parseInt(stats.total_deliveries) || 0,
+                totalEarnings: parseFloat(stats.total_earnings) || 0,
+                avgEarningsPerDelivery: parseFloat(stats.avg_earnings_per_delivery) || 0
             }
         });
     } catch (error) {
-        console.error("Kazanç istatistikleri getirme hatası:", error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası."
@@ -538,26 +427,16 @@ router.get("/earnings", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * PUT /api/courier/profile
- * Kurye profil bilgilerini güncelle
- * ÖNEMLİ: GET'ten ÖNCE tanımlanmalı!
- */
 router.put("/profile", requireRole('courier'), async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
         const { fullname, phone, status, vehicleType } = req.body;
         
-        console.log("✅ Profil güncelleme isteği - Courier ID:", courierId, "Data:", { fullname, phone, status, vehicleType });
-        
-        // Status ve vehicleType kontrolü
         const validStatuses = ['online', 'offline'];
         const validVehicleTypes = ['motorcycle', 'car', 'bicycle'];
         
         let updateFields = [];
         let updateValues = [];
-        
-        // Eğer sadece status güncelleniyorsa, fullname ve phone zorunlu değil
         if (fullname) {
             updateFields.push("fullname = ?");
             updateValues.push(fullname);
@@ -567,8 +446,6 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
             updateFields.push("phone = ?");
             updateValues.push(phone);
         }
-        
-        // Eğer hiçbir alan gönderilmemişse hata döndür
         if (updateFields.length === 0 && !status && !vehicleType) {
             return res.status(400).json({
                 success: false,
@@ -587,19 +464,14 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
         }
         
         updateValues.push(courierId);
-        
-        // Veritabanında courier_status ve vehicle_type kolonları yoksa ekle
         try {
             await db.execute(
                 `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
                 updateValues
             );
         } catch (dbError) {
-            // Eğer kolon yoksa, önce ekle
             if (dbError.code === 'ER_BAD_FIELD_ERROR') {
-                console.log("⚠️ courier_status veya vehicle_type kolonu yok, ekleniyor...");
                 try {
-                    // Önce kolonların var olup olmadığını kontrol et
                     const columnsCheck = await db.query(`
                         SELECT COLUMN_NAME 
                         FROM INFORMATION_SCHEMA.COLUMNS 
@@ -607,29 +479,18 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
                         AND TABLE_NAME = 'users' 
                         AND COLUMN_NAME IN ('courier_status', 'vehicle_type')
                     `);
-                    
                     const existingColumns = columnsCheck.map(col => col.COLUMN_NAME);
-                    
-                    // Eksik kolonları ekle
                     if (!existingColumns.includes('courier_status')) {
                         await db.execute("ALTER TABLE users ADD COLUMN courier_status ENUM('online', 'offline') DEFAULT 'online'");
-                        console.log("✅ courier_status kolonu eklendi");
                     }
-                    
                     if (!existingColumns.includes('vehicle_type')) {
                         await db.execute("ALTER TABLE users ADD COLUMN vehicle_type ENUM('motorcycle', 'car', 'bicycle') DEFAULT 'motorcycle'");
-                        console.log("✅ vehicle_type kolonu eklendi");
                     }
-                    
-                    // Tekrar güncelle
                     await db.execute(
                         `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
                         updateValues
                     );
                 } catch (alterError) {
-                    console.error("❌ ALTER TABLE hatası:", alterError);
-                    // MySQL'de IF NOT EXISTS yok, bu yüzden hata olabilir
-                    // Sadece gönderilen alanları güncelle (fullname ve phone zorunlu değil)
                     const fallbackFields = [];
                     const fallbackValues = [];
                     
@@ -654,16 +515,12 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
                 throw dbError;
             }
         }
-        
-        // Session'ı güncelle
         if (req.session.user) {
             if (fullname) req.session.user.fullname = fullname;
             if (phone) req.session.user.phone = phone;
             if (status) req.session.user.courierStatus = status;
             if (vehicleType) req.session.user.vehicleType = vehicleType;
         }
-        
-        // Durum mesajı oluştur
         let message = "Profil başarıyla güncellendi.";
         if (status) {
             const statusText = status === 'online' ? 'Aktif (Görev Alabilir)' : 'Pasif (Görev Alamaz)';
@@ -675,7 +532,6 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
             message: message
         });
     } catch (error) {
-        console.error("Profil güncelleme hatası:", error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası."
@@ -683,88 +539,43 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * GET /api/courier/profile
- * Kurye profil bilgilerini getir
- */
 router.get("/profile", requireRole('courier'), async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
-        console.log("✅ Kurye profil isteği - Courier ID:", courierId, "User:", req.session.user);
-        
         if (!courierId) {
             return res.status(400).json({
                 success: false,
                 message: "Kurye ID bulunamadı."
             });
         }
-        
-        // Önce kullanıcıyı basit bir sorgu ile al
-        let userQuery = `
-            SELECT 
-                id,
-                email,
-                fullname,
-                phone,
-                role
-            FROM users
-            WHERE id = ?
-        `;
-        
-        const userResult = await db.query(userQuery, [courierId]);
-        
-        if (userResult.length === 0) {
+        const user = await User.findByPk(courierId, { attributes: ['id', 'email', 'fullname', 'phone', 'role'] });
+
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "Kurye bulunamadı."
             });
         }
-        
-        const user = userResult[0];
-        
-        // courier_status ve vehicle_type kolonlarını kontrol et ve al
         let courierStatus = 'online';
         let vehicleType = 'motorcycle';
         
         try {
-            const statusQuery = await db.query(
+            const statusRes = await sequelize.query(
                 "SELECT courier_status, vehicle_type FROM users WHERE id = ?",
-                [courierId]
+                { replacements: [courierId], type: QueryTypes.SELECT }
             );
-            if (statusQuery.length > 0) {
-                courierStatus = statusQuery[0].courier_status || 'online';
-                vehicleType = statusQuery[0].vehicle_type || 'motorcycle';
+            if (statusRes.length > 0) {
+                courierStatus = statusRes[0].courier_status || 'online';
+                vehicleType = statusRes[0].vehicle_type || 'motorcycle';
             }
-        } catch (statusError) {
-            // Kolonlar yoksa varsayılan değerleri kullan
-            console.log("⚠️ courier_status veya vehicle_type kolonu bulunamadı, varsayılan değerler kullanılıyor:", statusError.message);
-        }
-        
-        // Teslimat istatistiklerini al
+        } catch (statusError) {}
         let totalDeliveries = 0;
         let totalEarnings = 0;
         
         try {
-            const deliveriesQuery = await db.query(
-                "SELECT COUNT(*) as count FROM orders WHERE courier_id = ? AND status = 'delivered'",
-                [courierId]
-            );
-            if (deliveriesQuery.length > 0) {
-                totalDeliveries = parseInt(deliveriesQuery[0].count) || 0;
-            }
-            
-            const earningsQuery = await db.query(
-                "SELECT COALESCE(SUM(actual_payout), 0) as total FROM courier_tasks WHERE courier_id = ? AND status = 'delivered'",
-                [courierId]
-            );
-            if (earningsQuery.length > 0) {
-                totalEarnings = parseFloat(earningsQuery[0].total) || 0;
-            }
-        } catch (statsError) {
-            console.log("⚠️ İstatistik sorgusu hatası (devam ediliyor):", statsError.message);
-        }
-        
-        // Session'ı güncelle (durum bilgisi için)
+            totalDeliveries = await Order.count({ where: { courier_id: courierId, status: 'delivered' } });
+            totalEarnings = await CourierTask.sum('actual_payout', { where: { courier_id: courierId, status: 'delivered' } }) || 0;
+        } catch (statsError) {}
         if (req.session.user) {
             req.session.user.courierStatus = courierStatus;
             req.session.user.vehicleType = vehicleType;
@@ -785,9 +596,6 @@ router.get("/profile", requireRole('courier'), async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("❌ Kurye profil getirme hatası:", error);
-        console.error("Hata detayı:", error.message);
-        console.error("Stack trace:", error.stack);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası: " + error.message
@@ -795,11 +603,6 @@ router.get("/profile", requireRole('courier'), async (req, res) => {
     }
 });
 
-/**
- * OPTIONS /api/courier/profile
- * CORS preflight için
- * NOT: Bu route en sonda tanımlanmalı (GET ve PUT'ten sonra)
- */
 router.options("/profile", (req, res) => {
     res.header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");

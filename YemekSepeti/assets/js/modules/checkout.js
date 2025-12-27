@@ -1,7 +1,7 @@
 // Adresleri API'den yükle
 async function loadAddresses() {
     try {
-        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
         const response = await fetch(`${baseUrl}/api/buyer/addresses`, {
             credentials: 'include'
         });
@@ -22,7 +22,7 @@ async function loadAddresses() {
 // Ödeme kartlarını API'den yükle
 async function loadPaymentCards() {
     try {
-        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
         const response = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
             credentials: 'include'
         });
@@ -182,7 +182,7 @@ async function cizOdemeSayfasi()
         if (!sepet || sepet.length === 0)
         {
                 alert('Sepetiniz boş. Sepet sayfasına yönlendiriliyorsunuz.');
-                const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
                 window.location.href = `${baseUrl}/buyer/cart`;
                 return;
         }
@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async function(){
                     }
                     
                     try {
-                        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
                         const response = await fetch(`${baseUrl}/api/buyer/addresses`, {
                             method: 'POST',
                             credentials: 'include',
@@ -359,7 +359,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	        
     	 	 	 	        // Kartı kaydet
     	 	 	 	        try {
-    	 	 	 	            const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
     	 	 	 	            const cardResponse = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
     	 	 	 	                method: 'POST',
     	 	 	 	                credentials: 'include',
@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	 	 	    window.closeFloatingCart();
     	 	 	 	 	 	}
     	 	 	 	 	 	// Sipariş onay sayfasına yönlendir
-    	 	 	 	 	 	const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
     	 	 	 	 	 	const orderId = sonuc.orderId || sonuc.id;
     	 	 	 	 	 	if (orderId) {
     	 	 	 	 	 	    console.log('✅ Sipariş oluşturuldu, yönlendiriliyor:', orderId);

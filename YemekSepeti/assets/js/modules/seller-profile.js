@@ -1,10 +1,5 @@
-/* ==================================== */
-/* SATICI PROFİLİ (seller-profile.js)  */
-/* ==================================== */
+// SATICI PROFİLİ (seller-profile.js)
 
-/**
- * URL'den seller ID'yi alır (route parameter'dan)
- */
 function getSellerIdFromUrl() {
     // Önce route parameter'dan almayı dene (/buyer/seller-profile/7)
     const pathParts = window.location.pathname.split('/');
@@ -18,9 +13,6 @@ function getSellerIdFromUrl() {
     return urlParams.get('id');
 }
 
-/**
- * Satıcı bilgilerini API'den çekip gösterir
- */
 async function loadSellerProfile() {
     const sellerId = getSellerIdFromUrl();
     
@@ -33,18 +25,16 @@ async function loadSellerProfile() {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         
-        // Satıcı bilgilerini çek
         const sellerResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}`);
         if (!sellerResponse.ok) {
             throw new Error('Satıcı bilgileri yüklenemedi');
         }
         const seller = await sellerResponse.json();
         
-        console.log('📥 API\'den gelen seller verisi:', seller);
-        console.log('📥 API\'den gelen imageUrl:', seller.imageUrl);
-        console.log('📥 API\'den gelen bannerUrl:', seller.bannerUrl);
+        console.log('📥 API seller verisi:', seller);
+        console.log('📥 imageUrl:', seller.imageUrl);
+        console.log('📥 bannerUrl:', seller.bannerUrl);
 
-        // Satıcı bilgilerini göster
         const sellerNameEl = document.getElementById('seller-name');
         const sellerRatingEl = document.getElementById('seller-rating');
         const sellerLogoEl = document.querySelector('.seller-logo');
@@ -60,7 +50,6 @@ async function loadSellerProfile() {
         }
         
         if (sellerLogoEl) {
-            // Logo URL'ini kontrol et - relative path'leri de kabul et (/uploads/...)
             let logoUrl = seller.imageUrl;
             if (!logoUrl || 
                 logoUrl.trim() === '' ||
@@ -69,23 +58,20 @@ async function loadSellerProfile() {
                 const sellerName = (seller.name || 'Satıcı').substring(0, 15);
                 logoUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#667eea"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
             } else {
-                // Cache-busting için timestamp ekle
                 const separator = logoUrl.includes('?') ? '&' : '?';
                 logoUrl = logoUrl + separator + '_t=' + Date.now();
             }
             console.log('🖼️ Logo URL:', logoUrl);
             sellerLogoEl.src = logoUrl;
             sellerLogoEl.alt = seller.name || 'Satıcı Logosu';
-            // onerror handler - sonsuz döngüyü önle
             sellerLogoEl.onerror = function() {
-                this.onerror = null; // Sonsuz döngüyü önle
+                this.onerror = null;
                 const sellerName = (seller.name || 'Satıcı').substring(0, 15);
                 this.src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#667eea"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
             };
         }
         
         if (sellerBannerEl) {
-            // Banner URL'ini kontrol et - relative path'leri de kabul et (/uploads/...)
             let bannerUrl = seller.bannerUrl;
             if (!bannerUrl || 
                 bannerUrl.trim() === '' ||
@@ -94,7 +80,6 @@ async function loadSellerProfile() {
                 const sellerName = (seller.name || 'Satıcı').substring(0, 30);
                 bannerUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="400"><rect width="1920" height="400" fill="#764ba2"/><text x="50%" y="50%" font-family="Arial" font-size="48" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
             } else {
-                // Cache-busting için timestamp ekle
                 const separator = bannerUrl.includes('?') ? '&' : '?';
                 bannerUrl = bannerUrl + separator + '_t=' + Date.now();
             }
@@ -193,12 +178,19 @@ async function loadSellerMenu(sellerId) {
             throw new Error('Menü yüklenemedi');
         }
         
-        const menu = await menuResponse.json();
+        const responseData = await menuResponse.json();
         const menuContent = document.getElementById('menu-content');
-        
         if (!menuContent) {
-            console.warn('menu-content bulunamadı');
             return;
+        }
+
+        let menu;
+        if (Array.isArray(responseData)) {
+            menu = responseData;
+        } else if (responseData && Array.isArray(responseData.menu)) {
+            menu = responseData.menu;
+        } else {
+            menu = [];
         }
 
         if (menu.length === 0) {
@@ -206,7 +198,6 @@ async function loadSellerMenu(sellerId) {
             return;
         }
 
-        // Kategorilere göre grupla
         const menuByCategory = {};
         menu.forEach(item => {
             if (!menuByCategory[item.category]) {

@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const Notification = sequelize.define('Notification', {
+// Notification model - Bildirim tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const Notification=sequelize.define('Notification', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,

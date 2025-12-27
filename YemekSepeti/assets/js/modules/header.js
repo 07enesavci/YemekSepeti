@@ -11,7 +11,6 @@ function getPreferredTheme() {
             return saved;
         }
     } catch (error) {
-        console.warn('Tema tercihi okunamadı:', error);
     }
 
     const preset = document.documentElement.getAttribute('data-theme');
@@ -63,7 +62,6 @@ function handleThemeToggle(e) {
     try {
         localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     } catch (error) {
-        console.warn('Tema tercihi kaydedilemedi:', error);
     }
     
     return false;
@@ -96,15 +94,10 @@ async function getCurrentUser() {
         // 401 veya 403 normal (kullanıcı login olmamış), hata log'lamaya gerek yok
         // Sadece 401 ve 403 dışındaki hataları log'la
         if (response && response.status !== 401 && response.status !== 403) {
-            console.warn('getCurrentUser: Beklenmeyen durum kodu:', response.status);
         }
         
         return null;
     } catch (error) {
-        // Network hatası gibi gerçek hatalar için log (sadece gerçek network hataları)
-        if (error.name !== 'TypeError' || !error.message.includes('fetch')) {
-            console.error('getCurrentUser hatası:', error);
-        }
         return null;
     }
 }
@@ -115,10 +108,7 @@ async function logout() {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const apiUrl = baseUrl || window.location.origin;
         
-        // Backend'e logout isteği gönder (session'ı temizler)
-        console.log('🚪 Logout işlemi başlatıldı');
         try {
-            console.log('📡 Logout API çağrısı yapılıyor:', `${apiUrl}/api/auth/logout`);
             const response = await fetch(`${apiUrl}/api/auth/logout`, {
                 method: 'POST',
                 credentials: 'include', // Cookie'leri gönder
@@ -126,25 +116,10 @@ async function logout() {
                     'Content-Type': 'application/json'
                 }
             });
-            
-            console.log('📥 Logout API yanıtı:', response.status, response.statusText);
-            
-            // Response header'larını kontrol et
-            const setCookieHeaders = response.headers.get('Set-Cookie');
-            if (setCookieHeaders) {
-                console.log('🍪 Set-Cookie header\'ları:', setCookieHeaders);
-            }
-            
-            // Response'u oku (başarılı olsa da olmasa da)
             if (response.ok) {
-                const data = await response.json().catch(() => ({}));
-                console.log('✅ Logout başarılı:', data.message || 'Çıkış yapıldı');
-            } else {
-                console.warn('⚠️ Logout API hatası:', response.status, response.statusText);
+                await response.json().catch(() => ({}));
             }
         } catch (fetchError) {
-            console.error('❌ Logout API hatası:', fetchError);
-            // API hatası olsa bile devam et
         }
         
         // Tüm client-side verileri temizle
@@ -152,7 +127,6 @@ async function logout() {
             localStorage.clear();
             sessionStorage.clear();
         } catch (storageError) {
-            console.warn('Storage temizleme hatası:', storageError);
         }
         
         // Tüm cookie'leri temizle (httpOnly cookie'ler JavaScript ile temizlenemez ama deneyelim)
@@ -201,29 +175,23 @@ async function logout() {
                 }
             });
             
-            console.log('🍪 Tüm cookie\'ler temizlendi');
         } catch (cookieError) {
-            console.warn('Cookie temizleme hatası:', cookieError);
         }
         
         // Kısa bir gecikme ekle (cookie temizleme işleminin tamamlanması için)
-        console.log('⏳ Yönlendirme için bekleniyor...');
         await new Promise(resolve => setTimeout(resolve, 300));
         
         // Ana sayfaya yönlendir (hard reload ile, hash'i kaldır)
         const redirectUrl = baseUrl ? `${baseUrl}/` : '/';
-        console.log('🔄 Ana sayfaya yönlendiriliyor:', redirectUrl);
         // Hash varsa kaldır - href kullanarak hard reload yap
         window.location.href = redirectUrl;
     } catch (error) {
-        console.error('Logout hatası:', error);
         
         // Hata durumunda bile tüm verileri temizle ve yönlendir
         try {
             localStorage.clear();
             sessionStorage.clear();
         } catch (storageError) {
-            console.warn('Temizleme hatası:', storageError);
         }
         
         // Ana sayfaya yönlendir
@@ -238,7 +206,6 @@ async function updateHeader() {
     const header = document.querySelector('.site-header .main-nav ul');
     
     if (!header) {
-        console.warn('Header bulunamadı');
         return;
     }
     
@@ -340,8 +307,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     localStorage.removeItem('user');
                     localStorage.removeItem('token');
                 } else {
-                    // Diğer hatalar için log
-                    console.warn('Session kontrolü: Beklenmeyen durum kodu:', response.status);
                     localStorage.removeItem('user');
                     localStorage.removeItem('token');
                 }
@@ -352,7 +317,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             // Network hatası gibi gerçek hatalar için log (sadece gerçek network hataları)
             if (error.name !== 'TypeError' || !error.message.includes('fetch')) {
-                console.error('Session kontrolü hatası:', error);
             }
             // Hata durumunda eski token'ları temizle
             localStorage.removeItem('user');
@@ -397,12 +361,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (target) {
             e.preventDefault();
             e.stopPropagation();
-            console.log('🚪 Çıkış yap butonuna tıklandı');
             if (window.logout) {
                 window.logout();
             } else {
                 // Fallback - eğer logout fonksiyonu yoksa
-                console.warn('⚠️ window.logout fonksiyonu bulunamadı, fallback kullanılıyor');
                 localStorage.clear();
                 sessionStorage.clear();
                 
@@ -427,7 +389,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         headerLogoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('🚪 Çıkış yap butonuna tıklandı (direkt listener)');
             if (window.logout) {
                 window.logout();
             }

@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const Payment = sequelize.define('Payment', {
+// Payment model - Ödeme tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const Payment=sequelize.define('Payment', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,

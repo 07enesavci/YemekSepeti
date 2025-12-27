@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const User = sequelize.define('User', {
+//Kullanıcı tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const User=sequelize.define('User', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
@@ -67,4 +68,3 @@ module.exports = (sequelize, DataTypes) => {
 
     return User;
 };
-

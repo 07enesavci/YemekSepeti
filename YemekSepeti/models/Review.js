@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const Review = sequelize.define('Review', {
+// Review model - Yorum tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const Review=sequelize.define('Review', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,

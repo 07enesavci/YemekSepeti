@@ -16,7 +16,6 @@ async function fetchAvailableTasks() {
         const data = await response.json();
         return data.success ? data.tasks : [];
     } catch (error) {
-        console.error('Alınabilir görevler hatası:', error);
         return [];
     }
 }
@@ -36,7 +35,6 @@ async function acceptTask(taskId) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Görev kabul etme hatası:', error);
         throw error;
     }
 }
@@ -51,7 +49,6 @@ async function fetchActiveTasks() {
         const data = await response.json();
         return data.success ? data.tasks : [];
     } catch (error) {
-        console.error('Aktif görevler hatası:', error);
         return [];
     }
 }
@@ -71,7 +68,6 @@ async function completeTask(taskId) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Görev tamamlama hatası:', error);
         throw error;
     }
 }
@@ -86,7 +82,6 @@ async function fetchHistoryTasks(page = 1, limit = 20) {
         const data = await response.json();
         return data.success ? data : { tasks: [], pagination: {} };
     } catch (error) {
-        console.error('Geçmiş görevler hatası:', error);
         return { tasks: [], pagination: {} };
     }
 }
@@ -101,7 +96,6 @@ async function fetchCourierProfile() {
         const data = await response.json();
         return data.success ? data.courier : null;
     } catch (error) {
-        console.error('Profil yükleme hatası:', error);
         return null;
     }
 }
@@ -117,8 +111,6 @@ async function updateCourierProfile(fullname, phone, status, vehicleType) {
         if (status) body.status = status;
         if (vehicleType) body.vehicleType = vehicleType;
         
-        console.log('📡 Profil güncelleme isteği:', body);
-        
         const response = await fetch(`${baseUrl}/api/courier/profile`, {
             method: 'PUT',
             credentials: 'include',
@@ -129,12 +121,8 @@ async function updateCourierProfile(fullname, phone, status, vehicleType) {
             body: JSON.stringify(body)
         });
         
-        console.log('📥 Profil güncelleme yanıtı:', response.status, response.statusText);
-        
         if (!response.ok) {
-            // Response'u text olarak oku (JSON olmayabilir)
             const responseText = await response.text();
-            console.error('❌ Profil güncelleme hatası:', response.status, responseText);
             
             let errorMessage = 'Profil güncellenemedi';
             try {
@@ -149,10 +137,8 @@ async function updateCourierProfile(fullname, phone, status, vehicleType) {
         }
         
         const data = await response.json();
-        console.log('✅ Profil güncelleme başarılı:', data);
         return data;
     } catch (error) {
-        console.error('❌ Profil güncelleme hatası:', error);
         throw error;
     }
 }
@@ -167,7 +153,6 @@ async function fetchCourierEarnings(period = 'month') {
         const data = await response.json();
         return data.success ? data : null;
     } catch (error) {
-        console.error('Kazanç istatistikleri hatası:', error);
         return null;
     }
 }
@@ -184,7 +169,6 @@ function formatPhoneNumber(rawPhone) {
 function displayMessage(message, type = 'info') {
     const statusMessageDiv = document.getElementById('status-message');
     if (!statusMessageDiv) {
-        console.log(`[${type.toUpperCase()}] ${message}`);
         return;
     }
     
@@ -270,9 +254,7 @@ async function loadProfileData() {
                 }
             }
         }
-    } catch (error) {
-        console.error('Profil yükleme hatası:', error);
-    }
+    } catch (error) {}
 }
 
 async function handleProfileUpdate(event) {
@@ -345,7 +327,6 @@ async function handleStatusChange() {
         
         displayMessage(`Durumunuz başarıyla "${statusText}" olarak ayarlandı.`, 'success');
     } catch (error) {
-        console.error('Durum güncelleme hatası:', error);
         displayMessage('❌ Durum güncellenirken hata oluştu: ' + (error.message || 'Bilinmeyen hata'), 'error');
     }
 }
@@ -477,7 +458,6 @@ async function loadAvailableOrders() {
         attachAcceptButtonListeners();
     } catch (error) {
         ordersListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Görevler yüklenirken hata oluştu.</p>';
-        console.error('Görevler yükleme hatası:', error);
     }
 }
 
@@ -558,9 +538,7 @@ async function updateStats() {
                 deliveryValue.textContent = earnings.stats.totalDeliveries;
             }
         }
-    } catch (error) {
-        console.error('İstatistik güncelleme hatası:', error);
-    }
+    } catch (error) {}
 }
 
 async function loadActiveTasks() {
@@ -601,7 +579,6 @@ async function loadActiveTasks() {
         }
     } catch (error) {
         taskContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Aktif görevler yüklenirken hata oluştu.</p>';
-        console.error('Aktif görevler yükleme hatası:', error);
     }
 }
 
@@ -643,8 +620,6 @@ async function loadCourierStatusIndicator() {
             indicator.style.display = 'flex';
         }
     } catch (error) {
-        console.error('Kurye durumu yüklenirken hata:', error);
-        // Varsayılan olarak aktif göster
         updateCourierStatusIndicator('online');
         indicator.style.display = 'flex';
     }
@@ -744,9 +719,7 @@ async function updateHistoryStats(allTransactions) {
                 deliveryValue.textContent = totalDeliveries;
             }
         }
-    } catch (error) {
-        console.error('İstatistik güncelleme hatası:', error);
-    }
+    } catch (error) {}
 }
 
 async function loadHistoryData() {
@@ -811,7 +784,6 @@ async function loadHistoryData() {
         }
     } catch (error) {
         transactionListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Geçmiş görevler yüklenirken hata oluştu.</p>';
-        console.error('Geçmiş görevler yükleme hatası:', error);
     }
 }
 
@@ -832,16 +804,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // EJS route'larına göre kontrol et
         if (path.includes('/courier/') && path.includes('/profile')) {
             initializeProfilePage();
-            console.log("-> Profil Sayfası Başlatıldı.");
         } else if (path.includes('/courier/available')) {
             initializeAvailablePage();
-            console.log("-> Alınabilir Siparişler Sayfası Başlatıldı.");
         } else if (path.includes('/courier/dashboard')) {
             initializeDashboardPage();
-            console.log("-> Dashboard Sayfası Başlatıldı.");
         } else if (path.includes('/courier/history')) {
             initializeHistoryPage();
-            console.log("-> Teslimat Geçmişi Sayfası Başlatıldı.");
         } else {
             // Fallback: HTML sayfaları için (geriye dönük uyumluluk)
             if (path.includes('profile.html')) {
@@ -856,20 +824,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // DOM elementlerine göre fallback
                 if (document.querySelector('.transaction-list')) {
                     initializeHistoryPage();
-                    console.log("-> Teslimat Geçmişi (fallback) Başlatıldı.");
                 } else if (document.querySelector('.available-orders-list')) {
                     initializeAvailablePage();
-                    console.log("-> Alınabilir Siparişler (fallback) Başlatıldı.");
                 } else if (document.querySelector('#courier-profile-form')) {
                     initializeProfilePage();
-                    console.log("-> Profil (fallback) Başlatıldı.");
                 } else if (document.querySelector('main .card')) {
                     initializeDashboardPage();
-                    console.log("-> Dashboard (fallback) Başlatıldı.");
                 }
             }
         }
-    } catch (e) {
-        console.error("Başlatma sırasında hata oluştu:", e);
-    }
+    } catch (e) {}
 });

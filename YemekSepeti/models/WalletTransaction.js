@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const WalletTransaction = sequelize.define('WalletTransaction', {
+// WalletTransaction model - Cüzdan işlemi tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const WalletTransaction=sequelize.define('WalletTransaction', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,

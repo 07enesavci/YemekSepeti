@@ -1,5 +1,6 @@
-module.exports = (sequelize, DataTypes) => {
-    const Order = sequelize.define('Order', {
+// Order model - Sipariş tablosu
+module.exports=(sequelize, DataTypes)=>{
+    const Order=sequelize.define('Order', {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,

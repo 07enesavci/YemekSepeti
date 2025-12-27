@@ -1,29 +1,36 @@
-// ============================================
-// ADRESLER SAYFASI MODÜLÜ (addresses.js)
-// ============================================
+// ADRESLER (addresses.js)
 
-// API fonksiyonları
+// Tüm çağrılarda aynı tabanı kullanmak için küçük yardımcı
+function getApiBaseUrlSafe() {
+    if (typeof window !== 'undefined') {
+        if (typeof window.getApiBaseUrl === 'function') return window.getApiBaseUrl();
+        if (typeof window.getBaseUrl === 'function') return window.getBaseUrl();
+    }
+    return '';
+}
+
 const BUYER_API = {
-    // Adresleri getir
     getAddresses: async () => {
+        console.log('📍 Adresler yükleniyor...');
         try {
-            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            const baseUrl = getApiBaseUrlSafe();
             const response = await fetch(`${baseUrl}/api/buyer/addresses`, {
                 credentials: 'include'
             });
             if (!response.ok) throw new Error('Adresler yüklenemedi');
             const data = await response.json();
-            return data.success ? data.data : [];
+            console.log('✅ Adresler yüklendi:', data.data?.length, 'adres');
+            return data.success ? (data.data || []) : [];
         } catch (error) {
             console.error('Adresler yükleme hatası:', error);
             return [];
         }
     },
     
-    // Yeni adres ekle
     addAddress: async (newAddressData) => {
+        console.log('➕ Yeni adres ekleniyor:', newAddressData.title);
         try {
-            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            const baseUrl = getApiBaseUrlSafe();
             const response = await fetch(`${baseUrl}/api/buyer/addresses`, {
                 method: 'POST',
                 credentials: 'include',
@@ -42,10 +49,10 @@ const BUYER_API = {
         }
     },
 
-    // Adres güncelle
     updateAddress: async (addressId, updateData) => {
+        console.log('🔄 Adres güncelleniyor:', addressId);
         try {
-            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            const baseUrl = getApiBaseUrlSafe();
             const response = await fetch(`${baseUrl}/api/buyer/addresses/${addressId}`, {
                 method: 'PUT',
                 credentials: 'include',
@@ -67,7 +74,7 @@ const BUYER_API = {
     // Adres sil
     deleteAddress: async (addressId) => {
         try {
-            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            const baseUrl = getApiBaseUrlSafe();
             const response = await fetch(`${baseUrl}/api/buyer/addresses/${addressId}`, {
                 method: 'DELETE',
                 credentials: 'include'

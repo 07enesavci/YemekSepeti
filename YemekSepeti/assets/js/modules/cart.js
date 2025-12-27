@@ -1,6 +1,5 @@
-// Backend API kullanılıyor, mock veriler kaldırıldı
+// SEPETİM (cart.js)
 
-//Kurucu Fonksiyon
 function SepetKalemi(urun, adet)
 {
    	this.urun = urun;
@@ -38,19 +37,14 @@ function sepetIndex(id)
 async function urunBul(id)
 {
    	id = Number(id);
-   	
    	try {
    		const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
    		const response = await fetch(`${baseUrl}/api/cart/product/${id}`);
    		
    		if (!response.ok) {
-   			console.error('Hata: urunBul() ' + id + ' IDli yemeği bulamadı.');
    			return null;
    		}
-   		
    		const yemek = await response.json();
-   		
-   		// Backend'den gelen veriyi cart.js formatına çevir
    		var klonYemek = {
    			id: yemek.id,
    			name: yemek.name,
@@ -66,7 +60,6 @@ async function urunBul(id)
    		
    		return klonYemek;
    	} catch (error) {
-   		console.error('Hata: urunBul() API çağrısı başarısız:', error);
    		return null;
    	}
 }
@@ -104,7 +97,6 @@ function sepetiYukle()
 
 async function sepeteEkle(id, adet)
 {
-   	// Login kontrolü
    	if (!await checkAuth()) {
    		alert('Sepete ürün eklemek için lütfen giriş yapın.');
    		const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -118,7 +110,6 @@ async function sepeteEkle(id, adet)
    	
    	if(i > -1)
 	{
-		// Zaten sepette varsa sadece adet artır
 		sepet[i].adet += adet;
 		sepetiKaydet();    
 		sepetiYenile();
@@ -146,7 +137,6 @@ async function sepeteEkle(id, adet)
 		} 
  	 	else
 		{
-			console.error('Ürün bulunamadı:', id);
 			return;
 		}
    	}
@@ -167,19 +157,11 @@ async function checkAuth() {
 		const data = await response.json();
 		return data.success && data.user && data.user.role === 'buyer';
 	} catch (error) {
-		console.error('Auth kontrolü hatası:', error);
 		return false;
 	}
 }
 
-/**
- * API'den meal bilgilerini çekip sepete ekler
- * @param {number} mealId - Meal ID
- * @param {number} sellerId - Seller ID (meal bilgilerini çekmek için gerekli)
- * @param {number} quantity - Adet (varsayılan: 1)
- */
 async function addToCart(mealId, sellerId, quantity) {
-    // Login kontrolü
     if (!await checkAuth()) {
         alert('Sepete ürün eklemek için lütfen giriş yapın.');
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -192,10 +174,8 @@ async function addToCart(mealId, sellerId, quantity) {
     quantity = Math.max(1, Number(quantity) || 1);
     
     try {
-        // Önce sepette var mı kontrol et
         var i = sepetIndex(mealId);
         if (i > -1) {
-            // Zaten sepette varsa sadece 1 adet artır (çift eklemeyi önle)
             sepet[i].adet += 1;
             sepetiKaydet();
             sepetiYenile();
@@ -207,7 +187,6 @@ async function addToCart(mealId, sellerId, quantity) {
             return;
         }
         
-        // SellerId yoksa eski yöntemi dene
         if (!sellerId) {
             var urun = urunBul(mealId);
             if (urun) {
@@ -215,7 +194,6 @@ async function addToCart(mealId, sellerId, quantity) {
                 sepetiKaydet();
                 sepetiYenile();
             } else {
-                console.error('Ürün bulunamadı:', mealId);
                 alert('Ürün sepete eklenemedi. Lütfen tekrar deneyin.');
             }
             return;
@@ -233,7 +211,6 @@ async function addToCart(mealId, sellerId, quantity) {
         const meal = menu.find(m => m.id === mealId);
         
         if (!meal) {
-            // Meal bulunamazsa eski yöntemi dene
             var urun = urunBul(mealId);
             if (urun) {
                 sepet.push(new SepetKalemi(urun, quantity));
@@ -245,20 +222,17 @@ async function addToCart(mealId, sellerId, quantity) {
             return;
         }
         
-        // Seller bilgilerini de çek (delivery fee dahil)
         const sellerResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}`);
         let sellerName = 'Ev Lezzetleri';
         if (sellerResponse.ok) {
             const seller = await sellerResponse.json();
             sellerName = seller.name || sellerName;
-            // Delivery fee'yi cache'le
             if (seller.deliveryFee !== undefined) {
                 cachedDeliveryFee = parseFloat(seller.deliveryFee) || 15.00;
                 cachedSellerId = sellerId;
             }
         }
         
-        // Meal bilgilerini sepete uygun formata çevir
         var urun = {
             id: meal.id,
             name: meal.name,
@@ -277,13 +251,11 @@ async function addToCart(mealId, sellerId, quantity) {
         sepetiKaydet();
         sepetiYenile();
         
-        // Floating cart'ı güncelle ve aç
         if (window.updateFloatingCart) {
             window.updateFloatingCart();
             window.openFloatingCart();
         }
         
-        // Başarı mesajı göster (event objesi varsa)
         try {
             var button = (typeof event !== 'undefined' && event && event.target) ? event.target : null;
             if (!button && typeof window.event !== 'undefined' && window.event) {
@@ -300,11 +272,9 @@ async function addToCart(mealId, sellerId, quantity) {
             }
         } catch (e) {
             // Event objesine erişilemezse sessizce devam et
-            console.log('Sepete eklendi');
         }
         
     } catch (error) {
-        console.error('Sepete ekleme hatası:', error);
         // Hata durumunda eski yöntemi dene
         var urun = urunBul(mealId);
         if (urun) {
@@ -392,7 +362,6 @@ async function sepetiYenile()
    	                cachedSellerId = sellerId;
    	            }
    	        } catch (e) {
-   	            console.warn('Delivery fee çekilemedi, default kullanılıyor:', e);
    	        }
    	    }
    	}
@@ -593,7 +562,6 @@ window.getSepetTotals = async function(){
    	                cachedSellerId = sellerId;
    	            }
    	        } catch (e) {
-   	            console.warn('Delivery fee çekilemedi, default kullanılıyor:', e);
    	        }
    	    }
    	}
@@ -688,7 +656,6 @@ document.addEventListener('click', function(e){
                         t.dataset.processing = 'false';
                     }, 1000);
                 }).catch(function(error) {
-                    console.error('Sepete ekleme hatası:', error);
                     t.innerHTML = orjinalText;
                     t.disabled = false;
                     t.dataset.processing = 'false';
@@ -696,7 +663,6 @@ document.addEventListener('click', function(e){
    	 	}
 		else
 		{
-   	 	 	console.error('Hata: HTMLdeki ' + yemekAdi + ' window.MOCK_MENUS içinde bulunamadı.');
                 t.disabled = false;
                 t.dataset.processing = 'false';
    	 	}
@@ -751,7 +717,6 @@ async function applyCoupon() {
         var couponButton = document.querySelector('.coupon-form button');
         
         if (!couponInput) {
-            console.error('Kupon input bulunamadı');
             return;
         }
         
@@ -845,7 +810,6 @@ async function applyCoupon() {
         loadAvailableCoupons();
         
     } catch (error) {
-        console.error('Kupon uygulama hatası:', error);
         alert('Kupon uygulanırken bir hata oluştu. Lütfen tekrar deneyin.');
         var couponButton = document.querySelector('.coupon-form button');
         if (couponButton) {
@@ -886,7 +850,6 @@ async function loadAvailableCoupons() {
         });
         
         if (!response.ok) {
-            console.warn('Kuponlar yüklenemedi');
             return;
         }
         
@@ -977,7 +940,6 @@ async function loadAvailableCoupons() {
         });
         
     } catch (error) {
-        console.error('Kuponlar yüklenirken hata:', error);
     }
 }
 
