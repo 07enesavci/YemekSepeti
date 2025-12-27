@@ -1,5 +1,3 @@
-// ADRESLER (addresses.js)
-
 // Tüm çağrılarda aynı tabanı kullanmak için küçük yardımcı
 function getApiBaseUrlSafe() {
     if (typeof window !== 'undefined') {
@@ -92,7 +90,6 @@ const BUYER_API = {
     }
 };
 
-// Sayfa yüklendiğinde çalışacak fonksiyon
 document.addEventListener('DOMContentLoaded', async () => {
     const addressesList = document.getElementById('addresses-list');
     const addAddressBtn = document.getElementById('add-address-btn');
@@ -104,7 +101,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const cancelEditBtn = document.getElementById('cancel-edit-btn');
     const deleteAddressBtn = document.getElementById('delete-address-btn');
 
-    // Adresleri yükle ve göster
     async function loadAddresses() {
         if (!addressesList) return;
         
@@ -119,7 +115,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Adresleri render et
     function renderAddresses(addresses) {
         if (!addressesList) return;
         
@@ -165,7 +160,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Yeni adres formunu göster
     function showNewAddressForm() {
         if (newAddressContainer) {
             newAddressContainer.style.display = 'block';
@@ -177,7 +171,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Düzenleme formunu göster
     async function showEditForm(addressId) {
         try {
             const addresses = await BUYER_API.getAddresses();
@@ -188,15 +181,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // Form alanlarını doldur
             document.getElementById('edit-address-id').value = address.id;
             document.getElementById('edit-address-title').value = address.title || '';
             
-            // fullDetail'den district ve city'yi ayır (eğer varsa)
             const fullDetail = address.fullDetail || address.detail || '';
             document.getElementById('edit-address-detail').value = fullDetail;
             
-            // District ve city'yi ayır (basit bir yaklaşım)
             if (address.district) {
                 document.getElementById('edit-address-district').value = address.district;
             }
@@ -206,11 +196,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             document.getElementById('edit-address-default').checked = address.isDefault || false;
 
-            // Formları göster/gizle
             if (editAddressContainer) {
                 editAddressContainer.style.display = 'block';
                 newAddressContainer.style.display = 'none';
-                // Sayfayı forma kaydır
                 editAddressContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         } catch (error) {
@@ -219,7 +207,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Yeni adres formu gönderimi
     if (newAddressForm) {
         newAddressForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -267,7 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Adres güncelleme formu gönderimi
+    // Adres güncelleme formu gönderimesi
     if (editAddressForm) {
         editAddressForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -356,7 +343,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // İptal butonları
     if (cancelAddressBtn) {
         cancelAddressBtn.addEventListener('click', () => {
             newAddressForm.reset();
@@ -371,14 +357,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Yeni adres ekle butonu
     if (addAddressBtn) {
         addAddressBtn.addEventListener('click', () => {
             showNewAddressForm();
         });
     }
 
-    // Logout butonu
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
@@ -393,7 +377,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // İlk yükleme
     await loadAddresses();
 });
 

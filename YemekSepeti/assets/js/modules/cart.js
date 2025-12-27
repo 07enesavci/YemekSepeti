@@ -1,4 +1,3 @@
-// SEPETİM (cart.js)
 
 function SepetKalemi(urun, adet)
 {
@@ -12,9 +11,9 @@ SepetKalemi.prototype.aratoplam = function(){
 
 //Durum
 var sepet = [];
-var cachedDeliveryFee = null; // Delivery fee cache
-var cachedSellerId = null; // Seller ID cache
-var appliedCoupon = null; // Uygulanan kupon bilgisi
+var cachedDeliveryFee = null; 
+var cachedSellerId = null; 
+var appliedCoupon = null; 
 
 function tl(x)
 {
@@ -122,14 +121,13 @@ async function sepeteEkle(id, adet)
 	} 
  	else
 	{
-   	 	// Ürünü bul ve sepete ekle
+   	 	// Ürünü bulma ve sepete ekleme
    	 	var urun = await urunBul(id); 
    	 	if(urun)
 		{
 			sepet.push(new SepetKalemi(urun, adet));
 			sepetiKaydet();    
 			sepetiYenile();
-			// Floating cart'ı güncelle ve aç
 			if (window.updateFloatingCart) {
 				window.updateFloatingCart();
 				window.openFloatingCart();
@@ -179,7 +177,6 @@ async function addToCart(mealId, sellerId, quantity) {
             sepet[i].adet += 1;
             sepetiKaydet();
             sepetiYenile();
-            // Floating cart'ı güncelle ve aç
             if (window.updateFloatingCart) {
                 window.updateFloatingCart();
                 window.openFloatingCart();
@@ -199,7 +196,6 @@ async function addToCart(mealId, sellerId, quantity) {
             return;
         }
         
-        // API'den seller menüsünü çek ve meal'i bul
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const menuResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/menu`);
         
@@ -271,11 +267,9 @@ async function addToCart(mealId, sellerId, quantity) {
                 }, 1000);
             }
         } catch (e) {
-            // Event objesine erişilemezse sessizce devam et
         }
         
     } catch (error) {
-        // Hata durumunda eski yöntemi dene
         var urun = urunBul(mealId);
         if (urun) {
             sepet.push(new SepetKalemi(urun, quantity));
@@ -287,7 +281,6 @@ async function addToCart(mealId, sellerId, quantity) {
     }
 }
 
-// Global olarak erişilebilir yap
 window.addToCart = addToCart;
 
 function sepettenSil(id)
@@ -298,7 +291,6 @@ function sepettenSil(id)
    	 	sepet.splice(i, 1); 
    	 	sepetiKaydet();
    	 	sepetiYenile();
-   	 	// Floating cart'ı güncelle
    	 	if (window.updateFloatingCart) {
    	 	    window.updateFloatingCart();
    	 	}
@@ -315,12 +307,10 @@ function adetArtirAzalt(id, delta)
  	 	 	sepettenSil(id); 
  	 	 	return; 
  	 	}
- 	 	// Delta değerini doğru kullan - eğer delta 0 ise 1 ekle, değilse delta kadar ekle
  	 	var yeniAdet = sepet[i].adet + delta;
  	 	sepet[i].adet = Math.max(1, yeniAdet);
  	 	sepetiKaydet();
  	 	sepetiYenile();
- 	 	// Floating cart'ı güncelle
  	 	if (window.updateFloatingCart) {
  	 	    window.updateFloatingCart();
  	 	}
@@ -341,13 +331,11 @@ async function sepetiYenile()
         }
    	}
 
-   	// Delivery fee'yi veritabanından çek
-   	var teslimatUcreti = 15.00; // Default fallback
+   	var teslimatUcreti = 15.00;
    	if (sepet.length > 0) {
    	    var firstItem = sepet[0];
    	    var sellerId = firstItem.urun?.sellerId || firstItem.urun?.seller_id || null;
    	    
-   	    // Cache'de varsa ve seller ID aynıysa kullan
    	    if (cachedDeliveryFee && cachedSellerId === sellerId) {
    	        teslimatUcreti = cachedDeliveryFee;
    	    } else if (sellerId) {
@@ -373,10 +361,8 @@ async function sepetiYenile()
    	}
    	
    	var toplam = ara + teslimatUcreti - kuponIndirimi;
-   	// Toplam negatif olamaz
    	toplam = Math.max(0, toplam);
     
-    // Sepet butonunu ve sayısını güncelle
     var cartCountSpan = document.getElementById('cart-count');
     var cartButtonLi = document.getElementById('cart-button-li');
     var cartButton = document.getElementById('cart-button');
@@ -385,30 +371,24 @@ async function sepetiYenile()
         cartCountSpan.textContent = adetTop;
     }
 
-    // Sepet butonunu göster/gizle
     if (cartButtonLi) {
-        // Panel sayfalarında sepet butonunu gösterme
         const path = window.location.pathname;
         const isPanelPage = path.includes('/seller/') || path.includes('/courier/') || path.includes('/admin/');
         
         if (isPanelPage) {
             cartButtonLi.style.display = 'none';
         } else {
-            // Kullanıcı kontrolü - cache'lenmiş kullanıcı bilgisini kullan
-            // Eğer localStorage'da user varsa kontrol et, yoksa API çağrısı yapma
             const cachedUser = localStorage.getItem('user');
             if (cachedUser) {
                 try {
                     const user = JSON.parse(cachedUser);
                     if (user.role === 'seller' || user.role === 'courier' || user.role === 'admin') {
                         cartButtonLi.style.display = 'none';
-                        return; // Panel kullanıcıları için sepet butonunu gösterme ve devam etme
+                        return;
                     }
                 } catch (e) {
-                    // Parse hatası, devam et
                 }
             }
-            // Kullanıcı giriş yapmamış veya buyer ise sepet butonunu göster
             
             if (adetTop > 0) {
                 cartButtonLi.style.display = 'block';
@@ -418,7 +398,6 @@ async function sepetiYenile()
         }
     }
 
-    // Eski yöntem (fallback)
     if (!cartCountSpan && !cartButtonLi) {
         var headerLink = document.querySelector('.site-header a[href*="cart"]');
         if (headerLink) {
@@ -445,7 +424,6 @@ async function sepetiYenile()
    	 	 	var urunAd = (urun.ad || urun.name || 'Ürün').toString().trim() || 'Ürün';
    	 	 	var urunSatici = (urun.satici || 'Ev Lezzetleri').toString().trim() || 'Ev Lezzetleri';
    	 	 	
-   	 	 	// Resim URL'ini kontrol et - via.placeholder.com içeriyorsa SVG placeholder kullan
    	 	 	var urunGorsel = urun.gorsel || urun.imageUrl || '';
    	 	 	if (!urunGorsel || 
    	 	 	    typeof urunGorsel !== 'string' ||
@@ -475,11 +453,9 @@ async function sepetiYenile()
    	 	document.getElementById('summary-subtotal').textContent = tl(ara);
    	 	document.getElementById('summary-delivery').textContent = tl(teslimatUcreti);
    	 	
-   	 	// Kupon indirimi satırını göster/gizle
    	 	var couponDiscountRow = document.getElementById('summary-coupon-discount');
    	 	if (kuponIndirimi > 0) {
    	 	    if (!couponDiscountRow) {
-   	 	        // Kupon indirimi satırını oluştur
    	 	        var deliveryRow = document.querySelector('.summary-row:has(#summary-delivery)');
    	 	        if (deliveryRow) {
    	 	            var couponRow = document.createElement('div');
@@ -514,12 +490,10 @@ async function sepetiYenile()
    	 	}
    	}
     
-    // Floating cart'ı güncelle
     if (window.updateFloatingCart) {
         window.updateFloatingCart();
    	}
     
-    // Uygulanabilir kupon kodlarını yenile
     if (window.location.pathname.includes('/buyer/cart')) {
         loadAvailableCoupons();
     }
@@ -537,17 +511,14 @@ window.getSepetTotals = async function(){
  	 	adetTop += sepet[i].adet; 
  	}
    	
-   	// Yuvarlama hatası önlemek için 2 ondalık basamağa yuvarla
    	ara = Math.round(ara * 100) / 100;
    	adetTop = Math.round(adetTop);
    	
-   	// Delivery fee'yi veritabanından çek
-   	var teslimatUcreti = 15.00; // Default fallback
+   	var teslimatUcreti = 15.00;
    	if (sepet.length > 0) {
    	    var firstItem = sepet[0];
    	    var sellerId = firstItem.urun?.sellerId || firstItem.urun?.seller_id || null;
    	    
-   	    // Cache'de varsa ve seller ID aynıysa kullan
    	    if (cachedDeliveryFee && cachedSellerId === sellerId) {
    	        teslimatUcreti = cachedDeliveryFee;
    	    } else if (sellerId) {
@@ -557,7 +528,6 @@ window.getSepetTotals = async function(){
    	            if (sellerResponse.ok) {
    	                const seller = await sellerResponse.json();
    	                teslimatUcreti = parseFloat(seller.deliveryFee) || 15.00;
-   	                // Cache'le
    	                cachedDeliveryFee = teslimatUcreti;
    	                cachedSellerId = sellerId;
    	            }
@@ -569,14 +539,12 @@ window.getSepetTotals = async function(){
    	// Yuvarlama
    	teslimatUcreti = Math.round(teslimatUcreti * 100) / 100;
    	
-   	// Kupon indirimi varsa çıkar
    	var kuponIndirimi = 0;
    	if (appliedCoupon && appliedCoupon.discountAmount) {
    	    kuponIndirimi = Math.round(parseFloat(appliedCoupon.discountAmount) * 100) / 100;
    	}
    	
    	var toplam = Math.round((ara + teslimatUcreti - kuponIndirimi) * 100) / 100;
-   	// Toplam negatif olamaz
    	toplam = Math.max(0, toplam);
    	
    	return { ara: ara, teslimat: teslimatUcreti, kuponIndirimi: kuponIndirimi, toplam: toplam };
@@ -587,13 +555,12 @@ window.sepetiTemizle = function(){
    	sepetiKaydet();
 }
 
-// Event listener'ların birden fazla kez eklenmesini önlemek için flag kullan
 var cartEventListenersAttached = false;
 var couponEventListenersAttached = false;
 
 function attachCartEventListeners() {
     if (cartEventListenersAttached) {
-        return; // Zaten eklenmiş
+        return;
     }
     cartEventListenersAttached = true;
 
@@ -604,7 +571,6 @@ document.addEventListener('click', function(e){
             return; 
         }
 
-        // Buton disabled ise işlem yapma
         if (t.disabled) {
 		return; 
 	}
@@ -613,7 +579,6 @@ document.addEventListener('click', function(e){
 
    	if (mealCard && t.classList.contains('btn-primary'))
 	{
-            // Butonu geçici olarak disable et (çift tıklamayı önle)
             if (t.dataset.processing === 'true') {
                 return;
             }
@@ -679,7 +644,6 @@ document.addEventListener('click', function(e){
  	var artId = t.getAttribute('data-art');
    	if (artId !== null)
 	{
-            // Çift tıklamayı önle
             if (t.dataset.processing === 'true') {
                 return;
             }
@@ -694,7 +658,6 @@ document.addEventListener('click', function(e){
  	var azId = t.getAttribute('data-az');
  	if (azId !== null)
 	{
-            // Çift tıklamayı önle
             if (t.dataset.processing === 'true') {
                 return;
             }
@@ -707,10 +670,7 @@ document.addEventListener('click', function(e){
  	}
 });
 }
-
-/**
- * Kupon kodunu uygula
- */
+//Kupon
 async function applyCoupon() {
     try {
         var couponInput = document.getElementById('coupon');
@@ -726,7 +686,6 @@ async function applyCoupon() {
             return;
         }
         
-        // Sepet toplamlarını al
         var totals = await window.getSepetTotals();
         var subtotal = totals.ara;
         
@@ -735,12 +694,10 @@ async function applyCoupon() {
             return;
         }
         
-        // Seller ID'yi sepetteki ilk üründen al ve tüm ürünlerin aynı satıcıdan olduğunu kontrol et
         var sellerId = null;
         if (sepet.length > 0 && sepet[0].urun) {
             sellerId = sepet[0].urun.sellerId || sepet[0].urun.seller_id || null;
             
-            // Tüm ürünlerin aynı satıcıdan olduğunu kontrol et
             for (var i = 1; i < sepet.length; i++) {
                 var itemSellerId = sepet[i].urun?.sellerId || sepet[i].urun?.seller_id || null;
                 if (itemSellerId !== sellerId) {
@@ -750,7 +707,6 @@ async function applyCoupon() {
             }
         }
         
-        // Butonu disable et
         if (couponButton) {
             couponButton.disabled = true;
             couponButton.textContent = 'Kontrol ediliyor...';
@@ -782,18 +738,14 @@ async function applyCoupon() {
             return;
         }
         
-        // Kupon başarıyla uygulandı
         appliedCoupon = data.coupon;
         
-        // Input'u disable et ve kupon kodunu göster
         couponInput.disabled = true;
         couponInput.value = couponCode.toUpperCase();
         
-        // Butonu kaldır butonuna çevir
         if (couponButton) {
             couponButton.textContent = 'Kaldır';
             couponButton.disabled = false;
-            // Önceki event listener'ı kaldır ve yenisini ekle
             var newButton = couponButton.cloneNode(true);
             couponButton.parentNode.replaceChild(newButton, couponButton);
             newButton.addEventListener('click', function(e) {
@@ -803,10 +755,8 @@ async function applyCoupon() {
             });
         }
         
-        // Sepeti yenile (indirim ile)
         sepetiYenile();
         
-        // Kupon listesini yenile
         loadAvailableCoupons();
         
     } catch (error) {
@@ -819,12 +769,8 @@ async function applyCoupon() {
     }
 }
 
-/**
- * Uygulanabilir kupon kodlarını yükle ve göster
- */
 async function loadAvailableCoupons() {
     try {
-        // Sepette ürün yoksa kuponları gösterme
         if (sepet.length === 0) {
             var couponsSection = document.getElementById('available-coupons-section');
             if (couponsSection) {
@@ -833,17 +779,14 @@ async function loadAvailableCoupons() {
             return;
         }
         
-        // Sepetteki ilk üründen seller ID'yi al
         var sellerId = null;
         if (sepet.length > 0 && sepet[0].urun) {
             sellerId = sepet[0].urun.sellerId || sepet[0].urun.seller_id || null;
         }
         
-        // Sepet toplamını al
         var totals = await window.getSepetTotals();
         var subtotal = totals.ara;
         
-        // Aktif kuponları API'den çek
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const response = await fetch(`${baseUrl}/api/buyer/coupons/active`, {
             credentials: 'include'
@@ -858,14 +801,11 @@ async function loadAvailableCoupons() {
             return;
         }
         
-        // Kuponları filtrele: Sepetteki restorana özel veya tüm restoranlar için geçerli olanlar
         var applicableCoupons = data.coupons.filter(function(coupon) {
-            // Tüm restoranlar için geçerli kuponlar
             if (!coupon.applicableSellerIds || coupon.applicableSellerIds.length === 0) {
                 return true;
             }
             
-            // Belirli restoranlar için geçerli kuponlar
             if (sellerId && coupon.applicableSellerIds.includes(parseInt(sellerId))) {
                 return true;
             }
@@ -873,12 +813,10 @@ async function loadAvailableCoupons() {
             return false;
         });
         
-        // Minimum sipariş tutarı kontrolü
         applicableCoupons = applicableCoupons.filter(function(coupon) {
             return subtotal >= coupon.minOrderAmount;
         });
         
-        // Kupon listesini göster
         var couponsSection = document.getElementById('available-coupons-section');
         var couponsList = document.getElementById('available-coupons-list');
         
@@ -943,9 +881,6 @@ async function loadAvailableCoupons() {
     }
 }
 
-/**
- * Kupon kodunu kaldır
- */
 function removeCoupon() {
     appliedCoupon = null;
     var couponInput = document.getElementById('coupon');
@@ -959,7 +894,6 @@ function removeCoupon() {
     if (couponButton) {
         couponButton.textContent = 'Uygula';
         couponButton.disabled = false;
-        // Önceki event listener'ı kaldır ve yenisini ekle
         var newButton = couponButton.cloneNode(true);
         couponButton.parentNode.replaceChild(newButton, couponButton);
         newButton.addEventListener('click', function(e) {
@@ -969,15 +903,12 @@ function removeCoupon() {
         });
     }
     
-    // Sepeti yenile (indirim olmadan)
     sepetiYenile();
     
-    // Kupon listesini yenile
     loadAvailableCoupons();
 }
 
 document.addEventListener('DOMContentLoaded', async function(){
-	// Auth sayfalarında çalışma
 	const isAuthPage = window.location.pathname.includes('/login') || 
 	                   window.location.pathname.includes('/register') ||
 	                   window.location.pathname.includes('/forgot-password') ||
@@ -986,7 +917,6 @@ document.addEventListener('DOMContentLoaded', async function(){
 		return;
 	}
 	
-   	// Cart sayfası için login kontrolü
    	if (window.location.pathname.includes('/buyer/cart') || window.location.pathname.includes('/buyer/checkout')) {
    		if (!await checkAuth()) {
    			alert('Sepeti görüntülemek için lütfen giriş yapın.');
@@ -1000,7 +930,6 @@ document.addEventListener('DOMContentLoaded', async function(){
    	sepetiYenile();
    	attachCartEventListeners();
    	
-   	// Kupon kodu uygulama butonunu aktifleştir (sadece bir kez)
    	if (!couponEventListenersAttached) {
    	    couponEventListenersAttached = true;
    	    
@@ -1013,7 +942,6 @@ document.addEventListener('DOMContentLoaded', async function(){
    	        });
    	    }
    	    
-   	    // Enter tuşu ile kupon uygulama
    	    var couponInput = document.getElementById('coupon');
    	    if (couponInput) {
    	        couponInput.addEventListener('keypress', function(e) {
@@ -1026,6 +954,5 @@ document.addEventListener('DOMContentLoaded', async function(){
    	    }
    	}
    	
-   	// Uygulanabilir kupon kodlarını yükle
    	loadAvailableCoupons();
 });

@@ -1,12 +1,3 @@
-// ============================================
-// SİPARİŞ MODÜLÜ (orders.js)
-// Backend API ile Entegre
-// ============================================
-
-// formatTL fonksiyonu api.js'de tanımlı (window.formatTL)
-// Her yerde direkt window.formatTL kullanıyoruz, burada tanımlamıyoruz
-
-// Sipariş detayını API'den çek
 async function fetchOrderDetail(orderId) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -26,7 +17,6 @@ async function fetchOrderDetail(orderId) {
     }
 }
 
-// Sipariş detay modal'ını göster
 async function showOrderDetail(orderId) {
     const orderDetail = await fetchOrderDetail(orderId);
     
@@ -35,7 +25,6 @@ async function showOrderDetail(orderId) {
         return;
     }
     
-    // Modal HTML'i oluştur
     const modalHTML = `
         <div id="order-detail-modal" class="order-detail-modal" style="display: flex;">
             <div class="order-detail-modal-content">
@@ -112,10 +101,8 @@ async function showOrderDetail(orderId) {
         </div>
     `;
     
-    // Modal'ı body'ye ekle
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Modal dışına tıklanınca kapat
     document.getElementById('order-detail-modal').addEventListener('click', (e) => {
         if (e.target.id === 'order-detail-modal') {
             closeOrderDetailModal();
@@ -123,7 +110,6 @@ async function showOrderDetail(orderId) {
     });
 }
 
-// Modal'ı kapat
 function closeOrderDetailModal() {
     const modal = document.getElementById('order-detail-modal');
     if (modal) {
@@ -131,17 +117,12 @@ function closeOrderDetailModal() {
     }
 }
 
-// Global fonksiyon olarak ekle
 window.closeOrderDetailModal = closeOrderDetailModal;
 
-/**
- * Yorum modal'ını göster
- */
 async function showReviewModal(orderId) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         
-        // Yorum yapılabilir mi kontrol et
         const response = await fetch(`${baseUrl}/api/buyer/orders/${orderId}/review`, {
             credentials: 'include'
         });
@@ -163,7 +144,6 @@ async function showReviewModal(orderId) {
             return;
         }
         
-        // Yorum formu modal'ı oluştur
         const modalHTML = `
             <div id="review-modal" class="order-detail-modal" style="display: flex;">
                 <div class="order-detail-modal-content">
@@ -208,7 +188,6 @@ async function showReviewModal(orderId) {
         
         document.body.insertAdjacentHTML('beforeend', modalHTML);
         
-        // Yıldız rating sistemi
         let selectedRating = 0;
         const stars = document.querySelectorAll('#star-rating .star');
         const ratingValue = document.getElementById('rating-value');
@@ -239,7 +218,6 @@ async function showReviewModal(orderId) {
             updateStars(stars, selectedRating);
         });
         
-        // Form submit
         document.getElementById('review-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -281,7 +259,6 @@ async function showReviewModal(orderId) {
             }
         });
         
-        // Modal dışına tıklanınca kapat
         document.getElementById('review-modal').addEventListener('click', (e) => {
             if (e.target.id === 'review-modal') {
                 closeReviewModal();
@@ -315,9 +292,6 @@ function closeReviewModal() {
 
 window.closeReviewModal = closeReviewModal;
 
-/**
- * Sipariş için yorum yapılıp yapılamayacağını kontrol et
- */
 async function checkCanReview(orderId) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -337,42 +311,85 @@ async function checkCanReview(orderId) {
     }
 }
 
-// Aksiyonları (İptal/Detay/Tekrarla) yöneten fonksiyon
-function handleOrderAction(e, orderId, actionType) {
+async function handleOrderAction(e, orderId, actionType) {
     e.preventDefault();
-    e.stopPropagation(); // Kart tıklama event'ini durdur
-    const card = e.target.closest('.order-card'); // Tıklanan butona en yakın sipariş kartını bul
+    e.stopPropagation();
+    const card = e.target.closest('.order-card');
 
     switch (actionType) {
         case 'iptal':
             if (confirm(`Sipariş #${orderId} iptal edilsin mi?`)) {
-                // DOM Manipülasyonu ile kartın durumunu güncelle ve yerini değiştir (simülasyon)
-                const newStatus = document.createElement('span');
-                newStatus.className = 'order-status cancelled'; 
-                newStatus.textContent = 'İptal Edildi'; 
-                const oldStatus = card.querySelector('.order-status');
-                if (oldStatus) {
-                    oldStatus.replaceWith(newStatus); 
+                // Butonu devre dışı bırak
+                const cancelBtn = e.target;
+                if (cancelBtn) {
+                    cancelBtn.disabled = true;
+                    cancelBtn.textContent = 'İptal ediliyor...';
                 }
 
-                const footer = card.querySelector('.order-footer');
-                if (footer) {
-                    footer.innerHTML = ''; 
-                    const repeatBtn = document.createElement('a');
-                    repeatBtn.href = '#';
-                    repeatBtn.className = 'btn btn-primary btn-sm';
-                    repeatBtn.textContent = 'Siparişi Tekrarla';
-                    repeatBtn.addEventListener('click', (e) => handleOrderAction(e, orderId, 'tekrarla'));
-                    footer.appendChild(repeatBtn);
-                }
+                try {
+                    // API'ye istek gönder
+                    const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                    
+                    let result;
+                    if (window.cancelOrder && typeof window.cancelOrder === 'function') {
+                        result = await window.cancelOrder(orderId);
+                    } else {
+                        const response = await fetch(`${baseUrl}/api/orders/${orderId}/cancel`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include'
+                        });
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.message || 'Sipariş iptal edilemedi');
+                        }
+                        result = data;
+                    }
+                    
+                    if (!result.success) {
+                        throw new Error(result.message || 'Sipariş iptal edilemedi');
+                    }
 
-                const pastSection = document.getElementById('past-orders');
-                if (pastSection && card) {
-                    card.querySelector('.order-items')?.remove(); 
-                    pastSection.appendChild(card);
-                }
+                    // Başarılı olduğunda UI'ı güncelle
+                    const newStatus = document.createElement('span');
+                    newStatus.className = 'order-status cancelled'; 
+                    newStatus.textContent = 'İptal Edildi'; 
+                    const oldStatus = card.querySelector('.order-status');
+                    if (oldStatus) {
+                        oldStatus.replaceWith(newStatus); 
+                    }
 
-                alert(`Sipariş #${orderId} iptal edildi ve geçmiş siparişlere taşındı.`);
+                    const footer = card.querySelector('.order-footer');
+                    if (footer) {
+                        footer.innerHTML = ''; 
+                        const repeatBtn = document.createElement('a');
+                        repeatBtn.href = '#';
+                        repeatBtn.className = 'btn btn-primary btn-sm';
+                        repeatBtn.textContent = 'Siparişi Tekrarla';
+                        repeatBtn.addEventListener('click', (e) => handleOrderAction(e, orderId, 'tekrarla'));
+                        footer.appendChild(repeatBtn);
+                    }
+
+                    const pastSection = document.getElementById('past-orders');
+                    if (pastSection && card) {
+                        card.querySelector('.order-items')?.remove(); 
+                        pastSection.appendChild(card);
+                    }
+
+                    alert(`✅ Sipariş #${orderId} başarıyla iptal edildi.`);
+                    
+                    // Sayfayı yenile
+                    renderOrders();
+                } catch (error) {
+                    console.error('Sipariş iptal hatası:', error);
+                    alert(`❌ Hata: ${error.message || 'Sipariş iptal edilemedi. Lütfen tekrar deneyin.'}`);
+                    
+                    // Butonu tekrar etkinleştir
+                    if (cancelBtn) {
+                        cancelBtn.disabled = false;
+                        cancelBtn.textContent = 'Siparişi İptal Et';
+                    }
+                }
             }
             break;
 
@@ -393,33 +410,22 @@ function handleOrderAction(e, orderId, actionType) {
     }
 }
 
-/**
- * Tek bir sipariş verisine göre DOM'da sipariş kartı (order-card) oluşturur.
- * Bu fonksiyon, verilen HTML yapınıza tam olarak uyar.
- * @param {object} order Sipariş verisi objesi.
- * @returns {HTMLElement} Oluşturulmuş sipariş kartı elementi.
- */
 function createOrderCard(order) {
-    // Ana Kart: <div class="card order-card">
     const card = document.createElement('div');
     card.className = 'card order-card clickable-order-card';
     card.setAttribute('data-order-id', order.id);
     card.style.cursor = 'pointer';
     
-    // Kart tıklanınca detay göster
     card.addEventListener('click', (e) => {
-        // Butonlara tıklanırsa kart tıklama event'ini çalıştırma
         if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.closest('a') || e.target.closest('button')) {
             return;
         }
         showOrderDetail(order.id);
     });
 
-    // Header: <div class="order-header">
     const header = document.createElement('div');
     header.className = 'order-header';
     
-    // Header Sol (Durum ve Tarih)
     const headerLeft = document.createElement('div');
     const statusSpan = document.createElement('span');
     statusSpan.className = `order-status ${order.status}`;
@@ -430,7 +436,6 @@ function createOrderCard(order) {
     headerLeft.appendChild(statusSpan);
     headerLeft.appendChild(dateSpan);
 
-    // Header Sağ (Toplam)
     const headerRight = document.createElement('div');
     headerRight.className = 'order-total';
     const totalSpan = document.createElement('span');
@@ -443,25 +448,21 @@ function createOrderCard(order) {
     header.appendChild(headerLeft);
     header.appendChild(headerRight);
 
-    // Satıcı Adı: <div class="order-seller">
     const seller = document.createElement('div');
     seller.className = 'order-seller';
     const strongSeller = document.createElement('strong');
     strongSeller.textContent = order.seller;
     seller.appendChild(strongSeller);
     
-    // Ürünler (Aktif siparişler için): <div class="order-items">
     const items = document.createElement('div');
     items.className = 'order-items';
     const pItems = document.createElement('p');
     pItems.textContent = order.items;
     items.appendChild(pItems);
     
-    // Alt Bölüm (Butonlar): <div class="order-footer">
     const footer = document.createElement('div');
     footer.className = 'order-footer';
 
-    // Buton Ekleme Mantığı (Tüm butonlar handleOrderAction'a bağlanır)
     if (order.canCancel) {
         const cancelBtn = document.createElement('a');
         cancelBtn.href = '#';
@@ -489,9 +490,7 @@ function createOrderCard(order) {
         footer.appendChild(repeatBtn);
     }
     
-    // Yorum yapılabilecek mi kontrol et (API'den)
     if (order.status === 'delivered' && order.canRate !== false) {
-        // API'den kontrol edelim
         checkCanReview(order.id).then(canReview => {
             if (canReview) {
                 const rateBtn = document.createElement('a');
@@ -502,34 +501,26 @@ function createOrderCard(order) {
                 footer.appendChild(rateBtn);
             }
         }).catch(() => {
-            // Hata durumunda sessizce geç
         });
     }
 
-    // Kartın parçalarını birleştirme (DOM Oluşturma - Hafta-4.docx)
     card.appendChild(header);
     card.appendChild(seller);
     if (order.type === 'active') {
-        card.appendChild(items); // Ürünler sadece aktif siparişlerde detaylı listelenir (örnek veri setine göre)
+        card.appendChild(items);
     }
     card.appendChild(footer);
     
     return card;
 }
 
-/**
- * API'den aktif ve geçmiş siparişleri çeker ve DOM'a render eder.
- * Backend'den veri alır, hata durumunda mock veri döner.
- */
 async function renderOrders() {
     const activeSection = document.getElementById('active-orders');
     const pastSection = document.getElementById('past-orders');
 
-    // Session'dan userId'yi al
     let userId = null;
     
     try {
-        // /api/auth/me endpoint'ini kullan
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const authResponse = await fetch(`${baseUrl}/api/auth/me`, {
             method: 'GET',
@@ -546,7 +537,6 @@ async function renderOrders() {
         console.warn('Session bilgisi alınamadı:', e);
     }
     
-    // Eğer userId bulunamazsa hata ver
     if (!userId) {
         console.error('Kullanıcı ID bulunamadı. Lütfen giriş yapın.');
         if (activeSection) {
@@ -558,16 +548,13 @@ async function renderOrders() {
         return;
     }
 
-    // 1. Aktif Siparişleri Çek ve Render Et
     if (activeSection) {
         try {
             console.log(`📦 Aktif siparişler yükleniyor (User: ${userId})...`);
             
-            // Mevcut statik kartları temizle
             activeSection.querySelectorAll('.order-card').forEach(card => card.remove());
             activeSection.querySelectorAll('p').forEach(p => p.remove());
             
-            // API'den siparişleri çek
             const activeResponse = await getActiveOrders(userId);
             
             if (activeResponse.success && activeResponse.data && activeResponse.data.length > 0) {
@@ -591,16 +578,13 @@ async function renderOrders() {
         }
     }
 
-    // 2. Geçmiş Siparişleri Çek ve Render Et
     if (pastSection) {
         try {
             console.log(`📦 Geçmiş siparişler yükleniyor (User: ${userId})...`);
             
-            // Mevcut statik kartları temizle
             pastSection.querySelectorAll('.order-card').forEach(card => card.remove());
             pastSection.querySelectorAll('p').forEach(p => p.remove());
 
-            // API'den siparişleri çek
             const pastResponse = await getPastOrders(userId);
             
             if (pastResponse.success && pastResponse.data && pastResponse.data.length > 0) {
@@ -625,7 +609,6 @@ async function renderOrders() {
     }
 }
 
-// Sayfa yüklendiğinde siparişleri render et (DOMContentLoaded - Hafta-5.docx)
 document.addEventListener('DOMContentLoaded', () => {
     renderOrders();
     

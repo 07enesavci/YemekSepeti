@@ -1,10 +1,4 @@
-// ============================================
-// CÜZDAN & KUPONLAR SAYFASI MODÜLÜ (wallet.js)
-// ============================================
-
-// API fonksiyonları
 const BUYER_API = {
-    // Cüzdan ve kuponları getir
     getWalletAndCoupons: async () => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -21,7 +15,6 @@ const BUYER_API = {
     }
 };
 
-// Sayfa yüklendiğinde çalışacak fonksiyon
 document.addEventListener('DOMContentLoaded', async () => {
     const walletTransactions = document.getElementById('wallet-transactions');
     const couponsList = document.getElementById('coupons-list');
@@ -29,12 +22,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadMoneyBtn = document.getElementById('load-money-btn');
     const logoutBtn = document.getElementById('logout-btn');
 
-    // Cüzdan ve kuponları yükle
     async function loadWalletData() {
         try {
             const data = await BUYER_API.getWalletAndCoupons();
             
-            // Bakiyeyi göster
             if (balanceElement) {
                 balanceElement.textContent = (window.formatTL || ((amt) => (amt || 0).toLocaleString('tr-TR', { 
                     style: 'currency', 
@@ -44,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 })))(data.balance);
             }
 
-            // İşlem geçmişini göster (şimdilik boş)
             if (walletTransactions) {
                 walletTransactions.innerHTML = `
                     <p style="text-align: center; padding: 2rem; color: #666;">
@@ -53,13 +43,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
             }
 
-            // Kuponları göster
             if (couponsList) {
                 couponsList.innerHTML = '';
                 
                 if (data.coupons && data.coupons.length > 0) {
                     data.coupons.forEach((coupon, index) => {
-                        // İndirim değerini formatla
                         let discountText = '';
                         if (coupon.discountType === 'fixed') {
                             discountText = `${(window.formatTL || ((amt) => (amt || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })))(coupon.discountValue)}`;
@@ -70,23 +58,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         }
                         
-                        // Restoran bilgisi
                         let restaurantInfo = '';
                         let couponClickable = false;
                         let couponData = null;
                         
                         if (coupon.applicableSellers === null) {
-                            // Tüm restoranlarda geçerli - tıklanınca modal açılacak
                             restaurantInfo = '<span style="color: #059669; font-size: 0.85rem; cursor: pointer; text-decoration: underline;" class="show-all-restaurants" data-coupon-index="' + index + '">Tüm restoranlarda geçerli (detaylar için tıklayın)</span>';
                             couponClickable = true;
                             couponData = { type: 'all', coupon: coupon };
                         } else if (coupon.applicableSellers && coupon.applicableSellers.length === 1) {
-                            // Sadece bir restorana ait - direkt isim göster
                             const sellerName = coupon.applicableSellers[0].name;
                             restaurantInfo = '<span style="color: #2563EB; font-size: 0.9rem; font-weight: 600;">📍 ' + sellerName + '</span>';
                             couponClickable = false;
                         } else if (coupon.applicableSellers && coupon.applicableSellers.length > 1) {
-                            // Birden fazla restorana ait - tıklanınca modal açılacak
                             const restaurantCount = coupon.applicableSellers.length;
                             restaurantInfo = '<span style="color: #2563EB; font-size: 0.85rem; cursor: pointer; text-decoration: underline;" class="show-restaurants-modal" data-coupon-index="' + index + '">' + restaurantCount + ' restoranda geçerli (detaylar için tıklayın)</span>';
                             couponClickable = true;
@@ -110,7 +94,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         `;
                         couponsList.insertAdjacentHTML('beforeend', couponHtml);
                         
-                        // Coupon data'yı global olarak sakla (modal için)
                         if (couponClickable && couponData) {
                             if (!window.couponModalData) {
                                 window.couponModalData = {};
@@ -119,7 +102,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     });
                     
-                    // Modal HTML'ini ekle (eğer yoksa)
                     if (!document.getElementById('coupon-restaurants-modal')) {
                         const modalHtml = `
                             <div id="coupon-restaurants-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
@@ -132,12 +114,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         `;
                         document.body.insertAdjacentHTML('beforeend', modalHtml);
                         
-                        // Modal kapatma event listener
                         document.getElementById('close-coupon-modal').addEventListener('click', () => {
                             document.getElementById('coupon-restaurants-modal').style.display = 'none';
                         });
                         
-                        // Modal dışına tıklanınca kapat
                         document.getElementById('coupon-restaurants-modal').addEventListener('click', (e) => {
                             if (e.target.id === 'coupon-restaurants-modal') {
                                 document.getElementById('coupon-restaurants-modal').style.display = 'none';
@@ -145,7 +125,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
                     }
                     
-                    // Global modal fonksiyonu
                     window.showCouponRestaurantsModal = function(index) {
                         const modal = document.getElementById('coupon-restaurants-modal');
                         const content = document.getElementById('coupon-modal-content');
@@ -191,15 +170,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Para yükle butonu
     if (loadMoneyBtn) {
         loadMoneyBtn.addEventListener('click', () => {
             alert('Para yükleme özelliği yakında eklenecektir.');
-            // İleride burada para yükleme modal'ı açılabilir
         });
     }
 
-    // Logout butonu
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -213,7 +189,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // İlk yükleme
     await loadWalletData();
 });
 

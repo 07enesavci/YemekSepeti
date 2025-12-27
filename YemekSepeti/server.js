@@ -7,6 +7,7 @@ try {
     const app = express();
     require("dotenv").config();
 
+    // --- LOGLAMA YAPILANDIRMASI ---
     const logsDir = path.resolve(__dirname, 'logs');
     if (!fs.existsSync(logsDir)) {
         try {
@@ -34,6 +35,7 @@ try {
         } catch (err) {}
     }
 
+    // --- HATA VE UYARI YÖNETİMİ ---
     const originalEmitWarning = process.emitWarning;
     process.emitWarning = function(warning, type, code, ctor) {
         if (type === 'DeprecationWarning' && (warning && warning.toString().includes('Buffer()'))) {
@@ -53,14 +55,18 @@ try {
         });
     });
 
+    // --- VERİTABANI BAĞLANTILARI ---
     let db;
     try {
         db = require("./config/database");
-        db.testConnection().then(() => {
-            writeLog('INFO', 'Veritabanı bağlantısı başarılı (mysql2)');
-        }).catch((err) => {
-            writeLog('ERROR', 'Veritabanı bağlantı hatası (mysql2)', { error: err.message });
-        });
+        // Eğer config/database.js içinde collate: '...' varsa silmelisin (Sarı uyarı için)
+        if(db.testConnection) {
+            db.testConnection().then(() => {
+                writeLog('INFO', 'Veritabanı bağlantısı başarılı (mysql2)');
+            }).catch((err) => {
+                writeLog('ERROR', 'Veritabanı bağlantı hatası (mysql2)', { error: err.message });
+            });
+        }
     } catch (err) {
         writeLog('ERROR', 'Veritabanı modülü yüklenemedi', { error: err.message });
     }
@@ -68,15 +74,18 @@ try {
     try {
         require("./models");
         const { sequelizeTestConnection } = require("./config/database");
-        sequelizeTestConnection().then(() => {
-            writeLog('INFO', 'Sequelize bağlantısı başarılı');
-        }).catch((err) => {
-            writeLog('ERROR', 'Sequelize bağlantı hatası', { error: err.message });
-        });
+        if(sequelizeTestConnection) {
+            sequelizeTestConnection().then(() => {
+                writeLog('INFO', 'Sequelize bağlantısı başarılı');
+            }).catch((err) => {
+                writeLog('ERROR', 'Sequelize bağlantı hatası', { error: err.message });
+            });
+        }
     } catch (err) {
         writeLog('ERROR', 'Sequelize modülü yüklenemedi', { error: err.message });
     }
 
+    // --- VIEW ENGINE VE LAYOUT ---
     let viewsPath;
     try {
         viewsPath = path.resolve(__dirname, 'views');
@@ -93,6 +102,7 @@ try {
         writeLog('ERROR', 'EJS yapılandırma hatası', { error: err.message });
     }
 
+    // --- LOGLAMA MIDDLEWARE ---
     app.use((req, res, next) => {
         try {
             const startTime = Date.now();
@@ -116,6 +126,7 @@ try {
         }
     });
 
+    // --- CORS VE HEADERLAR ---
     app.use((req, res, next) => {
         const origin = req.headers.origin || req.headers.referer?.split('/').slice(0, 3).join('/') || 'http://localhost:3000';
         res.header("Access-Control-Allow-Origin", origin);
@@ -129,21 +140,23 @@ try {
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+    // --- SESSION YAPILANDIRMASI ---
     let sessionStore = null;
     if (process.env.NODE_ENV === 'production' || process.env.USE_MYSQL_SESSION === 'true') {
         let mysqlSessionModule = null;
         try {
-            mysqlSessionModule = require.resolve('connect-mysql2');
+            // express-mysql-session daha stabildir, yoksa connect-mysql2 dener
+            try {
+                mysqlSessionModule = require.resolve('express-mysql-session');
+            } catch(e) {
+                mysqlSessionModule = require.resolve('connect-mysql2');
+            }
         } catch (resolveError) {}
         
         if (mysqlSessionModule) {
             try {
-                const MySQLStore = require('connect-mysql2')(session);
+                const MySQLStore = require(mysqlSessionModule)(session);
                 const isCloudDB = process.env.DB_HOST && (process.env.DB_HOST.includes('aivencloud.com') || process.env.DB_SSL === 'true');
-                const sslConfig = isCloudDB ? {
-                    rejectUnauthorized: false,
-                    minVersion: 'TLSv1.2'
-                } : false;
                 
                 const storeConfig = {
                     host: 'yemek-sepeti-yemeksepeti.i.aivencloud.com',
@@ -173,12 +186,13 @@ try {
         saveUninitialized: false,
         store: sessionStore || undefined,
         cookie: {
-            secure: false,
+            secure: false, // HTTPS kullanıyorsan true yap
             httpOnly: true,
             maxAge: 7 * 24 * 60 * 60 * 1000
         }
     };
 
+    // Bellek sızıntısı uyarısını gizle
     const originalWarn = console.warn;
     console.warn = function(...args) {
         if (args[0] && typeof args[0] === 'string' && args[0].includes('MemoryStore')) return;
@@ -192,6 +206,7 @@ try {
     }
     console.warn = originalWarn;
 
+    // --- LOCALS MIDDLEWARE ---
     app.use((req, res, next) => {
         try {
             res.locals.user = req.session ? (req.session.user || null) : null;
@@ -203,6 +218,7 @@ try {
         }
     });
 
+    // --- STATİK DOSYALAR ---
     const assetsPath = path.resolve(__dirname, 'assets');
     if (fs.existsSync(assetsPath)) app.use('/assets', express.static(assetsPath));
 
@@ -219,8 +235,9 @@ try {
         } catch (err) {}
     }
 
-    const { requireRole, requireAuth } = require('./middleware/auth');
+    const { requireRole } = require('./middleware/auth');
 
+    // --- ROUTE YÖNETİMİ ---
     const routeFiles = [
         "/api/auth", "/api/sellers", "/api/seller", "/api/orders",
         "/api/admin", "/api/cart", "/api/courier", "/api/buyer", "/api/upload"
@@ -249,22 +266,20 @@ try {
         }
     });
 
+    // --- SAYFA ROUTE'LARI ---
     app.get("/", (req, res) => {
-        try {
-            res.render("index", { title: "Ana Sayfa", pageCss: "home.css", pageJs: "home.js" });
-        } catch (error) { renderError(res, error, "Ana Sayfa"); }
+        try { res.render("index", { title: "Ana Sayfa", pageCss: "home.css", pageJs: "home.js" }); } 
+        catch (error) { renderError(res, error, "Ana Sayfa"); }
     });
 
     app.get("/login", (req, res) => {
-        try {
-            res.render("common/login", { title: "Giriş Yap", pageCss: "auth.css", pageJs: "auth.js" });
-        } catch (error) { renderError(res, error, "Login"); }
+        try { res.render("common/login", { title: "Giriş Yap", pageCss: "auth.css", pageJs: "auth.js" }); } 
+        catch (error) { renderError(res, error, "Login"); }
     });
 
     app.get("/register", (req, res) => {
-        try {
-            res.render("common/register", { title: "Kayıt Ol", pageCss: "auth.css", pageJs: "auth.js" });
-        } catch (error) { renderError(res, error, "Register"); }
+        try { res.render("common/register", { title: "Kayıt Ol", pageCss: "auth.css", pageJs: "auth.js" }); } 
+        catch (error) { renderError(res, error, "Register"); }
     });
 
     app.get("/about", (req, res) => res.render("common/about", { title: "Hakkımızda" }));
@@ -273,6 +288,7 @@ try {
     app.get("/forgot-password", (req, res) => res.render("common/forgot-password", { title: "Şifremi Unuttum" }));
     app.get("/reset-password", (req, res) => res.render("common/reset-password", { title: "Şifre Sıfırla" }));
 
+    // --- ALICI (BUYER) ROUTE'LARI ---
     app.get("/buyer/cart", requireRole('buyer'), (req, res) => res.render("buyer/cart", { title: "Sepetim", pageCss: "cart.css", pageJs: "cart.js" }));
     app.get("/buyer/checkout", requireRole('buyer'), (req, res) => res.render("buyer/checkout", { title: "Ödeme", pageCss: "checkout.css", pageJs: "checkout.js" }));
     app.get("/buyer/orders", requireRole('buyer'), (req, res) => res.render("buyer/orders", { title: "Siparişlerim", pageCss: "orders.css", pageJs: "orders.js" }));
@@ -284,6 +300,7 @@ try {
     app.get("/buyer/seller-profile/:id", (req, res) => res.render("buyer/seller-profile", { title: "Satıcı Profili", pageCss: "seller-profile.css", pageJs: "seller-profile.js", sellerId: req.params.id }));
     app.get("/buyer/:id/profile", requireRole('buyer'), (req, res) => res.render("buyer/profile", { title: "Profilim", pageCss: "profile.css", pageJs: "profile.js", user: req.session.user || null, buyerId: req.params.id }));
 
+    // --- SATICI (SELLER) ROUTE'LARI ---
     app.get("/seller/dashboard", requireRole('seller'), (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
     app.get("/seller/orders", requireRole('seller'), (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js" }));
     app.get("/seller/menu", requireRole('seller'), (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js" }));
@@ -298,19 +315,23 @@ try {
     app.get("/seller/:id/profile", requireRole('seller'), (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/coupons", requireRole('seller'), (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
 
+    // --- KURYE (COURIER) ROUTE'LARI ---
     app.get("/courier/:id/dashboard", requireRole('courier'), (req, res) => res.render("courier/dashboard", { title: "Kurye Paneli", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/available", requireRole('courier'), (req, res) => res.render("courier/available", { title: "Müsait Siparişler", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/history", requireRole('courier'), (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/profile", requireRole('courier'), (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
 
+    // --- ADMIN ROUTE'LARI ---
     app.get("/admin/users", requireRole('admin'), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/coupons", requireRole('admin'), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
 
+    // --- HATA YAKALAMA FONKSİYONLARI ---
     function renderError(res, error, pageName) {
         writeLog('ERROR', `${pageName} render hatası`, { error: error.message });
         res.status(500).send(`<h1>500 - Render Hatası (${pageName})</h1><p>${error.message}</p>`);
     }
 
+    // --- 404 VE GENEL HATA YAKALAMA ---
     app.use((req, res) => {
         if (!req.path.includes('.well-known')) writeLog('WARN', `404: ${req.url}`);
         res.status(404).send(`<h1>404 - Sayfa Bulunamadı</h1><a href="/">Ana Sayfaya Dön</a>`);
@@ -321,29 +342,20 @@ try {
         res.status(500).send(`<h1>500 - Sunucu Hatası</h1><p>${err.message}</p>`);
     });
 
-    const INITIAL_PORT = parseInt(process.env.PORT, 10) || 3000;
+    // --- SERVER BAŞLATMA (KRİTİK DÜZELTME BURADA YAPILDI) ---
+    // IISNode, process.env.PORT içine Named Pipe yolu atar. 
+    // Bu yüzden direkt bunu dinlemeliyiz. Karmaşık port kontrollerine gerek yoktur.
+    const PORT = process.env.PORT || 3000;
 
-    function startServer(port, attemptedFallback = false) {
-        const server = app.listen(port, () => {
-            const isIisnode = !!process.env.IISNODE_VERSION;
-            writeLog('INFO', 'Server başarıyla başlatıldı', {
-                port: port,
-                mode: isIisnode ? 'IISNode' : 'Standalone',
-                nodeVersion: process.version
-            });
+    app.listen(PORT, () => {
+        const isIisnode = !!process.env.IISNODE_VERSION;
+        writeLog('INFO', 'Server başarıyla başlatıldı', {
+            port: PORT,
+            mode: isIisnode ? 'IISNode' : 'Standalone',
+            nodeVersion: process.version
         });
-
-        server.on('error', (err) => {
-            if (err && err.code === 'EADDRINUSE' && !attemptedFallback) {
-                const nextPort = port + 1;
-                writeLog('WARN', 'Port kullanımda, fallback port deneniyor', { from: port, to: nextPort });
-                return startServer(nextPort, true);
-            }
-            writeLog('ERROR', 'Server Listen Hatası', { error: err.message, code: err.code, port: port });
-        });
-    }
-
-    startServer(INITIAL_PORT);
+        console.log(`Sunucu ${PORT} portunda çalışıyor...`);
+    });
 
     module.exports = app;
 

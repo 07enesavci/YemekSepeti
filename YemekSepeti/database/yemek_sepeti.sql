@@ -1,15 +1,11 @@
--- ============================================
--- YEMEK SEPETİ VERİTABANI ŞEMASI
--- MySQL Workbench için SQL Script
--- ============================================
+-- Yemek Sepeti veritabanı şeması (MySQL)
+-- UTF8MB4 ve InnoDB kullanılır
 
 -- Veritabanını oluştur
 CREATE DATABASE IF NOT EXISTS yemek_sepeti CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE yemek_sepeti;
 
--- ============================================
--- 1. KULLANICILAR TABLOSU (Users)
--- ============================================
+-- 1. Kullanıcılar (users)
 CREATE TABLE users (
     id INT PRIMARY KEY AUTO_INCREMENT,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -24,9 +20,7 @@ CREATE TABLE users (
     INDEX idx_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 2. SATICILAR TABLOSU (Sellers/Shops)
--- ============================================
+-- 2. Satıcılar (sellers)
 CREATE TABLE sellers (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT UNIQUE NOT NULL,
@@ -49,9 +43,7 @@ CREATE TABLE sellers (
     INDEX idx_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 3. YEMEKLER/MENÜ TABLOSU (Meals)
--- ============================================
+-- 3. Yemekler/Menü (meals)
 CREATE TABLE meals (
     id INT PRIMARY KEY AUTO_INCREMENT,
     seller_id INT NOT NULL,
@@ -70,9 +62,7 @@ CREATE TABLE meals (
     INDEX idx_is_available (is_available)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 4. ADRESLER TABLOSU (Addresses)
--- ============================================
+-- 4. Adresler (addresses)
 CREATE TABLE addresses (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
@@ -91,9 +81,7 @@ CREATE TABLE addresses (
     INDEX idx_is_default (is_default)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 5. SEPET TABLOSU (Cart)
--- ============================================
+-- 5. Sepet (cart_items)
 CREATE TABLE cart_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
@@ -107,9 +95,7 @@ CREATE TABLE cart_items (
     INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 6. SİPARİŞLER TABLOSU (Orders)
--- ============================================
+-- 6. Siparişler (orders)
 CREATE TABLE orders (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_number VARCHAR(50) UNIQUE NOT NULL, -- "ORD-2025-001234" formatında
@@ -140,9 +126,7 @@ CREATE TABLE orders (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 7. SİPARİŞ DETAYLARI TABLOSU (Order Items)
--- ============================================
+-- 7. Sipariş detayları (order_items)
 CREATE TABLE order_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
@@ -157,9 +141,7 @@ CREATE TABLE order_items (
     INDEX idx_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 8. KUPONLAR TABLOSU (Coupons)
--- ============================================
+-- 8. Kuponlar (coupons)
 CREATE TABLE coupons (
     id INT PRIMARY KEY AUTO_INCREMENT,
     code VARCHAR(50) UNIQUE NOT NULL,
@@ -183,9 +165,7 @@ CREATE TABLE coupons (
     INDEX idx_valid_dates (valid_from, valid_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 9. KUPON KULLANIMLARI TABLOSU (Coupon Usages)
--- ============================================
+-- 9. Kupon kullanımları (coupon_usages)
 CREATE TABLE coupon_usages (
     id INT PRIMARY KEY AUTO_INCREMENT,
     coupon_id INT NOT NULL,
@@ -201,9 +181,7 @@ CREATE TABLE coupon_usages (
     INDEX idx_coupon_id (coupon_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 10. YORUMLAR/DEĞERLENDİRMELER TABLOSU (Reviews)
--- ============================================
+-- 10. Yorumlar/Değerlendirmeler (reviews)
 CREATE TABLE reviews (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
@@ -224,9 +202,7 @@ CREATE TABLE reviews (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 11. CÜZDAN/BAKİYE TABLOSU (Wallet)
--- ============================================
+-- 11. Cüzdan/Bakiye (wallet_transactions)
 CREATE TABLE wallet_transactions (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
@@ -243,9 +219,7 @@ CREATE TABLE wallet_transactions (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 12. KURYE GÖREVLERİ TABLOSU (Courier Tasks)
--- ============================================
+-- 12. Kurye görevleri (courier_tasks)
 CREATE TABLE courier_tasks (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
@@ -266,9 +240,7 @@ CREATE TABLE courier_tasks (
     INDEX idx_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 13. ÖDEME İŞLEMLERİ TABLOSU (Payments)
--- ============================================
+-- 13. Ödeme işlemleri (payments)
 CREATE TABLE payments (
     id INT PRIMARY KEY AUTO_INCREMENT,
     order_id INT NOT NULL,
@@ -286,9 +258,7 @@ CREATE TABLE payments (
     INDEX idx_payment_date (payment_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 14. BİLDİRİMLER TABLOSU (Notifications)
--- ============================================
+-- 14. Bildirimler (notifications)
 CREATE TABLE notifications (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
@@ -304,9 +274,7 @@ CREATE TABLE notifications (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- ÖRNEK VERİLER (INSERT STATEMENTS)
--- ============================================
+-- Örnek veriler (INSERT)
 
 -- Admin kullanıcı
 INSERT INTO users (email, password, fullname, role) VALUES
@@ -331,9 +299,7 @@ INSERT INTO meals (seller_id, category, name, description, price, image_url) VAL
 (1, 'Kebaplar', 'Adana Kebap', 'Acılı, porsiyon.', 130.00, 'https://images.unsplash.com/photo-1562967914-608f82629710?w=800&q=80'),
 (1, 'Pide', 'Kıymalı Pide', 'Bol malzemeli.', 90.00, 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80');
 
--- ============================================
--- YARDIMCI VIEW'LER (Görünümler)
--- ============================================
+-- Yardımcı görünümler (VIEW)
 
 -- Satıcı detay görünümü
 CREATE VIEW v_seller_details AS
@@ -377,9 +343,8 @@ LEFT JOIN users courier ON o.courier_id = courier.id
 LEFT JOIN order_items oi ON o.id = oi.order_id
 GROUP BY o.id;
 
--- ============================================
--- TRİGGER'LAR (Otomatik İşlemler)
--- ============================================
+-- Tetikleyiciler (TRIGGER)
+-- Not: DELIMITER MySQL içindir; farklı istemcilerde uyarlayın
 
 -- Sipariş numarası otomatik oluşturma
 DELIMITER //
@@ -427,9 +392,8 @@ BEGIN
 END//
 DELIMITER ;
 
--- ============================================
--- STORED PROCEDURE'LER (Saklı Yordamlar)
--- ============================================
+-- Saklı yordamlar (PROCEDURE)
+-- Not: DELIMITER MySQL içindir; farklı istemcilerde uyarlayın
 
 -- Kullanıcı cüzdan bakiyesini hesapla
 DELIMITER //
@@ -457,9 +421,5 @@ BEGIN
 END//
 DELIMITER ;
 
--- ============================================
--- SONUÇ
--- ============================================
--- Veritabanı şeması hazır!
--- MySQL Workbench'te bu dosyayı çalıştırarak tüm tabloları oluşturabilirsiniz.
+-- Sonuç: şema hazır. MySQL ile çalıştırabilirsiniz.
 

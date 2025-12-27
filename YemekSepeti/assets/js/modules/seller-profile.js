@@ -1,14 +1,10 @@
-// SATICI PROFİLİ (seller-profile.js)
-
+// Satıcı profil: bilgi, menü ve sekmelerin yüklenmesi
 function getSellerIdFromUrl() {
-    // Önce route parameter'dan almayı dene (/buyer/seller-profile/7)
     const pathParts = window.location.pathname.split('/');
     const sellerProfileIndex = pathParts.indexOf('seller-profile');
     if (sellerProfileIndex !== -1 && pathParts[sellerProfileIndex + 1]) {
         return pathParts[sellerProfileIndex + 1];
     }
-    
-    // Eğer route parameter yoksa, query parameter'dan al (geriye dönük uyumluluk için)
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('id');
 }
@@ -87,13 +83,8 @@ async function loadSellerProfile() {
             sellerBannerEl.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url(${bannerUrl})`;
         }
 
-        // Menüyü çek
         await loadSellerMenu(sellerId);
-        
-        // Yorumları çek
         await loadSellerReviews(sellerId);
-        
-        // Tab sistemi
         initializeTabs();
         
     } catch (error) {
@@ -102,9 +93,6 @@ async function loadSellerProfile() {
     }
 }
 
-/**
- * Satıcı yorumlarını API'den çekip gösterir
- */
 async function loadSellerReviews(sellerId) {
     const reviewsContent = document.getElementById('reviews-content');
     if (!reviewsContent) {
@@ -112,7 +100,6 @@ async function loadSellerReviews(sellerId) {
         return;
     }
     
-    // Yorumlar özelliği henüz aktif edilmedi mesajını göster
     reviewsContent.innerHTML = `
         <div class="card">
             <div class="card-content" style="text-align: center; padding: 3rem 2rem;">
@@ -123,22 +110,17 @@ async function loadSellerReviews(sellerId) {
     `;
 }
 
-/**
- * Tab sistemi başlat
- */
 function initializeTabs() {
     const tabLinks = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
 
     const activateTab = (targetTab) => {
-        // Tüm tab'ları deaktif et
         tabLinks.forEach(l => l.classList.remove('active'));
         tabContents.forEach(c => {
             c.classList.remove('active');
             c.style.display = 'none';
         });
 
-        // Seçilen tab'ı aktif et
         const link = document.querySelector(`.tab-link[data-tab="${targetTab}"]`);
         const targetContent = document.getElementById(`${targetTab}-content`);
         if (link) link.classList.add('active');
@@ -156,19 +138,15 @@ function initializeTabs() {
         });
     });
 
-    // URL'deki ?tab=reviews gibi parametreye göre başlangıç tab'ını ayarla
+    // URL parametresi ile varsayılan sekmeyi seç
     const urlTab = new URLSearchParams(window.location.search).get('tab');
     if (urlTab && document.getElementById(`${urlTab}-content`)) {
         activateTab(urlTab);
     } else {
-        // Mevcut markup ile tutarlı başlangıç durumu
         activateTab('menu');
     }
 }
 
-/**
- * Satıcı menüsünü API'den çekip gösterir
- */
 async function loadSellerMenu(sellerId) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -206,7 +184,6 @@ async function loadSellerMenu(sellerId) {
             menuByCategory[item.category].push(item);
         });
 
-        // Menüyü göster
         let menuHTML = '';
         for (const [category, items] of Object.entries(menuByCategory)) {
             menuHTML += `
@@ -215,7 +192,6 @@ async function loadSellerMenu(sellerId) {
             `;
             
             items.forEach(item => {
-                // HTML escape için güvenli isim
                 const safeItemName = (item.name || 'Yemek')
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
@@ -223,7 +199,6 @@ async function loadSellerMenu(sellerId) {
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#39;');
                 
-                // Resim URL'ini kontrol et - via.placeholder.com içeriyorsa SVG placeholder kullan
                 let itemImageUrl = item.imageUrl;
                 if (!itemImageUrl || 
                     itemImageUrl.trim() === '' ||
@@ -232,14 +207,12 @@ async function loadSellerMenu(sellerId) {
                     const itemName = (item.name || 'Yemek').substring(0, 20);
                     itemImageUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="250" height="150"><rect width="250" height="150" fill="#f0f0f0"/><text x="50%" y="50%" font-family="Arial" font-size="18" fill="#666" text-anchor="middle" dominant-baseline="middle">${itemName}</text></svg>`)}`;
                 } else {
-                    // Relative path'leri de kabul et (/uploads/... gibi)
                     itemImageUrl = itemImageUrl.trim();
-                    // Relative path ise base URL ekle
                     if (itemImageUrl.startsWith('/uploads/')) {
                         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
                         itemImageUrl = `${baseUrl}${itemImageUrl}`;
                     }
-                    // Cache-busting için timestamp ekle
+                    // Önbellek kırmak için zaman damgası ekle
                     const separator = itemImageUrl.includes('?') ? '&' : '?';
                     itemImageUrl = itemImageUrl + separator + '_t=' + Date.now();
                 }
@@ -266,26 +239,22 @@ async function loadSellerMenu(sellerId) {
 
         menuContent.innerHTML = menuHTML;
         
-        // Sepete ekle butonlarına event listener ekle
+        // Inline onclick yerine modern event listener kullan
         setTimeout(function() {
             var addToCartButtons = menuContent.querySelectorAll('button[onclick*="addToCart"]');
             addToCartButtons.forEach(function(button) {
                 var onclickAttr = button.getAttribute('onclick');
                 if (onclickAttr) {
-                    // onclick attribute'unu kaldır ve event listener ekle
                     button.removeAttribute('onclick');
                     button.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        // onclick içindeki parametreleri parse et
                         var match = onclickAttr.match(/addToCart\((\d+),\s*(\d+)(?:,\s*(\d+))?\)/);
                         if (match) {
                             var mealId = parseInt(match[1]);
                             var sellerId = parseInt(match[2]);
                             var quantity = match[3] ? parseInt(match[3]) : 1;
                             addToCart(mealId, sellerId, quantity);
-                            
-                            // Buton feedback
                             var originalText = button.innerHTML;
                             button.textContent = 'Eklendi!';
                             button.disabled = true;
@@ -308,9 +277,7 @@ async function loadSellerMenu(sellerId) {
     }
 }
 
-// Sayfa yüklendiğinde satıcı profilini yükle
 document.addEventListener('DOMContentLoaded', () => {
-    // Sadece seller-profile sayfasında çalışsın
     if (document.getElementById('seller-name')) {
         loadSellerProfile();
     }

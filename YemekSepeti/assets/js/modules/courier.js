@@ -1,11 +1,3 @@
-// =================================================================
-// GENEL VERİ, YARDIMCI VE API FONKSİYONLARI
-// =================================================================
-
-// API Base URL - getApiBaseUrl fonksiyonu api.js'de window.getApiBaseUrl olarak tanımlı
-// Direkt olarak window.getApiBaseUrl() kullanıyoruz
-
-// Courier API fonksiyonları
 async function fetchAvailableTasks() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -104,7 +96,6 @@ async function updateCourierProfile(fullname, phone, status, vehicleType) {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
         
-        // Sadece gönderilen değerleri body'ye ekle
         const body = {};
         if (fullname) body.fullname = fullname;
         if (phone) body.phone = phone;
@@ -129,7 +120,6 @@ async function updateCourierProfile(fullname, phone, status, vehicleType) {
                 const errorData = JSON.parse(responseText);
                 errorMessage = errorData.message || errorMessage;
             } catch (e) {
-                // JSON parse edilemezse text'i kullan
                 errorMessage = responseText || errorMessage;
             }
             
@@ -213,11 +203,6 @@ function initializeLogout() {
     });
 }
 
-// LocalStorage fonksiyonları kaldırıldı - artık backend API kullanılıyor
-
-// =================================================================
-// PROFİL SAYFASI İŞLEVLERİ (profile.html)
-// =================================================================
 
 async function loadProfileData() {
     const courierNameInput = document.getElementById('courier-name');
@@ -231,18 +216,15 @@ async function loadProfileData() {
     try {
         const profile = await fetchCourierProfile();
         if (profile) {
-            // Ad soyad ve telefon
             courierNameInput.value = profile.fullname || '';
             courierPhoneInput.value = formatPhoneNumber(profile.phone || '');
             
-            // Araç tipi - veritabanından
             if (profile.vehicleType) {
                 courierVehicleSelect.value = profile.vehicleType;
             } else {
                 courierVehicleSelect.value = 'motorcycle';
             }
             
-            // Status - veritabanından
             if (statusOnline && statusOffline) {
                 const courierStatus = profile.status || 'online';
                 if (courierStatus === 'online') {
@@ -284,7 +266,6 @@ async function handleProfileUpdate(event) {
         await updateCourierProfile(fullname, rawPhone, status, vehicleType);
         displayMessage('✅ Profil bilgileri başarıyla güncellendi!', 'success');
         
-        // Session'ı güncelle (localStorage)
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         user.fullname = fullname;
         user.phone = rawPhone;
@@ -302,22 +283,17 @@ async function handleStatusChange() {
     const courierPhoneInput = document.getElementById('courier-phone');
     const courierVehicleSelect = document.getElementById('courier-vehicle');
 
-    // Profil bilgilerini al (opsiyonel - sadece status güncellemesi için gerekli değil)
     const fullname = courierNameInput ? courierNameInput.value.trim() : '';
     const rawPhone = courierPhoneInput ? courierPhoneInput.value.replace(/\D/g, '') : '';
     const vehicleType = courierVehicleSelect ? courierVehicleSelect.value : 'motorcycle';
 
-    // Status güncellemesi için API çağrısı yap (fullname ve phone olmadan da çalışır)
     try {
-        // Sadece status gönder (diğer alanlar opsiyonel)
         await updateCourierProfile(fullname || null, rawPhone || null, newStatus, vehicleType);
         
-        // Durum göstergesini güncelle
         if (typeof updateCourierStatusIndicator === 'function') {
             updateCourierStatusIndicator(newStatus);
         }
         
-        // Status mesajı
         let statusText;
         if (newStatus === 'online') {
             statusText = 'Aktif (Görev Alabilir)';
@@ -347,11 +323,6 @@ function initializeProfilePage() {
     }
 }
 
-// =================================================================
-// ALINABİLİR SİPARİŞLER İŞLEVLERİ (available.html)
-// =================================================================
-
-// acceptOrderAndSave fonksiyonu kaldırıldı - artık backend API kullanılıyor
 
 function createOrderCardHTML(order) {
     return `
@@ -432,7 +403,6 @@ async function loadAvailableOrders() {
         
         ordersListContainer.innerHTML = '';
         
-        // Eğer mesaj varsa göster (pasif durum veya görev yok)
         if (data.message || tasks.length === 0) {
             const message = data.message || "Henüz aktif görev bulunmamaktadır.";
             ordersListContainer.innerHTML = `
@@ -465,9 +435,6 @@ function initializeAvailablePage() {
     loadAvailableOrders();
 }
 
-// =================================================================
-// DASHBOARD İŞLEVLERİ (dashboard.html)
-// =================================================================
 
 async function handleTaskComplete(event) {
     const orderId = event.currentTarget.getAttribute('data-order-id');
@@ -490,7 +457,6 @@ async function handleTaskComplete(event) {
 }
 
 function createActiveTaskCard(order) {
-    // Ternary Operatör Dönüşümleri (Kısa devre || operatörleri korunmuştur.)
     const pickupName = (order.pickup || '').split('(')[0].trim();
     const dropoffName = (order.dropoff || '').split('(')[0].trim();
     
@@ -582,9 +548,6 @@ async function loadActiveTasks() {
     }
 }
 
-/**
- * Kurye durum göstergesini güncelle
- */
 function updateCourierStatusIndicator(status) {
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
@@ -593,17 +556,12 @@ function updateCourierStatusIndicator(status) {
     
     const isOnline = status === 'online';
     
-    // Durum dot rengi
     statusDot.style.background = isOnline ? '#10B981' : '#EF4444';
     
-    // Durum metni
     statusText.textContent = isOnline ? 'Aktif' : 'Pasif';
     statusText.style.color = isOnline ? '#10B981' : '#EF4444';
 }
 
-/**
- * Kurye durum göstergesini yükle ve göster
- */
 async function loadCourierStatusIndicator() {
     const indicator = document.getElementById('courier-status-indicator');
     const statusDot = document.getElementById('status-dot');
@@ -630,12 +588,8 @@ function initializeDashboardPage() {
     loadCourierStatusIndicator();
 }
 
-// =================================================================
-// TESLİMAT GEÇMİŞİ İŞLEVLERİ (history.html)
-// =================================================================
 
 function createTransactionItemHTML(transaction) {
-    // Ternary Operatör Dönüşümleri
     let typeClass = transaction.type;
     if (!typeClass) {
         typeClass = 'income';
@@ -647,7 +601,6 @@ function createTransactionItemHTML(transaction) {
     } else {
         sign = '-';
     }
-    // -----
     
     const formattedDate = (() => {
         try {
@@ -657,7 +610,6 @@ function createTransactionItemHTML(transaction) {
         }
     })();
 
-    // Ternary Operatör Dönüşümü (payout kontrolü)
     let amount = transaction.amount;
     if (!amount) {
         amount = 0;
@@ -680,7 +632,6 @@ function createTransactionItemHTML(transaction) {
 }
 
 async function updateHistoryStats(allTransactions) {
-    // Önce backend'den toplam kazançları al
     try {
         const earnings = await fetchCourierEarnings('month');
         if (earnings && earnings.stats) {
@@ -697,7 +648,6 @@ async function updateHistoryStats(allTransactions) {
                 deliveryValue.textContent = totalDeliveries;
             }
         } else {
-            // Fallback: transactions'dan hesapla
             const totalEarnings = allTransactions
                 .filter(t => t.type === 'income')
                 .reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -729,7 +679,6 @@ async function loadHistoryData() {
         historyCardContent = document.querySelector('.card .card-content');
     }
     
-    // İstatistikleri güncelle
     await updateHistoryStats([]);
 
     if (!transactionListContainer || !historyCardContent) return;
@@ -740,7 +689,6 @@ async function loadHistoryData() {
         const data = await fetchHistoryTasks(1, 50);
         const historyOrders = data.tasks || [];
 
-        // Eğer görev yoksa boş durum mesajı göster
         if (historyOrders.length === 0) {
             if (transactionListContainer) {
                 transactionListContainer.innerHTML = `
@@ -791,9 +739,6 @@ function initializeHistoryPage() {
     loadHistoryData();
 }
 
-// =================================================================
-// BAŞLATMA VE YÖNLENDİRME (ENTRY POINT)
-// =================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeLogout();
@@ -801,7 +746,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname || window.location.href;
 
     try {
-        // EJS route'larına göre kontrol et
         if (path.includes('/courier/') && path.includes('/profile')) {
             initializeProfilePage();
         } else if (path.includes('/courier/available')) {
@@ -811,7 +755,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (path.includes('/courier/history')) {
             initializeHistoryPage();
         } else {
-            // Fallback: HTML sayfaları için (geriye dönük uyumluluk)
             if (path.includes('profile.html')) {
                 initializeProfilePage();
             } else if (path.includes('available.html')) {
@@ -821,7 +764,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (path.includes('history.html')) {
                 initializeHistoryPage();
             } else {
-                // DOM elementlerine göre fallback
                 if (document.querySelector('.transaction-list')) {
                     initializeHistoryPage();
                 } else if (document.querySelector('.available-orders-list')) {

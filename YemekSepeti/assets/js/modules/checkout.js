@@ -1,4 +1,3 @@
-// Adresleri API'den yükle
 async function loadAddresses() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -19,7 +18,6 @@ async function loadAddresses() {
     }
 }
 
-// Ödeme kartlarını API'den yükle
 async function loadPaymentCards() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -40,17 +38,14 @@ async function loadPaymentCards() {
     }
 }
 
-// Adresleri HTML'e ekle
 function renderAddresses(addresses) {
     const addressContainer = document.querySelector('.checkout-card .role-selector');
     if (!addressContainer) return;
     
-    // Mevcut adres radio'larını temizle (yeni adres ekle hariç)
     const newAddressRadio = addressContainer.querySelector('#address-new');
     const newAddressLabel = newAddressRadio ? newAddressRadio.closest('.form-check-radio') : null;
     addressContainer.innerHTML = '';
     
-    // Adresleri ekle
     if (addresses.length > 0) {
         addresses.forEach((address) => {
             const addressDiv = document.createElement('div');
@@ -66,7 +61,6 @@ function renderAddresses(addresses) {
         });
     }
     
-    // Yeni adres ekle seçeneğini ekle
     if (newAddressLabel) {
         addressContainer.appendChild(newAddressLabel);
     } else {
@@ -82,17 +76,14 @@ function renderAddresses(addresses) {
     }
 }
 
-// Ödeme kartlarını HTML'e ekle
 function renderPaymentCards(cards) {
     const paymentContainer = document.querySelectorAll('.checkout-card .role-selector')[1];
     if (!paymentContainer) return;
     
-    // Mevcut kart radio'larını temizle (yeni kart ekle hariç)
     const newCardRadio = paymentContainer.querySelector('#card-new');
     const newCardLabel = newCardRadio ? newCardRadio.closest('.form-check-radio') : null;
     paymentContainer.innerHTML = '';
     
-    // Kartları ekle
     if (cards.length > 0) {
         cards.forEach((card) => {
             const cardDiv = document.createElement('div');
@@ -108,7 +99,6 @@ function renderPaymentCards(cards) {
         });
     }
     
-    // Yeni kart ekle seçeneğini ekle
     if (newCardLabel) {
         paymentContainer.appendChild(newCardLabel);
     } else {
@@ -124,7 +114,6 @@ function renderPaymentCards(cards) {
     }
 }
 
-// Yeni adres ekleme formu
 const NEW_ADDRESS_FORM_CHECKOUT = `
     <div id="new-address-form-checkout" style="display: none; margin-top: 1.5rem;">
         <div class="card" style="background: var(--bg-color);">
@@ -190,15 +179,12 @@ async function cizOdemeSayfasi()
 
 document.addEventListener('DOMContentLoaded', async function(){
 
-        // Adresleri yükle
         const addresses = await loadAddresses();
         renderAddresses(addresses);
         
-        // Ödeme kartlarını yükle
         const cards = await loadPaymentCards();
         renderPaymentCards(cards);
         
-        // Yeni adres formunu ekle
         const addressCard = document.querySelector('.checkout-card');
         if (addressCard && !document.getElementById('new-address-form-checkout')) {
             addressCard.insertAdjacentHTML('afterend', NEW_ADDRESS_FORM_CHECKOUT);
@@ -229,17 +215,14 @@ document.addEventListener('DOMContentLoaded', async function(){
                         
                         const data = await response.json();
                         if (data.success) {
-                            // Adresleri yeniden yükle
                             const newAddresses = await loadAddresses();
                             renderAddresses(newAddresses);
                             
-                            // Yeni eklenen adresi seç
                             const newAddressRadio = document.getElementById(`address-${data.addressId}`);
                             if (newAddressRadio) {
                                 newAddressRadio.checked = true;
                             }
                             
-                            // Formu gizle ve temizle
                             document.getElementById('new-address-form-checkout').style.display = 'none';
                             newAddressForm.reset();
                             document.getElementById('address-new').checked = false;
@@ -312,7 +295,6 @@ document.addEventListener('DOMContentLoaded', async function(){
 
             	 	 	if (adresSecili === 'new')
                                 {
-    	 	 	 	        // Yeni adres formunu göster
     	 	 	 	        const newAddressForm = document.getElementById('new-address-form-checkout');
     	 	 	 	        if (newAddressForm) {
     	 	 	 	            newAddressForm.style.display = 'block';
@@ -322,7 +304,6 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	        }
                                 else
                                 {
-                                        // Address ID'yi al
                                         addressId = parseInt(adresSecili);
                                         if (!addressId) {
                                             alert('Geçersiz adres seçildi.');
@@ -344,10 +325,8 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	 	 	return;
     	 	 	 	 	}
     	 	 	 	        
-    	 	 	 	        // Kart numarasını temizle
     	 	 	 	        const cleanCardNo = kartNo.replace(/\s/g, '');
     	 	 	 	        
-    	 	 	 	        // Expiry'yi parse et (MM/YY formatı)
     	 	 	 	        const expiryParts = kartExpiry.split('/');
     	 	 	 	        const expiryMonth = parseInt(expiryParts[0]);
     	 	 	 	        const expiryYear = parseInt(expiryParts[1]);
@@ -357,7 +336,6 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	            return;
     	 	 	 	        }
     	 	 	 	        
-    	 	 	 	        // Kartı kaydet
     	 	 	 	        try {
                                 const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
     	 	 	 	            const cardResponse = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
@@ -368,7 +346,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	                    cardName: kartAdi,
     	 	 	 	                    cardNumber: cleanCardNo,
     	 	 	 	                    expiryMonth: expiryMonth,
-    	 	 	 	                    expiryYear: 2000 + expiryYear, // YY'yi YYYY'ye çevir
+    	 	 	 	                    expiryYear: 2000 + expiryYear,
     	 	 	 	                    cvc: kartCvc,
     	 	 	 	                    isDefault: false
     	 	 	 	                })
@@ -380,7 +358,6 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	                return;
     	 	 	 	            }
     	 	 	 	            
-    	 	 	 	            // Kartları yeniden yükle ve yeni kartı seç
     	 	 	 	            const newCards = await loadPaymentCards();
     	 	 	 	            renderPaymentCards(newCards);
     	 	 	 	            
@@ -389,11 +366,9 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	                newCardRadio.checked = true;
     	 	 	 	            }
     	 	 	 	            
-    	 	 	 	            // Formu gizle
     	 	 	 	            document.getElementById('new-card-form').style.display = 'none';
     	 	 	 	            document.getElementById('card-new').checked = false;
     	 	 	 	            
-    	 	 	 	            // Kart seçimini güncelle
     	 	 	 	            kartSecili = cardData.cardId.toString();
     	 	 	 	        } catch (cardError) {
     	 	 	 	            console.error('Kart kaydetme hatası:', cardError);
@@ -401,16 +376,14 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	            return;
     	 	 	 	        }
     	 	 	        } else {
-    	 	 	            // Mevcut kart seçildi - zaten paymentMethod = 'credit_card' olarak tanımlı
     	 	 	        }
 
-    	 	 	        // Sepeti API formatına çevir
     	 	 	        var cartForAPI = sepet.map(function(item) {
     	 	 	            return {
     	 	 	                mealId: item.urun.id,
     	 	 	                quantity: item.adet,
     	 	 	                price: item.urun.price || item.urun.fiyat,
-    	 	 	                urun: item.urun, // Backend sellerId için gerekli
+    	 	 	                urun: item.urun,
     	 	 	                sellerId: item.urun.sellerId || null
     	 	 	            };
     	 	 	        });
@@ -430,13 +403,10 @@ document.addEventListener('DOMContentLoaded', async function(){
             	 	 	            throw new Error(sonuc?.message || 'Sipariş oluşturulamadı');
             	 	 	        }
             	 	 	        
-            	 	 	        // Sepeti temizle
     	 	 	 	 	 	window.sepetiTemizle();
-    	 	 	 	 	 	// Floating cart'ı kapat
     	 	 	 	 	 	if (window.closeFloatingCart) {
     	 	 	 	 	 	    window.closeFloatingCart();
     	 	 	 	 	 	}
-    	 	 	 	 	 	// Sipariş onay sayfasına yönlendir
                             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
     	 	 	 	 	 	const orderId = sonuc.orderId || sonuc.id;
     	 	 	 	 	 	if (orderId) {
@@ -467,14 +437,12 @@ document.addEventListener('DOMContentLoaded', async function(){
     	document.addEventListener('change', function(e) {
     	    if (e.target.name === 'address') {
     	        if (e.target.value === 'new') {
-    	            // Yeni adres formunu göster
     	            const newAddressForm = document.getElementById('new-address-form-checkout');
     	            if (newAddressForm) {
     	                newAddressForm.style.display = 'block';
     	                newAddressForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     	            }
     	        } else {
-    	            // Yeni adres formunu gizle
     	            const newAddressForm = document.getElementById('new-address-form-checkout');
     	            if (newAddressForm) {
     	                newAddressForm.style.display = 'none';

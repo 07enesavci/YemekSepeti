@@ -1,10 +1,5 @@
-// ============================================
-// GÜVENLİK SAYFASI MODÜLÜ (security.js)
-// ============================================
-
-// API fonksiyonları
+// Güvenlik modülü: şifre değiştirme ve 2FA yönetimi
 const BUYER_API = {
-    // Şifre değiştir
     changePassword: async (currentPassword, newPassword) => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -25,7 +20,6 @@ const BUYER_API = {
             throw error;
         }
     },
-    // 2FA durumunu getir
     get2FAStatus: async () => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -42,7 +36,6 @@ const BUYER_API = {
             return false;
         }
     },
-    // 2FA aç/kapat
     toggle2FA: async (enabled) => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -65,7 +58,7 @@ const BUYER_API = {
     }
 };
 
-// Sayfa yüklendiğinde çalışacak fonksiyon
+// Başlatma: DOM yüklendiğinde olaylar bağlanır
 document.addEventListener('DOMContentLoaded', async () => {
     const changePasswordForm = document.getElementById('change-password-form');
     const changePasswordBtn = document.getElementById('change-password-btn');
@@ -84,12 +77,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             twoFactorStatusText.textContent = '❌ Yüklenemedi';
         }
 
-        // 2FA toggle event
+        // 2FA değişikliği öncesi kullanıcıdan onay alınır
         twoFactorToggle.addEventListener('change', async (e) => {
             const enabled = e.target.checked;
             const originalChecked = !enabled;
             
-            // Onay iste
             const confirmMessage = enabled 
                 ? 'İki faktörlü kimlik doğrulamayı açmak istediğinize emin misiniz? Giriş yaparken email adresinize kod gönderilecektir.'
                 : 'İki faktörlü kimlik doğrulamayı kapatmak istediğinize emin misiniz?';
@@ -115,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Şifre değiştirme formu
+    // Şifre formu: geçerli doğrulamalar ve buton geçici olarak devre dışı
     if (changePasswordForm) {
         changePasswordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -124,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const newPassword = document.getElementById('new-password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
 
-            // Validasyonlar
+            // Boşluk, uzunluk ve eşleşme kontrolleri
             if (!currentPassword || !newPassword || !confirmPassword) {
                 alert('Lütfen tüm alanları doldurun.');
                 return;
@@ -154,12 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (response.success) {
                     alert(response.message || 'Şifreniz başarıyla değiştirildi. Lütfen yeni şifrenizle tekrar giriş yapın.');
-                    // Formu temizle
                     changePasswordForm.reset();
-                    // İsteğe bağlı: Kullanıcıyı logout yap
-                    // if (window.logout) {
-                    //     window.logout();
-                    // }
                 } else {
                     alert('Şifre değiştirilemedi: ' + (response.message || 'Bilinmeyen hata'));
                 }
@@ -173,7 +160,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Logout butonu
     if (logoutBtn) {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();

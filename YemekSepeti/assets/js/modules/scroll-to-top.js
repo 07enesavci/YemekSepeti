@@ -1,13 +1,6 @@
-// ============================================
-// SCROLL TO TOP BUTTON
-// Sağ alt köşede sayfanın en üstüne çıkmak için buton
-// ============================================
-
 let scrollToTopButton = null;
 
-// Scroll to top butonu oluştur
 function createScrollToTopButton() {
-    // Eğer buton zaten varsa, oluşturma
     if (document.getElementById('scroll-to-top-btn')) {
         return;
     }
@@ -17,21 +10,15 @@ function createScrollToTopButton() {
     button.className = 'scroll-to-top-btn';
     button.setAttribute('aria-label', 'En üste çık');
     button.innerHTML = '↑';
-    button.style.display = 'none'; // Başlangıçta gizli
-    
-    // Tıklama olayı
+    button.style.display = 'none';
     button.addEventListener('click', () => {
         window.scrollTo({
             top: 0,
             behavior: 'smooth'
         });
     });
-    
-    // Sayfaya ekle
     document.body.appendChild(button);
     scrollToTopButton = button;
-    
-    // Buton pozisyonunu ayarla - her zaman sağ alt köşeye
     function adjustButtonPosition() {
         if (window.innerWidth <= 480) {
             button.style.bottom = '1rem';
@@ -41,28 +28,16 @@ function createScrollToTopButton() {
             button.style.bottom = '2rem';
         }
     }
-    
-    // İlk pozisyon ayarı
     adjustButtonPosition();
-    
-    // Responsive için window resize dinle
     window.addEventListener('resize', adjustButtonPosition);
-    
-    // Floating cart yüklendikten sonra pozisyonu güncelle (delay ile)
     setTimeout(adjustButtonPosition, 1000);
-    
-    // Scroll olayını dinle
     window.addEventListener('scroll', toggleScrollToTopButton);
-    
-    // İlk kontrol
     toggleScrollToTopButton();
 }
 
-// Butonu göster/gizle (scroll pozisyonuna göre)
 function toggleScrollToTopButton() {
     if (!scrollToTopButton) return;
     
-    // 300px aşağı scroll edilmişse butonu göster
     if (window.pageYOffset > 300 || document.documentElement.scrollTop > 300) {
         scrollToTopButton.style.display = 'flex';
     } else {
@@ -70,18 +45,13 @@ function toggleScrollToTopButton() {
     }
 }
 
-// Panel sayfalarında veya panel kullanıcıları için scroll-to-top butonu göster
 async function checkAndShowScrollToTop() {
     const path = window.location.pathname;
     const isPanelPage = path.includes('/seller/') || path.includes('/courier/') || path.includes('/admin/');
-    
-    // Panel sayfalarında her zaman göster
     if (isPanelPage) {
         createScrollToTopButton();
         return;
     }
-    
-    // Auth sayfalarında API çağrısı yapma
     const isAuthPage = window.location.pathname.includes('/login') || 
                        window.location.pathname.includes('/register') ||
                        window.location.pathname.includes('/forgot-password') ||
@@ -89,32 +59,23 @@ async function checkAndShowScrollToTop() {
     if (isAuthPage) {
         return;
     }
-    
-    // Kullanıcı kontrolü - cache'lenmiş kullanıcı bilgisini kullan
     const cachedUser = localStorage.getItem('user');
     if (cachedUser) {
         try {
             const user = JSON.parse(cachedUser);
-            // Panel kullanıcıları için scroll-to-top göster
             if (user.role === 'seller' || user.role === 'courier' || user.role === 'admin') {
                 createScrollToTopButton();
                 return;
             }
         } catch (e) {
-            // Parse hatası, devam et
         }
     }
-    // Kullanıcı giriş yapmamış veya buyer ise scroll-to-top gösterme
-    
-    // Normal kullanıcılar için de göster
     createScrollToTopButton();
 }
 
-// Sayfa yüklendiğinde butonu oluştur
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', checkAndShowScrollToTop);
 } else {
-    // DOM zaten yüklendi
     checkAndShowScrollToTop();
 }
 

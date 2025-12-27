@@ -1,14 +1,7 @@
-// =================================================================
-// YEMEK EKLEME/DÜZENLEME MODAL FONKSİYONLARI
-// =================================================================
-
-/**
- * Yemek ekleme modal'ını aç
- */
+ 
 function openAddMealModal() {
     const modal = document.getElementById('meal-modal');
     if (!modal) {
-        // Modal yoksa oluştur
         createMealModal();
     }
     
@@ -21,7 +14,6 @@ function openAddMealModal() {
         mealForm.reset();
         mealForm.setAttribute('data-meal-id', '');
         
-        // Resim seçeneklerini sıfırla
         const imageOptionFile = document.getElementById('image-option-file');
         const imageOptionUrl = document.getElementById('image-option-url');
         const imageFileContainer = document.getElementById('image-file-container');
@@ -41,17 +33,12 @@ function openAddMealModal() {
     modalInstance.style.display = 'flex';
 }
 
-/**
- * Yemek düzenleme modal'ını aç (mealId ile)
- */
+ 
 function openEditMealModal(mealId) {
-    // Bu fonksiyon artık kullanılmıyor, openEditMealModalWithData kullanılacak
     console.warn('openEditMealModal(mealId) deprecated, use openEditMealModalWithData(meal) instead');
 }
 
-/**
- * Yemek düzenleme modal'ını aç (meal objesi ile)
- */
+ 
 function openEditMealModalWithData(meal) {
     const modal = document.getElementById('meal-modal');
     if (!modal) {
@@ -83,9 +70,7 @@ function openEditMealModalWithData(meal) {
     if (mealForm) mealForm.setAttribute('data-meal-id', meal.id);
     if (modalTitle) modalTitle.textContent = 'Yemek Düzenle';
     
-    // Resim ayarları
     if (meal.imageUrl) {
-        // Eğer URL varsa ve /uploads/ ile başlıyorsa (yüklenmiş dosya), dosya seçeneğini göster
         if (meal.imageUrl.startsWith('/uploads/')) {
             if (imageOptionFile) imageOptionFile.checked = true;
             if (imageOptionUrl) imageOptionUrl.checked = false;
@@ -96,7 +81,6 @@ function openEditMealModalWithData(meal) {
                 mealImagePreview.style.display = 'block';
             }
         } else {
-            // URL ise URL seçeneğini göster
             if (imageOptionFile) imageOptionFile.checked = false;
             if (imageOptionUrl) imageOptionUrl.checked = true;
             if (imageFileContainer) imageFileContainer.style.display = 'none';
@@ -104,7 +88,6 @@ function openEditMealModalWithData(meal) {
             if (mealImageUrl) mealImageUrl.value = meal.imageUrl;
         }
     } else {
-        // Resim yoksa dosya seçeneğini göster
         if (imageOptionFile) imageOptionFile.checked = true;
         if (imageOptionUrl) imageOptionUrl.checked = false;
         if (imageFileContainer) imageFileContainer.style.display = 'block';
@@ -114,9 +97,7 @@ function openEditMealModalWithData(meal) {
     modalInstance.style.display = 'flex';
 }
 
-/**
- * Yemek modal'ını oluştur
- */
+ 
 function createMealModal() {
     const modalHTML = `
         <div id="meal-modal" class="modal-overlay" style="display: none;">
@@ -184,7 +165,6 @@ function createMealModal() {
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Image option değiştiğinde container'ları göster/gizle
     const imageOptionFile = document.getElementById('image-option-file');
     const imageOptionUrl = document.getElementById('image-option-url');
     const imageFileContainer = document.getElementById('image-file-container');
@@ -204,12 +184,10 @@ function createMealModal() {
         });
     }
     
-    // Dosya seçildiğinde önizleme göster
     if (mealImageFile && mealImagePreview) {
         mealImageFile.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
-                // Dosya boyutu kontrolü (max 5MB)
                 if (file.size > 5 * 1024 * 1024) {
                     alert('❌ Resim çok büyük! Maksimum 5MB olmalı.');
                     e.target.value = '';
@@ -229,7 +207,6 @@ function createMealModal() {
         });
     }
     
-    // Form submit handler
     const mealForm = document.getElementById('meal-form');
     if (mealForm) {
         mealForm.addEventListener('submit', async (e) => {
@@ -240,13 +217,11 @@ function createMealModal() {
             
             let imageUrl = null;
             
-            // Resim URL'ini belirle
             if (imageOption === 'file') {
                 const fileInput = document.getElementById('meal-image-file');
                 const file = fileInput?.files[0];
                 
                 if (file) {
-                    // Dosyayı yükle
                     try {
                         console.log('📤 Resim yükleniyor...', file.name, file.size, 'bytes');
                         const formData = new FormData();
@@ -294,7 +269,6 @@ function createMealModal() {
                     console.log('⚠️ Dosya seçilmedi');
                 }
             } else {
-                // URL'den al
                 const urlInput = document.getElementById('meal-image-url');
                 const urlValue = urlInput?.value?.trim();
                 if (urlValue && urlValue !== '') {
@@ -311,7 +285,7 @@ function createMealModal() {
                 category: document.getElementById('meal-category').value,
                 description: document.getElementById('meal-description').value,
                 price: parseFloat(document.getElementById('meal-price').value),
-                imageUrl: imageUrl, // imageUrl null olabilir, bu normal
+                imageUrl: imageUrl,
                 isAvailable: document.getElementById('meal-available').checked
             };
             
@@ -320,19 +294,16 @@ function createMealModal() {
             
             try {
                 if (mealId) {
-                    // Düzenleme
                     console.log('🔄 Yemek güncelleniyor...', mealId);
                     await window.updateMeal(parseInt(mealId), mealData);
                     alert('✅ Yemek başarıyla güncellendi!');
                 } else {
-                    // Ekleme
                     console.log('➕ Yemek ekleniyor...');
                     await window.addMeal(mealData);
                     alert('✅ Yemek başarıyla eklendi!');
                 }
                 
                 closeMealModal();
-                // Menüyü yeniden yükle
                 if (window.loadMenuPage) {
                     await window.loadMenuPage();
                 } else {
@@ -345,9 +316,7 @@ function createMealModal() {
     }
 }
 
-/**
- * Yemek modal'ını kapat
- */
+ 
 function closeMealModal() {
     const modal = document.getElementById('meal-modal');
     if (modal) {
@@ -355,7 +324,6 @@ function closeMealModal() {
     }
 }
 
-// Modal overlay'e tıklanınca kapat
 document.addEventListener('click', (e) => {
     const modal = document.getElementById('meal-modal');
     if (e.target === modal) {
@@ -363,7 +331,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Global fonksiyonlar
 window.openAddMealModal = openAddMealModal;
 window.openEditMealModal = openEditMealModal;
 window.openEditMealModalWithData = openEditMealModalWithData;

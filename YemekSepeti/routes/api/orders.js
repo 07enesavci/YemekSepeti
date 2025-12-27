@@ -668,6 +668,61 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
     }
 });
 
+router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const userId = req.session.user.id;
+
+        if (isNaN(orderId) || orderId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Geçersiz sipariş ID'si."
+            });
+        }
+
+        const order = await Order.findOne({
+            where: {
+                id: orderId,
+                user_id: userId
+            },
+            attributes: ['id', 'status']
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Sipariş bulunamadı veya size ait değil."
+            });
+        }
+
+        // Sadece belirli durumlardaki siparişler iptal edilebilir
+        const cancellableStatuses = ['pending', 'confirmed', 'preparing', 'ready'];
+        if (!cancellableStatuses.includes(order.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Bu sipariş ${getStatusText(order.status)} durumunda olduğu için iptal edilemez.`
+            });
+        }
+
+        await Order.update(
+            { status: 'cancelled' },
+            { where: { id: orderId, user_id: userId } }
+        );
+
+        res.json({
+            success: true,
+            message: "Sipariş başarıyla iptal edildi."
+        });
+
+    } catch (error) {
+        console.error('Sipariş iptal hatası:', error);
+        res.status(500).json({
+            success: false,
+            message: "Sunucu hatası. Sipariş iptal edilemedi."
+        });
+    }
+});
+
 router.get("/:id", requireAuth, async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);

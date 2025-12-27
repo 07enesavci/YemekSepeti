@@ -1,7 +1,3 @@
-/**
- * Header yönetimi - Login durumuna göre butonları göster/gizle
- */
-
 const THEME_STORAGE_KEY = 'ys-theme';
 
 function getPreferredTheme() {
@@ -46,9 +42,8 @@ function initThemeToggle() {
         return;
     }
 
-    // Event listener ekle (birden fazla kez eklenmesini önlemek için önce kaldır)
     toggleBtn.removeEventListener('click', handleThemeToggle);
-    toggleBtn.addEventListener('click', handleThemeToggle, true); // Capture phase'de dinle
+    toggleBtn.addEventListener('click', handleThemeToggle, true);
 }
 
 function handleThemeToggle(e) {
@@ -67,9 +62,7 @@ function handleThemeToggle(e) {
     return false;
 }
 
-// Mevcut kullanıcı bilgisini al
 async function getCurrentUser() {
-    // Auth sayfalarındaysak hiç API çağrısı yapma
     const isAuthPage = window.location.pathname.includes('/login') || 
                        window.location.pathname.includes('/register') ||
                        window.location.pathname.includes('/forgot-password') ||
@@ -81,8 +74,8 @@ async function getCurrentUser() {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const response = await fetch(`${baseUrl}/api/auth/me`, {
-            credentials: 'include' // Session cookie'yi gönder
-        }).catch(() => null); // Network hatalarını sessizce handle et
+            credentials: 'include'
+        }).catch(() => null);
         
         if (response && response.ok) {
             const data = await response.json();
@@ -91,18 +84,12 @@ async function getCurrentUser() {
             }
         }
         
-        // 401 veya 403 normal (kullanıcı login olmamış), hata log'lamaya gerek yok
-        // Sadece 401 ve 403 dışındaki hataları log'la
-        if (response && response.status !== 401 && response.status !== 403) {
-        }
-        
         return null;
     } catch (error) {
         return null;
     }
 }
 
-// Logout işlemi
 async function logout() {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -111,7 +98,7 @@ async function logout() {
         try {
             const response = await fetch(`${apiUrl}/api/auth/logout`, {
                 method: 'POST',
-                credentials: 'include', // Cookie'leri gönder
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -122,16 +109,13 @@ async function logout() {
         } catch (fetchError) {
         }
         
-        // Tüm client-side verileri temizle
         try {
             localStorage.clear();
             sessionStorage.clear();
         } catch (storageError) {
         }
         
-        // Tüm cookie'leri temizle (httpOnly cookie'ler JavaScript ile temizlenemez ama deneyelim)
         try {
-            // Önce mevcut cookie'leri al
             const cookies = document.cookie.split(";");
             const cookieNames = new Set();
             
@@ -144,7 +128,6 @@ async function logout() {
                 }
             });
             
-            // Bilinen cookie isimlerini de ekle
             cookieNames.add('yemek-sepeti-session');
             cookieNames.add('connect.sid');
             cookieNames.add('session');
@@ -152,10 +135,8 @@ async function logout() {
             cookieNames.add('auth_token');
             cookieNames.add('token');
             
-            // Tüm cookie'leri temizle
             cookieNames.forEach(function(name) {
                 if (name) {
-                    // Farklı path'ler için temizle
                     const paths = ['/', '/api', '/buyer', '/seller', '/courier', '/admin'];
                     const domains = [
                         window.location.hostname,
@@ -178,29 +159,23 @@ async function logout() {
         } catch (cookieError) {
         }
         
-        // Kısa bir gecikme ekle (cookie temizleme işleminin tamamlanması için)
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Ana sayfaya yönlendir (hard reload ile, hash'i kaldır)
         const redirectUrl = baseUrl ? `${baseUrl}/` : '/';
-        // Hash varsa kaldır - href kullanarak hard reload yap
         window.location.href = redirectUrl;
     } catch (error) {
         
-        // Hata durumunda bile tüm verileri temizle ve yönlendir
         try {
             localStorage.clear();
             sessionStorage.clear();
         } catch (storageError) {
         }
         
-        // Ana sayfaya yönlendir
         const redirectUrl = window.getBaseUrl ? `${window.getBaseUrl()}/` : '/';
         window.location.replace(redirectUrl);
     }
 }
 
-// Header'ı güncelle
 async function updateHeader() {
     const user = await getCurrentUser();
     const header = document.querySelector('.site-header .main-nav ul');
@@ -209,24 +184,20 @@ async function updateHeader() {
         return;
     }
     
-    // Çıkış Yap butonunu bul
     const logoutBtn = header.querySelector('#header-logout-btn');
     const logoutBtnParent = logoutBtn ? logoutBtn.parentElement : null;
     
     if (user) {
-        // Kullanıcı giriş yapmış - Herhangi bir rol ile login olunduysa çıkış yap butonunu göster
         if (logoutBtnParent) {
             logoutBtnParent.style.display = '';
         }
     } else {
-        // Kullanıcı giriş yapmamış - Çıkış yap butonunu gizle
         if (logoutBtnParent) {
             logoutBtnParent.style.display = 'none';
         }
     }
 }
 
-// Mobil menü toggle
 function initMobileMenu() {
     const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
     const mainNav = document.getElementById('main-nav');
@@ -238,7 +209,6 @@ function initMobileMenu() {
             if (navOverlay) {
                 navOverlay.classList.toggle('active');
             }
-            // Hamburger animasyonu
             const spans = mobileMenuToggle.querySelectorAll('span');
             if (mainNav.classList.contains('active')) {
                 spans[0].style.transform = 'rotate(45deg) translate(5px, 5px)';
@@ -251,7 +221,6 @@ function initMobileMenu() {
             }
         });
         
-        // Overlay'e tıklanınca menüyü kapat
         if (navOverlay) {
             navOverlay.addEventListener('click', () => {
                 mainNav.classList.remove('active');
@@ -263,7 +232,6 @@ function initMobileMenu() {
             });
         }
         
-        // Menü linklerine tıklanınca menüyü kapat
         const navLinks = mainNav.querySelectorAll('a');
         navLinks.forEach(link => {
             link.addEventListener('click', () => {
@@ -280,28 +248,22 @@ function initMobileMenu() {
     }
 }
 
-// Sayfa yüklendiğinde eski token'ları temizle ve header'ı güncelle
 document.addEventListener('DOMContentLoaded', async () => {
-    // Mobil menüyü başlat
     initMobileMenu();
-    // Tema toggle'ı başlat
     initThemeToggle();
-    // Login/Register sayfalarındaysak session kontrolü yapma (gereksiz)
     const isAuthPage = window.location.pathname.includes('/login') || 
                        window.location.pathname.includes('/register') ||
                        window.location.pathname.includes('/forgot-password') ||
                        window.location.pathname.includes('/reset-password');
     
     if (!isAuthPage) {
-        // Önce session kontrolü yap - eğer session yoksa eski token'ları temizle
         try {
             const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
             const response = await fetch(`${baseUrl}/api/auth/me`, {
                 credentials: 'include'
-            }).catch(() => null); // Network hatalarını sessizce handle et
+            }).catch(() => null);
             
             if (!response || !response.ok) {
-                // 401 ve 403 normal durumlar (kullanıcı giriş yapmamış), sessizce handle et
                 if (!response || response.status === 401 || response.status === 403) {
                     // Sessizce temizle, log yapma - bu normal bir durum
                     localStorage.removeItem('user');
@@ -315,10 +277,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 localStorage.removeItem('admin_id');
             }
         } catch (error) {
-            // Network hatası gibi gerçek hatalar için log (sadece gerçek network hataları)
-            if (error.name !== 'TypeError' || !error.message.includes('fetch')) {
-            }
-            // Hata durumunda eski token'ları temizle
             localStorage.removeItem('user');
             localStorage.removeItem('token');
             localStorage.removeItem('ugid');
@@ -326,7 +284,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.removeItem('admin_id');
         }
     } else {
-        // Login sayfasındaysak sadece eski token'ları temizle
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         localStorage.removeItem('ugid');
@@ -334,7 +291,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.removeItem('admin_id');
     }
     
-    // Sidebar logout butonuna event listener ekle
     const sidebarLogoutBtn = document.getElementById('sidebar-logout-btn');
     if (sidebarLogoutBtn) {
         sidebarLogoutBtn.addEventListener('click', (e) => {
@@ -345,7 +301,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     
-    // Header'ı güncelle (auth sayfalarında değilse)
     const isAuthPageForUpdate = window.location.pathname.includes('/login') || 
                                  window.location.pathname.includes('/register') ||
                                  window.location.pathname.includes('/forgot-password') ||
@@ -354,8 +309,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateHeader();
     }
     
-    // Header'daki çıkış yap butonuna event listener ekle (tüm sayfalarda)
-    // Event delegation kullanarak dinamik olarak eklenen butonları da yakala
     document.addEventListener('click', function(e) {
         const target = e.target.closest('#header-logout-btn');
         if (target) {
@@ -364,11 +317,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (window.logout) {
                 window.logout();
             } else {
-                // Fallback - eğer logout fonksiyonu yoksa
                 localStorage.clear();
                 sessionStorage.clear();
                 
-                // Tüm cookie'leri temizle
                 document.cookie.split(";").forEach(function(cookie) {
                     const eqPos = cookie.indexOf("=");
                     const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
@@ -383,7 +334,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
-    // Ayrıca mevcut butona da direkt event listener ekle (eski tarayıcılar için)
     const headerLogoutBtn = document.getElementById('header-logout-btn');
     if (headerLogoutBtn) {
         headerLogoutBtn.addEventListener('click', (e) => {
@@ -396,7 +346,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// Global olarak erişilebilir yap
 window.updateHeader = updateHeader;
 window.getCurrentUser = getCurrentUser;
 window.logout = logout;

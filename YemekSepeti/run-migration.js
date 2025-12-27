@@ -23,11 +23,9 @@ async function runMigration() {
         const sqlPath = path.join(__dirname, 'database', 'migrations', 'add_2fa_and_email_verification.sql');
         let sql = fs.readFileSync(sqlPath, 'utf8');
 
-        // Yorumları ve USE komutunu temizle
-        sql = sql.replace(/--.*$/gm, ''); // Satır yorumlarını kaldır
-        sql = sql.replace(/USE\s+\w+\s*;/gi, ''); // USE komutunu kaldır
+        sql = sql.replace(/--.*$/gm, ''); 
+        sql = sql.replace(/USE\s+\w+\s*;/gi, '');
         
-        // SQL komutlarını ayır (noktalı virgül ile)
         const statements = sql
             .split(';')
             .map(s => s.trim())
@@ -35,7 +33,6 @@ async function runMigration() {
 
         console.log(`📝 ${statements.length} SQL komutu bulundu`);
 
-        // Her komutu çalıştır
         for (let i = 0; i < statements.length; i++) {
             const statement = statements[i];
             if (statement.length > 0) {
@@ -43,7 +40,6 @@ async function runMigration() {
                     await connection.query(statement + ';');
                     console.log(`✅ Komut ${i + 1}/${statements.length} başarıyla çalıştırıldı`);
                 } catch (error) {
-                    // Eğer tablo zaten varsa veya kolon zaten varsa hata verme
                     if (error.code === 'ER_DUP_FIELDNAME' || 
                         error.code === 'ER_TABLE_EXISTS_ERROR' ||
                         error.code === 'ER_DUP_ENTRY' ||

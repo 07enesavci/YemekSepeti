@@ -1,8 +1,4 @@
-// assets/js/modules/profile.js
-
-// Gerçek API fonksiyonları
 const BUYER_API = {
-    // Profil bilgisi getir
     getProfile: async () => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -17,8 +13,6 @@ const BUYER_API = {
             return null;
         }
     },
-
-    // Profil bilgisi güncelle
     updateProfileInfo: async (fullname, phone) => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -39,8 +33,6 @@ const BUYER_API = {
             throw error;
         }
     },
-
-    // Adresleri getir
     getAddresses: async () => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -56,7 +48,6 @@ const BUYER_API = {
         }
     },
     
-    // Yeni adres ekle
     addAddress: async (newAddressData) => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -77,8 +68,6 @@ const BUYER_API = {
             throw error;
         }
     },
-
-    // Cüzdan ve kuponları getir
     getWalletAndCoupons: async () => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -93,8 +82,6 @@ const BUYER_API = {
             return { balance: 0, coupons: [] };
         }
     },
-
-    // Şifre değiştir
     changePassword: async (currentPassword, newPassword) => {
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -116,9 +103,7 @@ const BUYER_API = {
         }
     }
 };
-
-// Yardımcı fonksiyon: TL formatında para birimini döndürür
-// formatTL fonksiyonu api.js'de tanımlı (window.formatTL)
+// window.formatTL yoksa TL formatlama için yedek biçim
 const formatTL = window.formatTL || function(amount) {
     return (amount || 0).toLocaleString('tr-TR', {
         style: 'currency',
@@ -127,8 +112,6 @@ const formatTL = window.formatTL || function(amount) {
         maximumFractionDigits: 2
     });
 };
-
-// Yeni Adres Ekleme Formu HTML'i (Gizli başlangıç için)
 const NEW_ADDRESS_FORM_HTML = `
     <div id="new-address-form-container" style="display: none; margin-top: 2rem;">
         <div class="card">
@@ -170,30 +153,22 @@ const NEW_ADDRESS_FORM_HTML = `
         </div>
     </div>
 `;
-
-
 document.addEventListener('DOMContentLoaded', () => {
-    // Courier profil sayfasında çalışma - sadece buyer profil sayfasında çalış
+    // Yalnızca alıcı profil sayfalarında başlat
     const currentPath = window.location.pathname || window.location.href;
     if (currentPath.includes('/courier/')) {
-        return; // Courier profil sayfasında çalışma
+        return;
     }
     
-    // DOM Elementlerini Seç
     const profileNavLinks = document.querySelectorAll('.profile-nav a');
     const profileSections = document.querySelectorAll('.profile-section');
     const profileInfoForm = document.getElementById('profile-info-form');
     const addressesSection = document.getElementById('adreslerim');
     const walletCouponsSection = document.getElementById('cuzdan-kuponlar');
-    
-    // Eğer buyer profil sayfası değilse çalışma
+
     if (!currentPath.includes('/buyer/profile') && !document.getElementById('profile-info-form')) {
         return;
     }
-    
-    // ==========================================================
-    // 1. Sidebar Navigasyonunu Yazmak (Sekme Değiştirme)
-    // ==========================================================
 
     function showSection(targetId) {
         profileSections.forEach(section => {
@@ -212,8 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (targetLink) {
                 targetLink.classList.add('active');
             }
-
-            // Sekme gösterildiğinde ilgili veriyi yükle
             if (targetId === '#adreslerim') {
                 renderAddresses();
             } else if (targetId === '#cuzdan-kuponlar') {
@@ -226,14 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
         link.addEventListener('click', (e) => {
             const targetHref = link.getAttribute('href') || link.href;
             
-            // Logout butonu kontrolü - önce kontrol et
             if (link.id === 'logout-btn') {
                 e.preventDefault();
                 e.stopPropagation();
                 if (window.logout) {
                     window.logout();
                 } else {
-                    // Fallback: localStorage ve sessionStorage temizle
                     localStorage.clear();
                     sessionStorage.clear();
                     const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -241,40 +212,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return false;
             }
-            // Anchor link kontrolü - hem # ile başlayan hem de /buyer/profile# ile başlayan linkleri kontrol et
             else if (targetHref && (targetHref.startsWith('#') || targetHref.includes('#') && targetHref.includes('/buyer/profile'))) {
                 e.preventDefault();
                 e.stopPropagation();
-                
-                // Anchor kısmını çıkar (#adreslerim, #cuzdan-kuponlar vb.)
                 let anchorId = targetHref;
                 if (targetHref.includes('#')) {
                     anchorId = '#' + targetHref.split('#')[1];
                 }
-                
-                // Eğer anchor # ile başlamıyorsa ekle
                 if (!anchorId.startsWith('#')) {
                     anchorId = '#' + anchorId;
                 }
-                
                 showSection(anchorId);
-                
-                // URL'i güncelle ama sayfayı yenileme
                 if (window.history && window.history.pushState) {
                     const newUrl = window.location.pathname + anchorId;
                     window.history.pushState({ path: newUrl }, '', newUrl);
                 }
-                
                 return false;
             }
         });
     });
 
-    // URL'deki hash'i kontrol et (eğer varsa o sekmeyi aç)
     const urlHash = window.location.hash;
     const initialSectionHref = urlHash || document.querySelector('.profile-nav a.active')?.getAttribute('href') || '#profil-bilgileri';
-    
-    // Anchor kısmını temizle
     let cleanHash = initialSectionHref;
     if (cleanHash.includes('#')) {
         const parts = cleanHash.split('#');
@@ -283,16 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!cleanHash.startsWith('#')) {
         cleanHash = '#' + cleanHash;
     }
-    
     showSection(cleanHash);
-    
-    // Browser back/forward için history API kullan
     window.addEventListener('popstate', (e) => {
         const hash = window.location.hash || '#profil-bilgileri';
         showSection(hash);
     });
-    
-    // Sayfa yüklendiğinde profil bilgilerini çek
     async function loadProfileData() {
         try {
             const userData = await BUYER_API.getProfile();
@@ -311,19 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     loadProfileData();
-
-
-    // ==========================================================
-    // 2. "Profil Bilgileri" Formunu Bağlamak (Aynı kalır)
-    // ==========================================================
-
-    // Null kontrolü ekle - eğer form yoksa (courier profil sayfası gibi) çalıştırma
     if (!profileInfoForm) {
-        // Form yoksa sadece form işlemlerini atla, diğer işlemler devam etsin
     } else {
         profileInfoForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        // ... (Form gönderimi mantığı aynı kalır)
         const nameInput = document.getElementById('profile-name');
         const emailInput = document.getElementById('profile-email');
         const updateButton = profileInfoForm.querySelector('button[type="submit"]');
@@ -348,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.success) {
                 alert(response.message);
-                // Session'ı güncelle
+                // Kullanıcı bilgileri güncellendikten sonra üst menüyü yenile
                 if (window.updateHeader) {
                     await window.updateHeader();
                 }
@@ -364,27 +309,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         });
     }
-
-    // ==========================================================
-    // 3. Sahte Veri ile "Adreslerim" Sekmesini Doldurmak
-    // ==========================================================
-    
     async function renderAddresses() {
         const addressData = await BUYER_API.getAddresses();
         const addressContainer = addressesSection.querySelector('.role-selector');
-        
-        // 1. Statik "Yeni Adres Ekle" öğesinin HTML'ini al ve container'ı temizle
         const newAddressItem = addressContainer.querySelector('#address-new')?.closest('.form-check-radio')?.outerHTML || '';
         addressContainer.innerHTML = ''; 
-        
-        // 2. Yeni Adres Ekleme Formunu (Gizli) ekle
         if(!document.getElementById('new-address-form-container')) {
             addressesSection.insertAdjacentHTML('beforeend', NEW_ADDRESS_FORM_HTML);
-            // Form gönderim olayını burada bir kere bağla
             document.getElementById('new-address-form').addEventListener('submit', handleNewAddressSubmit);
         }
 
-        // 3. Adresleri Ekle
         if (addressData.length > 0) {
         addressData.forEach((address) => {
             const isChecked = address.isDefault ? 'checked' : '';
@@ -404,7 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
             addressContainer.insertAdjacentHTML('beforeend', addressHtml);
         });
         } else {
-            // Adres yoksa bilgi mesajı
             addressContainer.insertAdjacentHTML('beforeend', `
                 <p style="color: var(--secondary-color-light); padding: 1rem; text-align: center;">
                     Henüz adres eklenmemiş. Yeni adres ekleyerek başlayın.
@@ -412,17 +345,14 @@ document.addEventListener('DOMContentLoaded', () => {
             `);
         }
 
-        // 4. "Yeni Adres Ekle" öğesini tekrar ekle ve dinleyiciyi ata
         if (newAddressItem) {
              addressContainer.insertAdjacentHTML('beforeend', newAddressItem);
         }
         
-        // Adres radyo butonlarına dinleyici ata
         addressContainer.querySelectorAll('input[type="radio"][name="address"]').forEach(radio => {
             radio.addEventListener('change', handleAddressSelectionChange);
         });
 
-        // Düzenle butonlarına tıklama olayı ekle (opsiyonel)
         addressesSection.querySelectorAll('.btn-edit').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -431,7 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
-        // Formu gizle/göster (Sayfa ilk açıldığında 'Yeni Adres Ekle' seçili değilse gizli kalmalı)
         const newAddressRadio = document.getElementById('address-new');
         if (newAddressRadio && newAddressRadio.checked) {
              document.getElementById('new-address-form-container').style.display = 'block';
@@ -439,25 +368,17 @@ document.addEventListener('DOMContentLoaded', () => {
              document.getElementById('new-address-form-container').style.display = 'none';
         }
     }
-
-    /**
-     * Adres radyo butonu seçimi değiştiğinde çalışır (Yeni Adres Formunu Göster/Gizle)
-     */
     function handleAddressSelectionChange(e) {
         const formContainer = document.getElementById('new-address-form-container');
         if (!formContainer) return;
 
         if (e.target.id === 'address-new' && e.target.checked) {
             formContainer.style.display = 'block';
-            formContainer.scrollIntoView({ behavior: 'smooth' }); // Forma kaydır
+            formContainer.scrollIntoView({ behavior: 'smooth' });
         } else {
             formContainer.style.display = 'none';
         }
     }
-    
-    /**
-     * Yeni Adres Formu gönderildiğinde çalışır
-     */
     async function handleNewAddressSubmit(e) {
         e.preventDefault();
         
@@ -488,10 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.reset(); // Formu temizle
                 const newAddressRadio = document.getElementById('address-new');
                 if (newAddressRadio) {
-                    newAddressRadio.checked = false; // Seçimi kaldır
+                    newAddressRadio.checked = false;
                 }
-                document.getElementById('new-address-form-container').style.display = 'none'; // Formu gizle
-                await renderAddresses(); // Listeyi yenile
+                document.getElementById('new-address-form-container').style.display = 'none';
+                await renderAddresses();
             } else {
                  alert(`Kaydetme başarısız: ${response.message || 'Bilinmeyen hata'}`);
             }
@@ -503,8 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
             saveButton.disabled = false;
         }
     }
-    
-    // İptal butonuna tıklanınca formu gizle
     document.addEventListener('click', (e) => {
         if (e.target.id === 'cancel-address-btn') {
             const formContainer = document.getElementById('new-address-form-container');
@@ -516,12 +435,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (newAddressRadio) newAddressRadio.checked = false;
         }
     });
-
-
-    // ==========================================================
-    // 3. Sahte Veri ile "Cüzdan & Kuponlar" Sekmesini Doldurmak (Aynı kalır)
-    // ==========================================================
-
     async function renderWalletAndCoupons() {
         const data = await BUYER_API.getWalletAndCoupons();
 

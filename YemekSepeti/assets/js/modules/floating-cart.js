@@ -1,11 +1,5 @@
-// ============================================
-// FLOATING CART MODULE
-// Sağ tarafta açılan sepet paneli
-// ============================================
-
 let floatingCartInitialized = false;
 
-// Floating cart HTML yapısını oluştur
 function createFloatingCartHTML() {
     const cartHTML = `
         <div class="floating-cart-overlay" id="floating-cart-overlay"></div>
@@ -50,37 +44,32 @@ function createFloatingCartHTML() {
     document.body.insertAdjacentHTML('beforeend', cartHTML);
 }
 
-// Floating cart'ı başlat
 async function initFloatingCart() {
     if (floatingCartInitialized) {
         return;
     }
     
-    // Panel sayfalarında floating cart'ı gösterme
     const path = window.location.pathname;
     if (path.includes('/seller/') || path.includes('/courier/') || path.includes('/admin/')) {
-        return; // Panel sayfalarında floating cart gösterme
+        return;
     }
     
-    // Kullanıcı kontrolü - eğer seller, courier veya admin ise gösterme
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const response = await fetch(`${baseUrl}/api/auth/me`, {
             credentials: 'include'
-        }).catch(() => null); // Network hatalarını sessizce handle et
+        }).catch(() => null);
         
         if (response && response.ok) {
             const data = await response.json();
             if (data.success && data.user) {
                 const role = data.user.role;
                 if (role === 'seller' || role === 'courier' || role === 'admin') {
-                    return; // Panel kullanıcıları için floating cart gösterme
+                    return;
                 }
             }
         }
-        // 401/403 normal durumlar (kullanıcı giriş yapmamış), sessizce devam et
     } catch (error) {
-        // Hata durumunda devam et (kullanıcı login olmamış olabilir)
     }
     
     createFloatingCartHTML();
@@ -89,12 +78,10 @@ async function initFloatingCart() {
     const panel = document.getElementById('floating-cart-panel');
     const closeBtn = document.getElementById('floating-cart-close');
     
-    // Kapat butonu
     if (closeBtn) {
         closeBtn.addEventListener('click', closeFloatingCart);
     }
     
-    // Overlay'e tıklanınca kapat
     if (overlay) {
         overlay.addEventListener('click', closeFloatingCart);
     }
@@ -102,7 +89,6 @@ async function initFloatingCart() {
     floatingCartInitialized = true;
 }
 
-// Floating cart'ı aç
 function openFloatingCart() {
     const overlay = document.getElementById('floating-cart-overlay');
     const panel = document.getElementById('floating-cart-panel');
@@ -110,11 +96,10 @@ function openFloatingCart() {
     if (overlay && panel) {
         overlay.classList.add('active');
         panel.classList.add('active');
-        document.body.style.overflow = 'hidden'; // Scroll'u engelle
+        document.body.style.overflow = 'hidden';
     }
 }
 
-// Floating cart'ı kapat
 function closeFloatingCart() {
     const overlay = document.getElementById('floating-cart-overlay');
     const panel = document.getElementById('floating-cart-panel');
@@ -122,11 +107,10 @@ function closeFloatingCart() {
     if (overlay && panel) {
         overlay.classList.remove('active');
         panel.classList.remove('active');
-        document.body.style.overflow = ''; // Scroll'u geri aç
+        document.body.style.overflow = '';
     }
 }
 
-// Floating cart'ı aç/kapat
 function toggleFloatingCart(e) {
     if (e) {
         e.preventDefault();
@@ -148,36 +132,29 @@ function toggleFloatingCart(e) {
     if (isOpen) {
         closeFloatingCart();
     } else {
-        // Önce paneli aç, sonra içeriği güncelle
         openFloatingCart();
         updateFloatingCart().catch((error) => {
             console.error('Error updating floating cart:', error);
-            // Hata olsa bile panel açık kalsın
         });
     }
 }
 
-// Floating cart'ı güncelle (sepet değiştiğinde çağrılır)
 async function updateFloatingCart() {
-    // Panel sayfalarında güncelleme yapma
     const path = window.location.pathname;
     if (path.includes('/seller/') || path.includes('/courier/') || path.includes('/admin/')) {
         return;
     }
     
-    // Kullanıcı kontrolü - cache'lenmiş kullanıcı bilgisini kullan
     const cachedUser = localStorage.getItem('user');
     if (cachedUser) {
         try {
             const user = JSON.parse(cachedUser);
             if (user.role === 'seller' || user.role === 'courier' || user.role === 'admin') {
-                return; // Panel kullanıcıları için güncelleme yapma
+                return;
             }
         } catch (e) {
-            // Parse hatası, devam et
         }
     }
-    // Kullanıcı giriş yapmamış veya buyer ise devam et
     
     if (!floatingCartInitialized) {
         await initFloatingCart();
@@ -194,14 +171,12 @@ async function updateFloatingCart() {
     const deliveryEl = document.getElementById('floating-cart-delivery');
     const totalEl = document.getElementById('floating-cart-total');
     
-    // Sepet sayısını güncelle
     const totalItems = sepet.reduce((sum, item) => sum + (item.adet || 1), 0);
     
     if (countBadge) {
         countBadge.textContent = totalItems;
     }
     
-    // Sepet boşsa
     if (sepet.length === 0) {
         if (emptyDiv) emptyDiv.style.display = 'block';
         if (itemsDiv) itemsDiv.style.display = 'none';
@@ -209,12 +184,10 @@ async function updateFloatingCart() {
         return;
     }
     
-    // Sepet doluysa
     if (emptyDiv) emptyDiv.style.display = 'none';
     if (itemsDiv) itemsDiv.style.display = 'flex';
     if (footerDiv) footerDiv.style.display = 'block';
     
-    // Ürünleri render et
     if (itemsDiv) {
         itemsDiv.innerHTML = '';
         
@@ -227,7 +200,6 @@ async function updateFloatingCart() {
             const urunAd = (urun.ad || urun.name || 'Ürün').toString().trim();
             const urunAdDisplay = urunAd || 'Ürün';
             
-            // Görsel URL'i kontrol et
             let urunGorsel = urun.gorsel || urun.imageUrl || '';
             if (!urunGorsel || 
                 typeof urunGorsel !== 'string' ||
@@ -257,41 +229,35 @@ async function updateFloatingCart() {
             itemsDiv.insertAdjacentHTML('beforeend', itemHTML);
         });
         
-        // Event delegation kullan - çift tıklama sorununu önlemek için
-        // Mevcut listener'ları kaldır (varsa)
         itemsDiv.onclick = null;
         
-        // Tek bir event listener ile tüm butonları yönet
         itemsDiv.addEventListener('click', (e) => {
-            e.stopPropagation(); // Event bubbling'i durdur
+            e.stopPropagation();
             
             const target = e.target;
             
-            // Azalt butonu
             if (target.classList.contains('floating-cart-qty-decrease') || target.closest('.floating-cart-qty-decrease')) {
                 const btn = target.classList.contains('floating-cart-qty-decrease') ? target : target.closest('.floating-cart-qty-decrease');
                 const id = parseInt(btn.getAttribute('data-az'));
                 if (window.adetArtirAzalt && !btn.disabled) {
                     btn.disabled = true;
                     window.adetArtirAzalt(id, -1);
-                    setTimeout(() => { btn.disabled = false; }, 300); // 300ms sonra tekrar aktif et
+                    setTimeout(() => { btn.disabled = false; }, 300);
                 }
                 return;
             }
             
-            // Artır butonu
             if (target.classList.contains('floating-cart-qty-increase') || target.closest('.floating-cart-qty-increase')) {
                 const btn = target.classList.contains('floating-cart-qty-increase') ? target : target.closest('.floating-cart-qty-increase');
                 const id = parseInt(btn.getAttribute('data-art'));
                 if (window.adetArtirAzalt && !btn.disabled) {
                     btn.disabled = true;
                     window.adetArtirAzalt(id, 1);
-                    setTimeout(() => { btn.disabled = false; }, 300); // 300ms sonra tekrar aktif et
+                    setTimeout(() => { btn.disabled = false; }, 300);
                 }
                 return;
             }
             
-            // Kaldır butonu
             if (target.classList.contains('floating-cart-item-remove') || target.closest('.floating-cart-item-remove')) {
                 const btn = target.classList.contains('floating-cart-item-remove') ? target : target.closest('.floating-cart-item-remove');
                 const id = parseInt(btn.getAttribute('data-sil'));
@@ -305,7 +271,6 @@ async function updateFloatingCart() {
         });
     }
     
-    // Toplamları güncelle
     if (subtotalEl) {
         subtotalEl.textContent = formatTL(totals.ara);
     }
@@ -317,7 +282,6 @@ async function updateFloatingCart() {
     }
 }
 
-// formatTL fonksiyonu api.js'de tanımlı (window.formatTL)
 const formatTL = window.formatTL || function(amount) {
     return Number(amount || 0).toLocaleString('tr-TR', {
         style: 'currency',
@@ -327,15 +291,12 @@ const formatTL = window.formatTL || function(amount) {
     });
 };
 
-// Global fonksiyonlar
 window.openFloatingCart = openFloatingCart;
 window.closeFloatingCart = closeFloatingCart;
 window.toggleFloatingCart = toggleFloatingCart;
 window.updateFloatingCart = updateFloatingCart;
 
-// Sayfa yüklendiğinde başlat
 document.addEventListener('DOMContentLoaded', async () => {
-    // Auth sayfalarında çalışma
     const isAuthPage = window.location.pathname.includes('/login') || 
                        window.location.pathname.includes('/register') ||
                        window.location.pathname.includes('/forgot-password') ||
@@ -343,16 +304,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isAuthPage) {
         return;
     }
-    // Panel sayfalarında veya panel kullanıcıları için floating cart'ı gösterme
+    
     const path = window.location.pathname;
     const isPanelPage = path.includes('/seller/') || path.includes('/courier/') || path.includes('/admin/');
     
-    // Kullanıcı kontrolü
     let isPanelUser = false;
     if (isPanelPage) {
         isPanelUser = true;
     } else {
-        // Kullanıcı kontrolü - cache'lenmiş kullanıcı bilgisini kullan
         const cachedUser = localStorage.getItem('user');
         if (cachedUser) {
             try {
@@ -361,18 +320,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     isPanelUser = true;
                 }
             } catch (e) {
-                // Parse hatası, devam et
             }
         }
     }
     
-    // Panel kullanıcıları için floating cart'ı başlatma
     if (!isPanelUser) {
         initFloatingCart();
         
-        // İlk sepet durumunu güncelle
         if (window.sepetiYenile) {
-            // sepetiYenile fonksiyonunu override et
             const originalSepetiYenile = window.sepetiYenile;
             window.sepetiYenile = function() {
                 originalSepetiYenile();
@@ -380,7 +335,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
         }
         
-        // Sepet değişikliklerini dinle
         setTimeout(() => {
             updateFloatingCart();
         }, 500);

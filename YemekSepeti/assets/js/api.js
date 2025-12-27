@@ -427,6 +427,36 @@ async function getPastOrders(userId)
     }
 }
 
+async function cancelOrder(orderId) 
+{
+    try 
+    {
+        if (!orderId) 
+        {
+            return { success: false, message: "Sipariş ID gereklidir." };
+        }
+
+        const response=await fetch(`${API_BASE_URL}/api/orders/${orderId}/cancel`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+        });
+
+        const data=await response.json();
+        
+        if (!response.ok) 
+        {
+            return { success: false, message: data.message || "Sipariş iptal edilemedi." };
+        }
+
+        return data;
+    } 
+    catch (error) 
+    {
+        return { success: false, message: "Sunucuya bağlanılamadı: " + error.message };
+    }
+}
+
 // Admin functions
 function getAuthHeaders() 
 {
@@ -636,6 +666,7 @@ window.getSellerMenu=getSellerMenu;
 window.createOrder=createOrder;
 window.getActiveOrders=getActiveOrders;
 window.getPastOrders=getPastOrders;
+window.cancelOrder=cancelOrder;
 window.getAllUsers=getAllUsers;
 window.adminAddUser=adminAddUser;
 window.adminSuspendUser=adminSuspendUser;

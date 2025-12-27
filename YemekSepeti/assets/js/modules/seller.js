@@ -1,5 +1,5 @@
-// SELLER API FONKSİYONLARI
-// getApiBaseUrl: api.js'de window.getApiBaseUrl olarak tanımlı
+// Satıcı modülü: menü, sipariş, kazanç, profil, kuponlar
+// Base URL ve kimlikli istekler window yardımcılarından alınır
 
 async function fetchSellerMenu() {
     try {
@@ -17,7 +17,6 @@ async function fetchSellerMenu() {
     }
 }
 
-// Global fonksiyonlar
 window.addMeal = addMeal;
 window.updateMeal = updateMeal;
 window.loadMenuPage = loadMenuPage;
@@ -80,13 +79,7 @@ async function deleteMeal(mealId) {
     }
 }
 
-// =================================================================
-// KAZANÇ RAPORLARI
-// =================================================================
-
-/**
- * Kazanç istatistiklerini backend'den çek
- */
+// Kazanç raporları
 async function fetchSellerEarnings(period = 'month') {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -101,26 +94,20 @@ async function fetchSellerEarnings(period = 'month') {
     }
 }
 
-// =================================================================
-// MENU SAYFASI İŞLEVLERİ
-// =================================================================
-
+// Menü sayfası işlevleri
 function createMealCardHTML(meal) {
     let imageUrl = meal.imageUrl || '';
     if (imageUrl && imageUrl.trim() !== '') {
-        // Placeholder kontrolü
         if (imageUrl.includes('via.placeholder.com') || 
             imageUrl.includes('placeholder.com') ||
             imageUrl.includes('400x200.png') ||
             imageUrl.includes('250x150.png')) {
             imageUrl = '';
         } else {
-            // Relative path kontrolü - /uploads/ ile başlıyorsa base URL ekle
             if (imageUrl.startsWith('/uploads/')) {
                 const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
                 imageUrl = baseUrl + imageUrl;
             }
-            // Cache-busting için timestamp ekle
             const separator = imageUrl.includes('?') ? '&' : '?';
             imageUrl = imageUrl + separator + '_t=' + Date.now();
         }
@@ -129,7 +116,6 @@ function createMealCardHTML(meal) {
     const statusClass = meal.isAvailable ? 'active' : 'inactive';
     const statusText = meal.isAvailable ? 'Satışta' : 'Satışta Değil';
     
-    // HTML escape için güvenli isim
     const safeName = (meal.name || 'Yemek')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -191,8 +177,7 @@ async function loadMenuPage() {
 }
 
 function attachMenuEventListeners() {
-    // Sil butonları
-    document.querySelectorAll('.delete-meal-btn').forEach(btn => {
+        document.querySelectorAll('.delete-meal-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const mealId = parseInt(e.target.getAttribute('data-meal-id'));
             if (!confirm('Bu yemeği silmek istediğinize emin misiniz?')) return;
@@ -207,11 +192,9 @@ function attachMenuEventListeners() {
         });
     });
 
-    // Düzenle butonları
     document.querySelectorAll('.edit-meal-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const mealId = parseInt(e.target.getAttribute('data-meal-id'));
-            // Yemek bilgilerini API'den çek
             try {
                 const menu = await fetchSellerMenu();
                 const meal = menu.find(m => m.id === mealId);
@@ -226,10 +209,8 @@ function attachMenuEventListeners() {
         });
     });
 
-    // Yeni yemek ekle butonu
     const addMealBtn = document.getElementById('add-new-meal-btn');
     if (addMealBtn) {
-        // Önceki event listener'ı kaldır (varsa)
         const newAddMealBtn = addMealBtn.cloneNode(true);
         addMealBtn.parentNode.replaceChild(newAddMealBtn, addMealBtn);
         
@@ -249,7 +230,6 @@ function attachMenuEventListeners() {
                 alert('Modal açılamadı. Lütfen sayfayı yenileyin.');
             }
         });
-    } else {}
     }
 }
 
@@ -257,21 +237,16 @@ function initializeMenuPage() {
     loadMenuPage();
 }
 
-// =================================================================
-// EARNINGS SAYFASI İŞLEVLERİ
-// =================================================================
 
 async function loadEarningsPage() {
     const periodButtons = document.querySelectorAll('.period-btn');
     let currentPeriod = 'month';
 
-    // Period butonlarına event listener ekle
     periodButtons.forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const period = e.target.getAttribute('data-period') || 'month';
             currentPeriod = period;
             
-            // Aktif butonu güncelle
             periodButtons.forEach(b => b.classList.remove('active'));
             e.target.classList.add('active');
             
@@ -279,7 +254,6 @@ async function loadEarningsPage() {
         });
     });
 
-    // İlk yükleme
     await updateEarningsStats(currentPeriod);
 }
 
@@ -297,30 +271,25 @@ async function updateEarningsStats(period = 'month') {
 
         const stats = earnings.stats;
 
-        // İstatistikleri güncelle
         const statCards = document.querySelectorAll('.stat-card');
         if (statCards.length >= 3) {
-            // Toplam Bakiye (delivered siparişlerin toplam kazancı)
             const totalBalanceEl = statCards[0].querySelector('.stat-value');
             if (totalBalanceEl) {
                 totalBalanceEl.textContent = `${stats.totalEarnings.toFixed(2)} TL`;
             }
 
-            // Beklemede Olan (pending/confirmed/preparing siparişler)
             const pendingEl = statCards[1].querySelector('.stat-value');
             if (pendingEl) {
                 const pendingAmount = stats.totalOrders - stats.completedOrders;
                 pendingEl.textContent = `${pendingAmount} sipariş`;
             }
 
-            // Toplam Çekilen (tamamlanan siparişler)
             const totalWithdrawnEl = statCards[2].querySelector('.stat-value');
             if (totalWithdrawnEl) {
                 totalWithdrawnEl.textContent = `${stats.completedOrders} tamamlanan`;
             }
         }
 
-        // Son işlemler listesini güncelle
         const transactionList = document.querySelector('.transaction-list');
         if (transactionList) {
             if (stats.completedOrders === 0) {
@@ -381,13 +350,6 @@ function initializeEarningsPage() {
     loadEarningsPage();
 }
 
-// =================================================================
-// ORDERS SAYFASI İŞLEVLERİ
-// =================================================================
-
-/**
- * Satıcının siparişlerini backend'den çek
- */
 async function fetchSellerOrders(tab = 'new') {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -402,9 +364,6 @@ async function fetchSellerOrders(tab = 'new') {
     }
 }
 
-/**
- * Sipariş durumunu güncelle
- */
 async function updateOrderStatus(orderId, status) {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -440,7 +399,6 @@ function createOrderCardHTML(order) {
             <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}">Kuryeye Hazır Olduğunu Bildir</button>
         `;
     } else if (order.status === 'ready' && !order.courierId) {
-        // Hazır durumunda ve henüz kuryeye atanmamış siparişler için
         actionButtons = `
             <button class="btn btn-primary assign-courier-btn" data-order-id="${order.id}">Kuryeye Bildir</button>
         `;
@@ -476,18 +434,15 @@ async function loadOrdersPage() {
     
     let currentTab = 'new';
     
-    // Tab butonlarına event listener ekle
     tabs.forEach(tab => {
         tab.addEventListener('click', async (e) => {
             e.preventDefault();
             const tabName = e.target.getAttribute('data-tab');
             currentTab = tabName;
             
-            // Aktif tab'ı güncelle
             tabs.forEach(t => t.classList.remove('active'));
             e.target.classList.add('active');
             
-            // Tab içeriklerini göster/gizle
             tabContents.forEach(content => {
                 if (content.id === tabName) {
                     content.style.display = 'block';
@@ -498,15 +453,12 @@ async function loadOrdersPage() {
                 }
             });
             
-            // Siparişleri yükle
             await loadOrdersForTab(tabName);
         });
     });
     
-    // İlk yükleme
     await loadOrdersForTab(currentTab);
     
-    // Her 10 saniyede bir siparişleri yenile (yeni siparişler için)
     setInterval(async () => {
         await loadOrdersForTab(currentTab);
     }, 10000);
@@ -516,7 +468,6 @@ async function loadOrdersForTab(tab) {
     const tabContent = document.getElementById(tab);
     if (!tabContent) return;
     
-    // Yükleme mesajı göster
     tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
     
     try {
@@ -532,20 +483,17 @@ async function loadOrdersForTab(tab) {
             return;
         }
         
-        // Tab başlığındaki sayıyı güncelle
         const tabButton = document.querySelector(`.tab-link[data-tab="${tab}"]`);
         if (tabButton) {
             const tabText = tabButton.textContent.replace(/\(\d+\)/, `(${orders.length})`);
             tabButton.textContent = tabText;
         }
         
-        // Siparişleri göster
         tabContent.innerHTML = '';
         orders.forEach(order => {
             tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
         });
         
-        // Event listener'ları ekle
         attachOrderEventListeners();
     } catch (error) {
         tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
@@ -553,7 +501,6 @@ async function loadOrdersForTab(tab) {
 }
 
 function attachOrderEventListeners() {
-    // Onayla butonları
     document.querySelectorAll('.accept-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
@@ -568,7 +515,6 @@ function attachOrderEventListeners() {
         });
     });
     
-    // Reddet butonları
     document.querySelectorAll('.reject-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
@@ -584,7 +530,6 @@ function attachOrderEventListeners() {
         });
     });
     
-    // Hazır butonları
     document.querySelectorAll('.ready-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
@@ -598,7 +543,6 @@ function attachOrderEventListeners() {
         });
     });
     
-    // Kuryeye Bildir butonları (ready durumundaki siparişler için)
     document.querySelectorAll('.assign-courier-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
@@ -637,13 +581,6 @@ function initializeOrdersPage() {
     loadOrdersPage();
 }
 
-// =================================================================
-// DASHBOARD SAYFASI İŞLEVLERİ
-// =================================================================
-
-/**
- * Dashboard verilerini backend'den çek
- */
 async function fetchDashboardData() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -658,9 +595,6 @@ async function fetchDashboardData() {
     }
 }
 
-/**
- * Dashboard sayfasını yükle
- */
 async function loadDashboardPage() {
     try {
         const data = await fetchDashboardData();
@@ -670,14 +604,12 @@ async function loadDashboardPage() {
             return;
         }
         
-        // Başlık güncelle (dükkan sahibi adı soyadı ile)
         const subtitle = document.getElementById('dashboard-subtitle');
         if (subtitle) {
             const ownerName = data.fullname || 'Satıcı';
             subtitle.textContent = `Hoş geldin, ${ownerName}! İşletmenizin anlık durumu burada.`;
         }
         
-        // Sidebar'daki owner name'i de güncelle
         if (window.updateSellerSidebarOwnerName) {
             setTimeout(() => {
                 window.updateSellerSidebarOwnerName();
@@ -741,13 +673,7 @@ function initializeDashboardPage() {
     loadDashboardPage();
 }
 
-// =================================================================
-// PROFILE SAYFASI İŞLEVLERİ
-// =================================================================
-
-/**
- * Satıcı profil bilgilerini backend'den çek
- */
+// Profil sayfası işlevleri
 async function fetchSellerProfile() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -782,9 +708,6 @@ async function fetchSellerProfile() {
     }
 }
 
-/**
- * Satıcı profil bilgilerini güncelle
- */
 async function updateSellerProfile(profileData) {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -795,12 +718,8 @@ async function updateSellerProfile(profileData) {
             body: JSON.stringify(profileData)
         });
         
-        if (!response.ok) {
-            'content-type': response.headers.get('content-type')
-        });
         
         if (!response.ok) {
-            // Content-Type kontrolü yap
             const contentType = response.headers.get('content-type');
             let errorMessage = 'Profil güncellenemedi';
             
@@ -812,7 +731,6 @@ async function updateSellerProfile(profileData) {
                     errorMessage = `Sunucu hatası (${response.status}): ${response.statusText}`;
                 }
             } else {
-                // HTML veya başka bir format geliyorsa
                 const errorText = await response.text();
                 if (response.status === 405) {
                     errorMessage = 'Bu işlem için kullanılan HTTP metodu desteklenmiyor. Lütfen sayfayı yenileyin ve tekrar deneyin.';
@@ -831,9 +749,6 @@ async function updateSellerProfile(profileData) {
     }
 }
 
-/**
- * Profil sayfasını yükle
- */
 async function loadProfilePage() {
     try {
         const profile = await fetchSellerProfile();
@@ -843,7 +758,6 @@ async function loadProfilePage() {
             return;
         }
         
-        // Form alanlarını doldur
         const fullnameInput = document.getElementById('seller-fullname');
         const emailInput = document.getElementById('seller-email');
         const shopNameInput = document.getElementById('shop-name');
@@ -860,7 +774,6 @@ async function loadProfilePage() {
         if (shopNameInput) shopNameInput.value = profile.shopName || '';
         if (descriptionInput) descriptionInput.value = profile.description || '';
         if (locationInput) locationInput.value = profile.location || '';
-        // workingHours JSON ise string'e çevir
         let hoursValue = profile.workingHours || '';
         if (hoursValue && typeof hoursValue === 'object') {
             hoursValue = JSON.stringify(hoursValue, null, 2);
@@ -880,8 +793,6 @@ async function loadProfilePage() {
             if (bannerPreview) bannerPreview.src = '';
             if (removeBannerBtn) removeBannerBtn.style.display = 'none';
         }
-        
-        // Form submit handler
         const profileForm = document.getElementById('seller-profile-form');
         if (profileForm) {
             profileForm.addEventListener('submit', async (e) => {
@@ -893,16 +804,13 @@ async function loadProfilePage() {
                     shopName: shopNameInput?.value || '',
                     description: descriptionInput?.value || '',
                     location: locationInput?.value || '',
-                    // Boş string ise undefined gönder (backend NULL olarak işleyecek)
                     workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined
-                    // Logo ve banner artık ayrı endpoint'lerden yükleniyor, buraya eklemiyoruz
                 };
                 
                 try {
                     await updateSellerProfile(profileData);
                     alert('✅ Profil başarıyla güncellendi!');
                     
-                    // Sidebar'daki owner name'i güncelle
                     if (window.updateSellerSidebarOwnerName) {
                         await window.updateSellerSidebarOwnerName();
                     }
@@ -912,7 +820,6 @@ async function loadProfilePage() {
             });
         }
         
-        // Resim yükleme handler'ları - Dosya olarak yükle
         const logoUpload = document.getElementById('logo-upload');
         const bannerUpload = document.getElementById('banner-upload');
         
@@ -927,7 +834,6 @@ async function loadProfilePage() {
                         return;
                     }
                     
-                    // Preview göster
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         if (logoPreview) {
@@ -936,7 +842,6 @@ async function loadProfilePage() {
                     };
                     reader.readAsDataURL(file);
                     
-                    // Dosyayı sunucuya yükle
                     try {
                         const formData = new FormData();
                         formData.append('logo', file);
@@ -954,12 +859,10 @@ async function loadProfilePage() {
                         }
                         
                         const data = await response.json();
-                        // Preview'ı güncelle
                         if (logoPreview) {
                             logoPreview.src = data.url;
                         }
                         
-                        // Kaldır butonunu göster
                         if (removeLogoBtn) {
                             removeLogoBtn.style.display = 'inline-block';
                         }
@@ -967,7 +870,7 @@ async function loadProfilePage() {
                         alert('✅ Logo başarıyla yüklendi!');
                     } catch (error) {
                         alert('❌ Logo yüklenirken hata oluştu: ' + error.message);
-                        e.target.value = ''; // Input'u temizle
+                        e.target.value = '';
                         if (logoPreview) {
                             logoPreview.src = profile.logoUrl || '';
                         }
@@ -980,14 +883,12 @@ async function loadProfilePage() {
             bannerUpload.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    // Dosya boyutu kontrolü (max 5MB)
                     if (file.size > 5 * 1024 * 1024) {
                         alert('❌ Banner resmi çok büyük! Maksimum 5MB olmalı.');
-                        e.target.value = ''; // Input'u temizle
+                        e.target.value = ''; 
                         return;
                     }
                     
-                    // Preview göster
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         if (bannerPreview) {
@@ -1027,7 +928,7 @@ async function loadProfilePage() {
                         alert('✅ Banner başarıyla yüklendi!');
                     } catch (error) {
                         alert('❌ Banner yüklenirken hata oluştu: ' + error.message);
-                        e.target.value = ''; // Input'u temizle
+                        e.target.value = ''; 
                         if (bannerPreview) {
                             bannerPreview.src = profile.bannerUrl || '';
                         }
@@ -1036,7 +937,6 @@ async function loadProfilePage() {
             });
         }
         
-        // Logo kaldırma butonu
         if (removeLogoBtn) {
             removeLogoBtn.addEventListener('click', async () => {
                 if (!confirm('Logoyu kaldırmak istediğinize emin misiniz?')) {
@@ -1047,7 +947,6 @@ async function loadProfilePage() {
                     const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
                     await updateSellerProfile({ logoUrl: null });
                     
-                    // Preview'ı temizle
                     if (logoPreview) {
                         logoPreview.src = '';
                     }
@@ -1057,7 +956,6 @@ async function loadProfilePage() {
                         logoUpload.value = '';
                     }
                     
-                    // Kaldır butonunu gizle
                     removeLogoBtn.style.display = 'none';
                     
                     alert('✅ Logo başarıyla kaldırıldı!');
@@ -1078,17 +976,14 @@ async function loadProfilePage() {
                     const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
                     await updateSellerProfile({ bannerUrl: null });
                     
-                    // Preview'ı temizle
                     if (bannerPreview) {
                         bannerPreview.src = '';
                     }
                     
-                    // Input'u temizle
                     if (bannerUpload) {
                         bannerUpload.value = '';
                     }
                     
-                    // Kaldır butonunu gizle
                     removeBannerBtn.style.display = 'none';
                     
                     alert('✅ Banner başarıyla kaldırıldı!');
@@ -1104,13 +999,7 @@ function initializeProfilePage() {
     loadProfilePage();
 }
 
-// =================================================================
-// COUPONS SAYFASI İŞLEVLERİ
-// =================================================================
-
-/**
- * Satıcı kuponlarını yükle ve listele
- */
+// Kuponlar sayfası işlevleri
 async function loadSellerCoupons() {
     const container = document.getElementById('seller-coupon-list-container');
     if (!container) return;
@@ -1173,9 +1062,6 @@ async function loadSellerCoupons() {
     }
 }
 
-/**
- * Satıcı kupon formu işleme
- */
 function initializeCouponsPage() {
     const form = document.getElementById('seller-coupon-form');
     const discountType = document.getElementById('discount-type');
@@ -1183,7 +1069,6 @@ function initializeCouponsPage() {
     
     if (!form) return;
     
-    // İndirim türüne göre maksimum indirim alanını göster/gizle
     if (discountType && maxDiscountGroup) {
         discountType.addEventListener('change', (e) => {
             if (e.target.value === 'percentage') {
@@ -1194,7 +1079,6 @@ function initializeCouponsPage() {
         });
     }
     
-    // Form submit
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -1256,9 +1140,7 @@ function initializeCouponsPage() {
     loadSellerCoupons();
 }
 
-// =================================================================
-// SIDEBAR LINKLERİNİ GÜNCELLE
-// =================================================================
+// Sidebar linklerini güncelle
 
 function updateSellerSidebarLinks(sellerId) {
     if (!sellerId) return;
@@ -1281,24 +1163,13 @@ function updateSellerSidebarLinks(sellerId) {
     });
 }
 
-/**
- * Sidebar'da dükkan sahibi adını güncelle (veritabanından)
- */
 async function updateSellerSidebarOwnerName() {
     try {
         const ownerNameEl = document.getElementById('seller-owner-name');
-        if (!ownerNameEl) {
-            return;
-        }
-        
-        // Önce Dashboard API'sinden al (daha hızlı)
+        if (!ownerNameEl) return;
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        
         try {
-            const dashboardResponse = await fetch(`${baseUrl}/api/seller/dashboard`, {
-                credentials: 'include'
-            });
-            
+            const dashboardResponse = await fetch(`${baseUrl}/api/seller/dashboard`, { credentials: 'include' });
             if (dashboardResponse.ok) {
                 const dashboardData = await dashboardResponse.json();
                 if (dashboardData.success && dashboardData.fullname) {
@@ -1307,34 +1178,25 @@ async function updateSellerSidebarOwnerName() {
                 }
             }
         } catch (dashboardError) {}
-        }
-        
-        // Fallback: Profil API'sinden al
         try {
-            const response = await fetch(`${baseUrl}/api/seller/profile`, {
-                credentials: 'include'
-            });
-            
+            const response = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.profile && data.profile.fullname) {
                     ownerNameEl.textContent = data.profile.fullname;
                     return;
                 }
-            } else {}
+            }
         } catch (profileError) {}
-        if (ownerNameEl.textContent === 'Yükleniyor...' || ownerNameEl.textContent === '') {
+        if (!ownerNameEl.textContent || ownerNameEl.textContent === 'Yükleniyor...') {
             ownerNameEl.textContent = 'Bilinmiyor';
         }
-    } catch (error) {}
-        const ownerNameEl = document.getElementById('seller-owner-name');
-        if (ownerNameEl) {
-            ownerNameEl.textContent = 'Hata';
-        }
+    } catch (error) {
+        const el = document.getElementById('seller-owner-name');
+        if (el) el.textContent = 'Hata';
     }
 }
 
-// URL'den seller ID'yi al
 function getSellerIdFromUrl() {
     const pathParts = window.location.pathname.split('/');
     const sellerIndex = pathParts.indexOf('seller');
@@ -1344,26 +1206,20 @@ function getSellerIdFromUrl() {
     return null;
 }
 
-// =================================================================
-// BAŞLATMA (ENTRY POINT)
-// =================================================================
 
 // Sayfa yüklendiğinde otomatik çalıştır
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeSellerPages);
 } else {
-    // DOM zaten yüklendi, hemen çalıştır
     initializeSellerPages();
 }
 
 async function initializeSellerPages() {
     const path = window.location.pathname;
     
-    // Seller ID'yi URL'den al veya API'den çek
     let sellerId = getSellerIdFromUrl();
     
     if (!sellerId && path.includes('/seller/')) {
-        // API'den seller ID'yi al
         try {
             const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
             const response = await fetch(`${baseUrl}/api/auth/me`, {
@@ -1381,7 +1237,6 @@ async function initializeSellerPages() {
     // Sidebar linklerini güncelle
     if (sellerId) {
         updateSellerSidebarLinks(sellerId);
-        // Kuponlar linkini de güncelle
         const couponsLink = document.getElementById('sidebar-coupons-link');
         if (couponsLink) {
             couponsLink.href = `/seller/${sellerId}/coupons`;
@@ -1390,13 +1245,11 @@ async function initializeSellerPages() {
     
     // Sidebar'da dükkan sahibi adını göster
     if (path.includes('/seller/')) {
-        // Biraz gecikme ile çalıştır (DOM'un tam yüklenmesi için)
         setTimeout(() => {
             updateSellerSidebarOwnerName();
         }, 100);
     }
     
-    // Global olarak erişilebilir yap
     window.updateSellerSidebarOwnerName = updateSellerSidebarOwnerName;
 
     // Sidebar logout butonuna event listener ekle
@@ -1410,7 +1263,6 @@ async function initializeSellerPages() {
         });
     }
 
-    // EJS route'larına göre kontrol et
     if (path.includes('/seller/') && path.includes('/menu')) {
         initializeMenuPage();
     } else if (path.includes('/seller/') && path.includes('/earnings')) {
@@ -1424,7 +1276,6 @@ async function initializeSellerPages() {
     } else if (path.includes('/seller/') && path.includes('/coupons')) {
         initializeCouponsPage();
     } else {
-        // Fallback: HTML sayfaları için (geriye dönük uyumluluk)
         if (path.includes('menu.html') || document.querySelector('.menu-list')) {
             initializeMenuPage();
         } else if (path.includes('earnings.html') || document.querySelector('.period-selector')) {
