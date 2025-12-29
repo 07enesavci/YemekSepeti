@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
-const { Meal, Seller, Coupon } = require("../../models");
+const { Meal, Seller, Coupon, CouponUsage } = require("../../models");
 const { Op } = require("sequelize");
 
 router.get("/product/:id", async (req, res) => {
@@ -113,11 +113,19 @@ router.post("/validate-coupon", async (req, res) => {
             }
         }
         
-        if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
-            return res.status(400).json({
-                success: false,
-                message: "Bu kupon kullanım limiti dolmuş."
+        // usage_limit > 0 ise kontrol yap, -1 veya 0 ise sınırsız kullanım
+        if (coupon.usage_limit > 0) {
+            // Gerçek kullanım sayısını CouponUsage tablosundan say
+            const actualUsageCount = await CouponUsage.count({
+                where: { coupon_id: coupon.id }
             });
+            
+            if (actualUsageCount >= coupon.usage_limit) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Bu kupon kullanım limiti dolmuş."
+                });
+            }
         }
         
         let discountAmount = 0;
