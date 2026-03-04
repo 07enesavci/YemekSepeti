@@ -1,0 +1,100 @@
+<div class="panel-sidebar">
+    
+    <div class="panel-logo">
+        <% if (user && user.role === 'admin') { %>
+            <a href="/admin/users">Admin Paneli</a>
+        <% } else if (user && user.role === 'courier') { %>
+            <% const courierId = user.courierId || user.id; %>
+            <a href="/courier/<%= courierId %>/dashboard">Kurye Paneli</a>
+        <% } else { %>
+            <a href="/seller/dashboard" id="seller-dashboard-link">Satıcı Paneli</a>
+        <% } %>
+    </div>
+    
+    <% if (user && user.role === 'seller') { %>
+        <div class="panel-user-info" id="seller-sidebar-user-info" style="padding: 1rem; border-bottom: 1px solid rgba(0,0,0,0.1);">
+            <p style="margin: 0; font-size: 0.9rem; color: #666;">Dükkan Sahibi:</p>
+            <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: var(--primary-color);" id="seller-owner-name">
+                <%= user.fullname || 'Yükleniyor...' %>
+            </p>
+        </div>
+    <% } %>
+
+    <nav class="panel-nav">
+        <ul>
+            <% if (user && user.role === 'seller') { %>
+                <li>
+                    <a href="/seller/dashboard" class="<%= title === 'Satıcı Paneli' ? 'active' : '' %>" id="sidebar-dashboard-link">
+                        <span>📊</span> Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="/seller/orders" class="<%= title === 'Gelen Siparişler' ? 'active' : '' %>" id="sidebar-orders-link">
+                        <span>📋</span> Siparişler
+                    </a>
+                </li>
+                <li>
+                    <a href="/seller/menu" class="<%= title === 'Menü Yönetimi' ? 'active' : '' %>" id="sidebar-menu-link">
+                        <span>🍲</span> Menü Yönetimi
+                    </a>
+                </li>
+                <li>
+                    <a href="/seller/earnings" class="<%= title === 'Kazanç Raporları' ? 'active' : '' %>" id="sidebar-earnings-link">
+                        <span>💰</span> Kazançlar
+                    </a>
+                </li>
+                <li>
+                    <a href="/seller/profile" class="<%= title === 'Restoran Profili' ? 'active' : '' %>" id="sidebar-profile-link">
+                        <span>🏪</span> Dükkan Profili
+                    </a>
+                </li>
+                <li>
+                    <a href="/seller/coupons" class="<%= title === 'Kupon Yönetimi' ? 'active' : '' %>" id="sidebar-coupons-link">
+                        <span>🎫</span> Kuponlar
+                    </a>
+                </li>
+
+            <% } else if (user && user.role === 'courier') { %>
+                <% const courierId = user.courierId || user.id; %>
+                <li>
+                    <a href="/courier/<%= courierId %>/dashboard" class="<%= title === 'Kurye Paneli' ? 'active' : '' %>">
+                        <span>📊</span> Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="/courier/<%= courierId %>/available" class="<%= title === 'Uygun Siparişler' ? 'active' : '' %>">
+                        <span>🛵</span> Uygun Siparişler
+                    </a>
+                </li>
+                <li>
+                    <a href="/courier/<%= courierId %>/history" class="<%= title === 'Geçmiş Siparişler' ? 'active' : '' %>">
+                        <span>🕒</span> Geçmiş Siparişler
+                    </a>
+                </li>
+                <li>
+                    <a href="/courier/<%= courierId %>/profile" class="<%= title === 'Kurye Profili' ? 'active' : '' %>">
+                        <span>👤</span> Profilim
+                    </a>
+                </li>
+
+            <% } else if (user && user.role === 'admin') { %>
+                <li>
+                    <a href="/admin/users" class="<%= title === 'Kullanıcı Yönetimi' ? 'active' : '' %>">
+                        <span>👥</span> Kullanıcı Yönetimi
+                    </a>
+                </li>
+                <li>
+                    <a href="/admin/coupons" class="<%= title === 'Kupon Yönetimi' ? 'active' : '' %>">
+                        <span>🎟️</span> Kuponlar
+                    </a>
+                </li>
+            <% } %>
+        </ul>
+    </nav>
+    
+    <div class="panel-footer">
+        <a href="/" class="btn btn-secondary btn-full">Siteye Geri Dön</a>
+        <a href="#" id="sidebar-logout-btn">Çıkış Yap</a>
+    </div>
+
+</div>

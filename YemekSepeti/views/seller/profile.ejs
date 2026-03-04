@@ -1,0 +1,79 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/seller-profile-admin.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <h1 class="panel-title">Dükkan Profili Yönetimi</h1>
+        
+        <div class="card">
+            <div class="card-content">
+                
+                <form id="seller-profile-form">
+                    
+                    <div class="form-group profile-images">
+                        <div class="image-uploader">
+                            <label for="logo-upload" class="form-label">Dükkan Logosu</label>
+                            <img src="" alt="Logo" id="logo-preview" class="logo-preview">
+                            <input type="file" id="logo-upload" class="file-input">
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <label for="logo-upload" class="btn btn-secondary btn-sm">Resim Seç</label>
+                                <button type="button" id="remove-logo-btn" class="btn btn-secondary btn-sm" style="display: none;">Kaldır</button>
+                            </div>
+                        </div>
+                        <div class="image-uploader">
+                            <label for="banner-upload" class="form-label">Dükkan Banner (Kapak Resmi)</label>
+                            <img src="" alt="Banner" id="banner-preview" class="banner-preview">
+                            <input type="file" id="banner-upload" class="file-input">
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <label for="banner-upload" class="btn btn-secondary btn-sm">Resim Seç</label>
+                                <button type="button" id="remove-banner-btn" class="btn btn-secondary btn-sm" style="display: none;">Kaldır</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="divider">
+
+                    <div class="form-group">
+                        <label for="seller-fullname" class="form-label">Dükkan Sahibi Adı Soyadı</label>
+                        <input type="text" id="seller-fullname" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="seller-email" class="form-label">E-posta Adresi</label>
+                        <input type="email" id="seller-email" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="shop-name" class="form-label">Dükkan Adı</label>
+                        <input type="text" id="shop-name" class="form-input" value="Ayşe'nin Mutfağı" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="shop-description" class="form-label">Dükkan Açıklaması (Alıcılar görecek)</label>
+                        <textarea id="shop-description" class="form-input" rows="3">Zeytinyağlılar ve Ev Yapımı Mantı</textarea>
+                    </div>
+
+                    <hr class="divider">
+                    
+                    <div class="form-row"> 
+                        <div class="form-group">
+                            <label for="shop-location" class="form-label">Konum (İlçe)</label>
+                            <input type="text" id="shop-location" class="form-input" value="Kadıköy">
+                        </div>
+                        <div class="form-group">
+                            <label for="shop-hours" class="form-label">Çalışma Saatleri</label>
+                            <input type="text" id="shop-hours" class="form-input" value="Hafta içi 09:00 - 21:00">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Profili Güncelle</button>
+                </form>
+
+            </div>
+        </div>
+
+    </main>
+</div>

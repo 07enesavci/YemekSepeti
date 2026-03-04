@@ -1,0 +1,122 @@
+<div class="auth-page"> 
+    <div class="auth-container">
+        
+        <div class="card auth-card">
+            <div class="card-content">
+                <h1 class="card-title text-center">Hesap Oluştur</h1>
+                <p class="text-center auth-subtext">Aramıza katılmak için bilgilerinizi girin.</p>
+                
+                <form id="register-form" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="fullname" class="form-label">Ad Soyad</label>
+                        <input type="text" id="fullname" class="form-input" placeholder="Adınız Soyadınız" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email" class="form-label">E-posta Adresi</label>
+                        <input type="email" id="email" class="form-input" placeholder="ornek@mail.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password" class="form-label">Şifre</label>
+                        <input type="password" id="password" class="form-input" placeholder="En az 6 karakter" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirm-password" class="form-label">Şifre Tekrar</label>
+                        <input type="password" id="confirm-password" class="form-input" placeholder="Şifrenizi doğrulayın" required>
+                    </div>
+
+                    <hr class="divider"> 
+                    
+                    <div class="form-group">
+                        <label class="form-label">Hesap Türü Seçin:</label>
+                        <div class="role-selector"> 
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="role-buyer" name="user-role" value="buyer" checked>
+                                <label for="role-buyer">
+                                    <span class="icon">🛒</span> 
+                                    <strong>Alıcıyım</strong> 
+                                    <span>(Yemek sipariş vermek istiyorum)</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="role-seller" name="user-role" value="seller">
+                                <label for="role-seller">
+                                    <span class="icon">🍲</span> 
+                                    <strong>Satıcıyım</strong> 
+                                    <span>(Yemek satmak istiyorum)</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-check-radio">
+                                <input type="radio" id="role-courier" name="user-role" value="courier">
+                                <label for="role-courier">
+                                    <span class="icon">🚚</span> 
+                                    <strong>Kuryeyim</strong> 
+                                    <span>(Sipariş teslimatı yapmak istiyorum)</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div id="seller-docs" style="display: none; margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px; border: 1px solid #ddd;">
+                            <h4 style="margin-bottom: 15px; color: #333;">Satıcı İçin Gerekli Belgeler</h4>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Vergi Levhası</label>
+                                <input type="file" name="taxPlate" class="form-input">
+                            </div>
+                        
+                            <div class="form-group">
+                                <label class="form-label">Kimlik Fotokopisi</label>
+                                <input type="file" name="idCard" class="form-input">
+                            </div>
+                        
+                            <div class="form-group">
+                                <label class="form-label">Faaliyet Belgesi / Esnaf Odası Kaydı</label>
+                                <input type="file" name="activityCert" class="form-input">
+                            </div>
+                        
+                            <div class="form-group">
+                                <label class="form-label">İşyeri Ruhsatı</label>
+                                <input type="file" name="businessLicense" class="form-input">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="terms" required>
+                            <label for="terms"><a href="/terms">Kullanım Koşulları</a>'nı okudum ve kabul ediyorum.</label>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-full"> 
+                        Kayıt Ol
+                    </button>
+                </form>
+
+                <!-- Email Doğrulama Ekranı -->
+                <div id="verification-section" style="display: none;">
+                    <h2 class="card-title text-center">Email Doğrulama</h2>
+                    <p class="text-center auth-subtext">Email adresinize gönderilen 6 haneli kodu girin.</p>
+                    <form id="verify-email-form">
+                        <div class="form-group">
+                            <label for="verification-code" class="form-label">Doğrulama Kodu</label>
+                            <input type="text" id="verification-code" class="form-input" placeholder="123456" maxlength="6" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Doğrula</button>
+                        <button type="button" id="resend-code" class="btn btn-secondary btn-full" style="margin-top: 10px;">Kodu Tekrar Gönder</button>
+                    </form>
+                </div>
+
+                <div class="auth-footer-link">
+                    <p>Zaten bir hesabın var mı? <a href="/login">Giriş Yap</a></p>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+<script src="/assets/js/auth.js"></script>

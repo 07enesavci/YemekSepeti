@@ -1,0 +1,77 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+<link rel="stylesheet" href="/assets/css/pages/checkout.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        <h1 class="panel-title">Kupon Yönetimi</h1>
+
+        <div class="card">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Yeni Kupon Kodu Oluştur</h3>
+                
+                <form id="coupon-form">
+                    <div class="form-group">
+                        <label for="coupon-code" class="form-label">Kupon Kodu *</label>
+                        <input type="text" id="coupon-code" class="form-input" placeholder="Örn: HOSGELDIN20" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="coupon-description" class="form-label">Açıklama</label>
+                        <textarea id="coupon-description" class="form-input" rows="2" placeholder="Kupon açıklaması (opsiyonel)"></textarea>
+                    </div>
+                    <div class="form-group-inline">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="discount-type" class="form-label">İndirim Türü *</label>
+                            <select id="discount-type" class="form-input" required>
+                                <option value="fixed">Sabit Tutar (TL)</option>
+                                <option value="percentage">Yüzde (%)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="coupon-amount" class="form-label">İndirim Değeri *</label>
+                            <input type="number" id="coupon-amount" class="form-input" step="0.01" min="0" placeholder="100" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="min-order-amount" class="form-label">Minimum Sipariş Tutarı (TL)</label>
+                        <input type="number" id="min-order-amount" class="form-input" step="0.01" min="0" placeholder="0" value="0">
+                    </div>
+                    <div class="form-group" id="max-discount-group" style="display: none;">
+                        <label for="max-discount-amount" class="form-label">Maksimum İndirim Tutarı (TL) - Yüzde indirimlerde</label>
+                        <input type="number" id="max-discount-amount" class="form-input" step="0.01" min="0" placeholder="Opsiyonel">
+                    </div>
+                    <div class="form-group">
+                        <label for="valid-days" class="form-label">Geçerlilik Süresi (Gün)</label>
+                        <input type="number" id="valid-days" class="form-input" min="1" placeholder="30" value="30">
+                    </div>
+
+                    <hr class="divider">
+
+                    <h4 class="form-label">Kuponu Hangi Satıcılara Uygula?</h4>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" id="select-all-sellers">
+                        <label for="select-all-sellers"><strong>Tüm Satıcıları Seç</strong></label>
+                    </div>
+
+                    <div id="seller-checkbox-list" class="seller-checkbox-list">
+                        </div>
+
+                    <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Kuponları Tanımla</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 2rem;">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Tanımlı Kuponlar</h3>
+                <div id="coupon-list-container">
+                    </div>
+            </div>
+        </div>
+
+    </main>
+</div>

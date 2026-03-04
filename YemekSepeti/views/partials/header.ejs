@@ -1,0 +1,64 @@
+<header class="site-header">
+    <div class="header-content container">
+        <a href="/" class="logo">Ev Lezzetleri</a>
+        <div class="header-actions">
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Koyu tema">
+                <span class="theme-icon sun" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2" fill="currentColor"/>
+                        <path d="M12 1v4M12 19v4M23 12h-4M5 12H1M20.364 3.636l-2.828 2.828M6.464 17.536l-2.828 2.828M20.364 20.364l-2.828-2.828M6.464 6.464L3.636 3.636" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <span class="theme-icon moon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="currentColor"/>
+                    </svg>
+                </span>
+            </button>
+            <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Menu" type="button">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+        <div class="nav-overlay" id="nav-overlay"></div>
+        <nav class="main-nav" id="main-nav">
+            <ul> 	
+                <% if (user && user.role === 'seller') { %>
+                    <!-- Satıcı için panel ve çıkış butonu -->
+                    <li><a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="btn btn-primary">Satıcı Paneli</a></li>
+                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                <% } else if (user && user.role === 'courier') { %>
+                    <!-- Kurye için panel ve çıkış butonu -->
+                    <% const courierId = user.courierId || user.id; %>
+                    <li><a href="/courier/<%= courierId %>/dashboard" class="btn btn-primary">Kurye Paneli</a></li>
+                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                <% } else if (user && user.role === 'admin') { %>
+                    <!-- Admin için panel ve çıkış butonu -->
+                    <li><a href="/admin/users" class="btn btn-primary">Admin Paneli</a></li>
+                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                <% } else { %>
+                    <!-- Buyer ve misafirler için normal menü -->
+                    <li><a href="/" class="btn btn-secondary">Ana Sayfa</a></li>
+                    
+                    <% if (user) { %>
+                        <% if(user.role === 'buyer') { %>
+                            <li><a href="/buyer/profile" class="btn btn-secondary">Profilim</a></li>
+                        <% } %>
+                        <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                    <% } else { %>
+                        <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>
+                        <li><a href="/register" class="btn btn-primary">Kayıt Ol</a></li>
+                    <% } %>
+                    
+                    <li id="cart-button-li" style="position: relative; display: none;"> 
+                        <a href="/buyer/cart" class="btn btn-primary" id="cart-button">
+                            Sepet (<span id="cart-count">0</span>) 
+                        </a>
+                    </li>
+                <% } %>
+
+            </ul>
+        </nav>
+    </div>
+</header>
