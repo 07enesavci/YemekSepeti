@@ -602,6 +602,8 @@ let courierDashboardRefreshInterval = null;
 let courierAvailableRefreshInterval = null;
 const COURIER_AUTO_REFRESH_MS = 3000;
 let courierSocket = null;
+let lastRenderedActiveTaskKey = null;
+let lastRenderedDashboardMode = null;
 
 async function resolveCourierSocketUserId() {
     try {
@@ -1024,6 +1026,20 @@ async function loadActiveTasks() {
         if (tasks.length > 0) {
             const activeTask = tasks[0];
             const isPickedUp = !!activeTask.pickedUpAt;
+            const activeTaskKey = [
+                activeTask.id,
+                isPickedUp ? 1 : 0,
+                activeTask.dropoffLat || '',
+                activeTask.dropoffLng || ''
+            ].join(':');
+
+            const hasExistingTaskCard = !!taskContainer.querySelector('.courier-task-action-btn');
+
+            // Auto-refresh sırasında görev aynıysa haritayı tekrar kurma.
+            if (hasExistingTaskCard && lastRenderedDashboardMode === 'active' && lastRenderedActiveTaskKey === activeTaskKey) {
+                return;
+            }
+
             taskContainer.innerHTML = createActiveTaskCard({
                 id: activeTask.id,
                 pickup: activeTask.pickup,
@@ -1033,6 +1049,9 @@ async function loadActiveTasks() {
                 payout: activeTask.payout,
                 isPickedUp: isPickedUp
             });
+
+            lastRenderedActiveTaskKey = activeTaskKey;
+            lastRenderedDashboardMode = 'active';
 
             const pickupBtn = taskContainer.querySelector('.pickup-task-btn');
             if (pickupBtn) {
@@ -1058,6 +1077,11 @@ async function loadActiveTasks() {
             }, 300);
 
         } else {
+            const hasIdleMapAlready = !!document.getElementById('courier-map-idle');
+            if (hasIdleMapAlready && lastRenderedDashboardMode === 'idle') {
+                return;
+            }
+
             const pathMatch = window.location.pathname.match(/\/courier\/(\d+)/);
             const courierId = pathMatch ? pathMatch[1] : (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).courierId || JSON.parse(localStorage.getItem('user')).id : '');
             
@@ -1069,6 +1093,9 @@ async function loadActiveTasks() {
                     <a href="/courier/${courierId}/available" class="btn btn-secondary btn-full" style="margin-top: 1rem;">Yeni Görevlere Git</a>
                 </div>
             `;
+
+            lastRenderedActiveTaskKey = null;
+            lastRenderedDashboardMode = 'idle';
 
             setTimeout(() => {
                 initIdleCourierMap();
