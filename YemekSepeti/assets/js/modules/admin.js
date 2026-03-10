@@ -118,10 +118,11 @@ function kullaniciSatiriOlustur(kullanici)
         durumSinifi='active';
     }
     
+    var rolYazi = (kullanici.role === 'seller') ? 'Satıcı' : (kullanici.role === 'courier') ? 'Kurye' : (kullanici.role || '');
     itemDiv.innerHTML = `
         <div class="user-info">
-            <strong>${kullanici.fullname}</strong>
-            <span>${kullanici.email} - (Rol: ${kullanici.role})</span>
+            <strong>${kullanici.fullname || '-'}</strong>
+            <span>${kullanici.email || ''} – ${rolYazi}</span>
         </div>
         <div class="user-status">
             <span class="status-dot ${durumSinifi}">
@@ -239,7 +240,11 @@ function kuponlariYukleVeListele()
     kuponlariGetir().then(function(kuponlar) 
     {
         var html="";
-        if (!kuponlar || kuponlar.length === 0) 
+        if (!Array.isArray(kuponlar)) 
+        {
+            kuponlar = [];
+        }
+        if (kuponlar.length === 0) 
         {
             html = "<p>Henüz tanımlanmış kupon yok.</p>";
             listeKonteyneri.innerHTML = html;
@@ -261,12 +266,11 @@ function kuponlariYukleVeListele()
 
             if (saticiListesi && saticiListesi.length > 0) 
             {
-
-                saticilarHtml = '<span class="seller-tag">' + saticiListesi.length + ' Satıcıda Geçerli</span> ';
+                saticilarHtml = '<span class="seller-tag">' + saticiListesi.length + ' restoranda geçerli</span> ';
             } 
             else 
             {
-                saticilarHtml='<span class="seller-tag">Tüm Satıcılar</span>';
+                saticilarHtml = '<span class="seller-tag">Tüm restoranlarda geçerli</span>';
             }
             
             var indirimText;
@@ -332,7 +336,7 @@ function kuponlariYukleVeListele()
         listeKonteyneri.innerHTML = html;
     }).catch(hata => {
         console.error(hata);
-        listeKonteyneri.innerHTML = "<p style='color:red;'>Kuponlar yüklenemedi.</p>";
+        listeKonteyneri.innerHTML = "<p style='color:red;'>Kuponlar yüklenemedi. Veritabanı bağlantısını kontrol edin veya sayfayı yenileyin.</p>";
     });
 }
 
@@ -491,6 +495,8 @@ document.addEventListener("DOMContentLoaded", function()
     var kuponFormuSayfasi=document.getElementById("coupon-form");
     var tumunuSecKutusu=document.getElementById("select-all-sellers");
     var kuponListesiKonteyneri=document.getElementById("coupon-list-container");
+    var discountTypeSelect=document.getElementById("discount-type");
+    var maxDiscountGroup=document.getElementById("max-discount-group");
 
     if (kullaniciListesiSayfasi) 
     {

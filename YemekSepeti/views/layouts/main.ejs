@@ -58,12 +58,12 @@
     <!-- Socket.IO Client Library - Real-time Order Updates -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
-        // Seller sayfasında real-time updates başlat
         document.addEventListener('DOMContentLoaded', () => {
-            if (typeof initializeSellerRealTimeUpdates === 'function' && window.location.pathname.includes('/seller')) {
-                setTimeout(() => {
-                    initializeSellerRealTimeUpdates();
-                }, 100);
+            if (window.location.pathname.includes('/seller') && typeof initializeSellerRealTimeUpdates === 'function') {
+                setTimeout(initializeSellerRealTimeUpdates, 100);
+            }
+            if (window.location.pathname.includes('/courier') && typeof connectCourierSocketWhenReady === 'function') {
+                setTimeout(connectCourierSocketWhenReady, 100);
             }
         });
     </script>

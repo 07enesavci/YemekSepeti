@@ -49,15 +49,30 @@ router.get("/menu", requireRole('seller'), async (req, res) => {
 
 router.post("/menu", requireRole('seller'), async (req, res) => {
     try {
-        const sellerId = req.session.user.id;
+        const userId = req.session?.user?.id;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Oturum bulunamadı. Lütfen tekrar giriş yapın."
+            });
+        }
+
         const { category, name, description, price, imageUrl, isAvailable = true } = req.body;
-        if (!category || !name || !price) {
+        if (!category || !name || price === undefined || price === null || price === '') {
             return res.status(400).json({
                 success: false,
                 message: "Kategori, isim ve fiyat gereklidir."
             });
         }
-        
+
+        const priceNum = parseFloat(price);
+        if (isNaN(priceNum) || priceNum < 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Geçerli bir fiyat giriniz."
+            });
+        }
+
         let finalImageUrl = null;
         if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
             finalImageUrl = imageUrl.trim();
@@ -68,40 +83,45 @@ router.post("/menu", requireRole('seller'), async (req, res) => {
                 });
             }
         }
-        
+
+        const isAvailableBool = isAvailable === true || isAvailable === 'true' || String(isAvailable).toLowerCase() === 'true';
+
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
-            [sellerId]
+            [userId]
         );
-        
-        if (sellerQuery.length === 0) {
+
+        if (!sellerQuery || sellerQuery.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "Satıcı kaydı bulunamadı."
             });
         }
-        
+
         const shopId = sellerQuery[0].id;
         const result = await db.execute(
-            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [shopId, category, name, description || null, price, finalImageUrl, isAvailable]
+            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool]
         );
-        
+
+        const insertId = (result && result.insertId != null) ? Number(result.insertId) : 0;
+
         res.status(201).json({
             success: true,
             message: "Yemek başarıyla eklendi.",
             meal: {
-                id: result.insertId,
-                category, name, description, price,
+                id: insertId,
+                category, name, description, price: priceNum,
                 imageUrl: finalImageUrl,
-                isAvailable
+                isAvailable: isAvailableBool
             }
         });
     } catch (error) {
+        console.error("POST /api/seller/menu hatası:", error);
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası."
+            message: process.env.NODE_ENV === 'development' ? error.message : "Sunucu hatası."
         });
     }
 });
@@ -720,8 +740,8 @@ router.post("/coupons", requireRole('seller'), async (req, res) => {
         const sql = `
             INSERT INTO coupons 
             (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, 
-             applicable_seller_ids, valid_from, valid_until, created_by) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ${validUntil}, ?)
+             applicable_seller_ids, valid_from, valid_until, created_by, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ${validUntil}, ?, NOW(), NOW())
         `;
         
         await db.execute(sql, [

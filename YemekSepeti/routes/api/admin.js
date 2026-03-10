@@ -213,17 +213,48 @@ router.get("/sellers", async (req, res) => {
 router.get("/coupons", async (req, res) => {
     try 
     {
-        const sql = "SELECT * FROM coupons ORDER BY created_at DESC";
-        const coupons = await db.query(sql);
-        const formattedCoupons = coupons.map(c => ({
-            ...c,
-            sellerIds: c.applicable_seller_ids,
-            amount: c.discount_value
-        }));
+        const sql = "SELECT id, code, description, discount_type, discount_value, min_order_amount, max_discount_amount, applicable_seller_ids, usage_limit, used_count, valid_from, valid_until, is_active, created_at FROM coupons ORDER BY created_at DESC";
+        const rows = await db.query(sql);
+        if (!Array.isArray(rows)) {
+            return res.json([]);
+        }
+        const formattedCoupons = rows.map(c => {
+            let sellerIds = c.applicable_seller_ids;
+            if (typeof sellerIds === 'string') {
+                try { sellerIds = JSON.parse(sellerIds); } catch (e) { sellerIds = null; }
+            }
+            return {
+                id: c.id,
+                code: c.code,
+                description: c.description,
+                discount_type: c.discount_type,
+                discountType: c.discount_type,
+                discount_value: c.discount_value,
+                discountValue: parseFloat(c.discount_value) || 0,
+                amount: parseFloat(c.discount_value) || 0,
+                min_order_amount: parseFloat(c.min_order_amount) || 0,
+                minOrderAmount: parseFloat(c.min_order_amount) || 0,
+                max_discount_amount: c.max_discount_amount != null ? parseFloat(c.max_discount_amount) : null,
+                maxDiscountAmount: c.max_discount_amount != null ? parseFloat(c.max_discount_amount) : null,
+                applicable_seller_ids: sellerIds,
+                sellerIds: sellerIds,
+                usage_limit: c.usage_limit != null ? parseInt(c.usage_limit) : -1,
+                usageLimit: c.usage_limit != null ? parseInt(c.usage_limit) : -1,
+                used_count: parseInt(c.used_count) || 0,
+                usedCount: parseInt(c.used_count) || 0,
+                valid_from: c.valid_from,
+                valid_until: c.valid_until,
+                validFrom: c.valid_from,
+                validUntil: c.valid_until,
+                is_active: c.is_active,
+                created_at: c.created_at
+            };
+        });
         res.json(formattedCoupons);
     } 
     catch (error) 
     {
+        console.error("Admin coupons list hatası:", error);
         res.status(500).json({ success: false, message: "Veritabanı hatası." });
     }
 });
@@ -233,59 +264,62 @@ router.post("/coupons", async (req, res) => {
     {
         const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, sellerIds, validDays } = req.body;
         
-        if (!code || !discountValue) 
+        if (!code || (discountValue === undefined && req.body.amount === undefined)) 
         {
             return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gereklidir." });
         }
         
-        const amount = discountValue || req.body.amount;
-        const type = discountType || 'fixed';
-        let validUntil;
-        if (validDays) 
+        const amount = parseFloat(discountValue ?? req.body.amount);
+        if (isNaN(amount) || amount <= 0) 
         {
-            validUntil = `DATE_ADD(NOW(), INTERVAL ${validDays} DAY)`;
-        }
-        else 
-        {
-            validUntil = 'DATE_ADD(NOW(), INTERVAL 30 DAY)';
+            return res.status(400).json({ success: false, message: "Geçerli bir indirim değeri girin." });
         }
         
-        const sellerIdsArray = sellerIds || req.body.sellerIds || [];
-        let sellerIdsJson;
-        if (sellerIdsArray.length === 0) 
-        {
-            sellerIdsJson = null;
-        }
-        else 
-        {
-            sellerIdsJson = JSON.stringify(sellerIdsArray);
-        }
+        const type = (discountType === 'percentage' || discountType === 'fixed') ? discountType : 'fixed';
+        const validDaysNum = Math.max(1, parseInt(validDays, 10) || 30);
+        const validUntilExpr = `DATE_ADD(NOW(), INTERVAL ${validDaysNum} DAY)`;
+        
+        const sellerIdsArray = Array.isArray(sellerIds) ? sellerIds : (Array.isArray(req.body.sellerIds) ? req.body.sellerIds : []);
+        const sellerIdsJson = sellerIdsArray.length === 0 ? null : JSON.stringify(sellerIdsArray);
+        
+        const minOrder = (minOrderAmount != null && minOrderAmount !== '') ? parseFloat(minOrderAmount) : 0;
+        const maxDiscount = (maxDiscountAmount != null && maxDiscountAmount !== '') ? parseFloat(maxDiscountAmount) : null;
+        const createdBy = (req.user && req.user.id != null) ? req.user.id : null;
         
         const sql = `
             INSERT INTO coupons 
             (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, 
-             applicable_seller_ids, valid_from, valid_until, created_by) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ${validUntil}, ?)
+             applicable_seller_ids, valid_from, valid_until, created_by, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ${validUntilExpr}, ?, NOW(), NOW())
         `;
         
         await db.execute(sql, [
-            code,
-            description || null,
+            String(code).trim(),
+            description ? String(description).trim() : null,
             type,
             amount,
-            minOrderAmount || 0,
-            maxDiscountAmount || null,
+            isNaN(minOrder) ? 0 : minOrder,
+            (maxDiscount != null && !isNaN(maxDiscount)) ? maxDiscount : null,
             sellerIdsJson,
-            req.user.id
+            createdBy
         ]);
         
         res.json({ success: true, message: "Kupon başarıyla oluşturuldu." });
     } 
     catch (error) 
     {
+        console.error("Kupon oluşturma hatası:", error);
         if (error.code === 'ER_DUP_ENTRY') 
         {
             return res.status(400).json({ success: false, message: "Bu kupon kodu zaten kullanılıyor." });
+        }
+        if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.code === 'ER_BAD_FIELD_ERROR') 
+        {
+            return res.status(500).json({ success: false, message: "Veritabanı yapılandırma hatası. Lütfen coupons tablosunu kontrol edin." });
+        }
+        if (error.code === 'ER_NO_DEFAULT_FOR_FIELD') 
+        {
+            return res.status(500).json({ success: false, message: "Veritabanı created_at/updated_at varsayılan değer hatası. Lütfen sunucuyu yeniden başlatın veya coupons tablosuna DEFAULT ekleyin." });
         }
         res.status(500).json({ success: false, message: "Kupon oluşturulamadı." });
     }

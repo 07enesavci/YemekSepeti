@@ -164,12 +164,11 @@ async function loadMenuPage() {
 
         if (menu.length === 0) {
             menuListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz menü eklenmemiş. Yeni yemek eklemek için yukarıdaki butona tıklayın.</p>';
-            return;
+        } else {
+            menu.forEach(meal => {
+                menuListContainer.insertAdjacentHTML('beforeend', createMealCardHTML(meal));
+            });
         }
-
-        menu.forEach(meal => {
-            menuListContainer.insertAdjacentHTML('beforeend', createMealCardHTML(meal));
-        });
         attachMenuEventListeners();
     } catch (error) {
         menuListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Menü yüklenirken hata oluştu.</p>';
@@ -346,8 +345,27 @@ async function updateEarningsStats(period = 'month') {
     }
 }
 
+async function loadRecentOrdersForPanel() {
+    const ids = ['recent-orders-list', 'recent-orders-list-earnings'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>';
+    });
+    try {
+        const data = await fetchDashboardData();
+        const orders = (data && data.recentOrders) ? data.recentOrders : [];
+        ids.forEach(id => renderRecentOrdersList(orders, id));
+    } catch (e) {
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
+        });
+    }
+}
+
 function initializeEarningsPage() {
     loadEarningsPage();
+    loadRecentOrdersForPanel();
 }
 
 async function fetchSellerOrders(tab = 'new') {
@@ -595,12 +613,49 @@ async function fetchDashboardData() {
     }
 }
 
+function renderRecentOrdersList(orders, containerId) {
+    const ordersList = document.getElementById(containerId);
+    if (!ordersList) return;
+    if (orders.length === 0) {
+        ordersList.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş bulunmuyor.</p>';
+        return;
+    }
+    ordersList.innerHTML = orders.map(order => {
+        const statusClass = order.status === 'delivered' ? 'delivered' : 
+                           order.status === 'preparing' ? 'preparing' : 
+                           order.status === 'cancelled' ? 'cancelled' : '';
+        const statusText = order.status === 'delivered' ? 'Teslim Edildi' :
+                          order.status === 'preparing' ? 'Hazırlanıyor' :
+                          order.status === 'cancelled' ? 'İptal Edildi' :
+                          order.status === 'ready' ? 'Hazır' : 'Bekliyor';
+        const total = parseFloat(order.total) || 0;
+        return `
+            <div class="order-list-item">
+                <div class="order-info">
+                    <strong>#${order.orderNumber || order.id} - ${order.customer || 'Müşteri'}</strong>
+                    <span>${order.items || 'Belirtilmemiş'}</span>
+                </div>
+                <div class="order-status ${statusClass}">
+                    ${statusText}
+                </div>
+                <div class="order-price">
+                    ${total.toFixed(2)} TL
+                </div>
+                <a href="/seller/orders" class="btn btn-secondary btn-sm">Detay</a>
+            </div>
+        `;
+    }).join('');
+}
+
 async function loadDashboardPage() {
     try {
         const data = await fetchDashboardData();
         
         if (!data) {
-            document.getElementById('dashboard-subtitle').textContent = 'Veri yüklenemedi.';
+            const subtitle = document.getElementById('dashboard-subtitle');
+            if (subtitle) subtitle.textContent = 'Veri yüklenemedi.';
+            renderRecentOrdersList([], 'recent-orders-list');
+            renderRecentOrdersList([], 'recent-orders-list-earnings');
             return;
         }
         
@@ -628,41 +683,8 @@ async function loadDashboardPage() {
         if (earningsEl) earningsEl.textContent = `${(stats.todayEarnings || 0).toFixed(2)} TL`;
         if (ratingEl) ratingEl.textContent = (stats.shopRating || 0).toFixed(1);
         
-        // Son siparişleri göster (tüm siparişler - pending, teslim edilen, vb)
-        const ordersList = document.getElementById('recent-orders-list');
-        if (ordersList) {
-            const orders = data.recentOrders || [];
-            
-            if (orders.length === 0) {
-                ordersList.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş bulunmuyor.</p>';
-            } else {
-                ordersList.innerHTML = orders.map(order => {
-                    const statusClass = order.status === 'delivered' ? 'delivered' : 
-                                       order.status === 'preparing' ? 'preparing' : 
-                                       order.status === 'cancelled' ? 'cancelled' : '';
-                    const statusText = order.status === 'delivered' ? 'Teslim Edildi' :
-                                      order.status === 'preparing' ? 'Hazırlanıyor' :
-                                      order.status === 'cancelled' ? 'İptal Edildi' :
-                                      order.status === 'ready' ? 'Hazır' : 'Bekliyor';
-                    
-                    return `
-                        <div class="order-list-item">
-                            <div class="order-info">
-                                <strong>#${order.orderNumber || order.id} - ${order.customer || 'Müşteri'}</strong>
-                                <span>${order.items || 'Belirtilmemiş'}</span>
-                            </div>
-                            <div class="order-status ${statusClass}">
-                                ${statusText}
-                            </div>
-                            <div class="order-price">
-                                ${order.total.toFixed(2)} TL
-                            </div>
-                            <a href="/seller/orders" class="btn btn-secondary btn-sm">Detay</a>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
+        renderRecentOrdersList(data.recentOrders || [], 'recent-orders-list');
+        renderRecentOrdersList(data.recentOrders || [], 'recent-orders-list-earnings');
     } catch (error) {
         const subtitle = document.getElementById('dashboard-subtitle');
         if (subtitle) subtitle.textContent = 'Veri yüklenirken hata oluştu.';
@@ -1197,11 +1219,17 @@ async function updateSellerSidebarOwnerName() {
     }
 }
 
+const PAGE_NAMES = ['dashboard', 'orders', 'menu', 'earnings', 'profile', 'coupons'];
+
 function getSellerIdFromUrl() {
     const pathParts = window.location.pathname.split('/');
     const sellerIndex = pathParts.indexOf('seller');
     if (sellerIndex !== -1 && pathParts[sellerIndex + 1]) {
-        return pathParts[sellerIndex + 1];
+        const segment = pathParts[sellerIndex + 1];
+        if (PAGE_NAMES.includes(segment) || !/^\d+$/.test(segment)) {
+            return null;
+        }
+        return segment;
     }
     return null;
 }
@@ -1374,6 +1402,7 @@ async function connectSellerSocket() {
             
             const isOrdersPage = document.querySelector('.tabs') !== null; 
             const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
+            const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
             
             showOrderNotification(orderData);
             
@@ -1381,6 +1410,12 @@ async function connectSellerSocket() {
             if (isDashboardPage) {
                 loadDashboardPage().catch((error) => {
                     console.error('Dashboard yenilenmesi hatası:', error);
+                });
+            }
+            // Kazanç sayfasında Son Gelen Siparişler'i yenile
+            if (isEarningsPage) {
+                loadRecentOrdersForPanel().catch((error) => {
+                    console.error('Son siparişler yenilenmesi hatası:', error);
                 });
             }
             

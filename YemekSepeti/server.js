@@ -430,6 +430,11 @@ try {
                 socket.join(courierRoom);
                 console.log(`   ✅ Room'a katıldı: ${courierRoom}`);
             }
+            if (userRole === 'buyer') {
+                const buyerRoom = `buyer-${userId}`;
+                socket.join(buyerRoom);
+                console.log(`   ✅ Room'a katıldı: ${buyerRoom}`);
+            }
         } else {
             console.warn(`   ⚠️ User ID geçilmedi`);
         }

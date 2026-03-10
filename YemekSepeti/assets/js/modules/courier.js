@@ -630,8 +630,28 @@ async function resolveCourierSocketUserId() {
     }
 }
 
+function connectCourierSocketWhenReady() {
+    if (courierSocket) return;
+    let retries = 0;
+    const maxRetries = 50;
+    const interval = setInterval(async () => {
+        retries++;
+        if (typeof io === 'undefined') {
+            if (retries >= maxRetries) clearInterval(interval);
+            return;
+        }
+        clearInterval(interval);
+        await connectCourierSocket();
+    }, 100);
+}
+window.connectCourierSocketWhenReady = connectCourierSocketWhenReady;
+
 async function connectCourierSocket() {
-    if (courierSocket || typeof io === 'undefined') return;
+    if (courierSocket) return;
+    if (typeof io === 'undefined') {
+        connectCourierSocketWhenReady();
+        return;
+    }
 
     const userId = await resolveCourierSocketUserId();
     if (!userId) return;
@@ -639,10 +659,15 @@ async function connectCourierSocket() {
     try {
         courierSocket = io({
             query: { userId, role: 'courier' },
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5
         });
 
-        courierSocket.on('courier_task_assigned', () => {
+        courierSocket.on('courier_task_assigned', (payload) => {
+            lastRenderedActiveTaskKey = null;
+            lastRenderedDashboardMode = null;
             const path = window.location.pathname || '';
             if (path.includes('/courier/available')) {
                 loadAvailableOrders();
@@ -651,12 +676,16 @@ async function connectCourierSocket() {
                 loadActiveTasks();
                 loadCourierStatusIndicator();
             }
-            displayMessage('🆕 Yeni görev atandı, panel güncellendi.', 'success');
+            displayMessage('🆕 Yeni görev atandı! Panel güncellendi.', 'success');
         });
 
         courierSocket.on('disconnect', () => {
             courierSocket = null;
             setTimeout(() => connectCourierSocket(), 1500);
+        });
+
+        courierSocket.on('connect_error', () => {
+            courierSocket = null;
         });
     } catch (e) {
         courierSocket = null;
@@ -1014,7 +1043,7 @@ async function updateStats() {
 }
 
 async function loadActiveTasks() {
-    const taskContainer = document.querySelector('main .card');
+    const taskContainer = document.getElementById('courier-dashboard-task-card') || document.querySelector('main .card:not(.stat-card)') || document.querySelector('main .card');
 
     if (!taskContainer) return;
 

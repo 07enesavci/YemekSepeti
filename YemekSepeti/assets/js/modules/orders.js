@@ -609,20 +609,94 @@ async function renderOrders() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function playBuyerOrderSound() {
+    try {
+        var synth = window.speechSynthesis;
+        if (synth) {
+            synth.cancel();
+            var u = new SpeechSynthesisUtterance('Siparişiniz alındı.');
+            u.lang = 'tr-TR';
+            u.rate = 1.0;
+            u.volume = 1;
+            synth.speak(u);
+        }
+    } catch (e) {}
+}
+
+function showBuyerOrderToast(data) {
+    var toast = document.createElement('div');
+    toast.className = 'buyer-order-toast';
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#4CAF50;color:#fff;padding:16px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;font-size:14px;animation:slideIn 0.3s ease-out;';
+    toast.innerHTML = '<strong>Siparişiniz alındı</strong><br><small>#' + (data.orderNumber || data.id) + ' - ' + (data.totalAmount || '') + ' TL</small>';
+    if (!document.querySelector('style[data-buyer-toast]')) {
+        var style = document.createElement('style');
+        style.setAttribute('data-buyer-toast', '');
+        style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
+        document.head.appendChild(style);
+    }
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 5000);
+}
+
+function initializeBuyerOrderUpdates() {
+    if (!window.location.pathname.includes('/buyer/orders')) return;
+    var retries = 0;
+    var maxRetries = 50;
+    var interval = setInterval(function() {
+        retries++;
+        if (typeof io === 'undefined') {
+            if (retries >= maxRetries) clearInterval(interval);
+            return;
+        }
+        clearInterval(interval);
+        var baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        fetch(baseUrl + '/api/auth/me', { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.user || !data.user.id) return;
+                var userId = data.user.id;
+                window.buyerOrderSocket = io({
+                    query: { userId: String(userId), role: 'buyer' },
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    transports: ['websocket', 'polling']
+                });
+                window.buyerOrderSocket.on('connect', function() {
+                    console.log('Alıcı Socket.IO bağlandı - sipariş güncellemeleri açık.');
+                });
+                window.buyerOrderSocket.on('order_placed', function(payload) {
+                    console.log('Yeni sipariş bildirimi:', payload);
+                    playBuyerOrderSound();
+                    showBuyerOrderToast(payload);
+                    if (typeof renderOrders === 'function') {
+                        renderOrders();
+                    }
+                });
+                window.buyerOrderSocket.on('connect_error', function(err) {
+                    console.warn('Alıcı Socket bağlantı hatası:', err.message);
+                });
+            })
+            .catch(function() {});
+    }, 100);
+}
+
+window.renderOrders = renderOrders;
+
+document.addEventListener('DOMContentLoaded', function() {
     renderOrders();
-    
-    const logoutBtn = document.getElementById('logout-btn');
+    initializeBuyerOrderUpdates();
+
+    var logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
+        logoutBtn.addEventListener('click', function(e) {
             e.preventDefault();
             if (window.logout) {
                 window.logout();
             } else {
                 console.log("Kullanıcı çıkış yaptı.");
                 alert("Başarıyla çıkış yaptınız.");
-                const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                window.location.href = `${baseUrl}/`;
+                var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                window.location.href = baseUrl + '/';
             }
         });
     }

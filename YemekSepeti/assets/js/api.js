@@ -467,7 +467,7 @@ async function getAllUsers()
 {
     try 
     {
-        const response=await fetch(`${API_BASE_URL}/api/cart`, {
+        const response=await fetch(`${API_BASE_URL}/api/admin/users`, {
             method: 'GET',
             headers: getAuthHeaders(),
             credentials: 'include'
@@ -482,11 +482,12 @@ async function getAllUsers()
         if(Array.isArray(users)) 
         {
             return users;
-        } 
-        else 
-        {
-            return [];
         }
+        if (users && users.data && Array.isArray(users.data)) 
+        {
+            return users.data;
+        }
+        return [];
     } 
     catch (error) 
     {

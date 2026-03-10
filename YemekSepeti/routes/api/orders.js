@@ -250,6 +250,14 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                                 items: newOrder.items || [],
                                 createdAt: new Date(newOrder.created_at).toLocaleString('tr-TR')
                             });
+
+                            const buyerRoom = `buyer-${userId}`;
+                            global.io.to(buyerRoom).emit('order_placed', {
+                                id: newOrder.id,
+                                orderNumber: newOrder.order_number,
+                                totalAmount: newOrder.total_amount,
+                                message: 'Siparişiniz alındı.'
+                            });
                         } else {
                             console.error('   ❌ Sipariş DB\'den yeniden çekilirken hata');
                         }
