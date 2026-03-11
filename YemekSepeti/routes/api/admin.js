@@ -339,21 +339,26 @@ router.delete("/coupons/:id", async (req, res) => {
         res.status(500).json({ success: false, message: "İşlem başarısız." });
     }
 });
-// --- SATICI ONAY SİSTEMİ BAŞLANGIÇ ---
+/// --- SATICI ONAY SİSTEMİ BAŞLANGIÇ ---
 
 // 1. Onay Bekleyen Satıcıları Listele (GET)
 router.get("/pending-sellers", requireRole('admin'), async (req, res) => {
     try {
         const pending = await Seller.findAll({ 
-            where: { is_active: false } 
+            where: { is_active: false }, 
+            include: [{
+                model: User,
+                as: 'user', // BURASI: 'User' yerine 'user' (küçük harf) olmalı
+                attributes: ['email', 'fullname'] 
+            }]
         });
+        console.log("Onay bekleyen satıcı sayısı:", pending.length);
         res.json({ success: true, data: pending });
     } catch (error) {
-        console.error("Liste Hatası:", error);
+        console.error("Liste Hatası Detayı:", error);
         res.status(500).json({ success: false, message: "Liste çekilemedi." });
     }
 });
-
 // 2. Satıcıyı Onayla (POST)
 router.post("/approve-seller/:id", requireRole('admin'), async (req, res) => {
     try {

@@ -1,0 +1,88 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+<link rel="stylesheet" href="/assets/css/pages/checkout.css">
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        <h1 class="panel-title">Satıcı Onay Listesi</h1>
+
+        <div class="card">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Onay Bekleyen Mağaza Başvuruları</h3>
+                
+                <div class="table-responsive" style="margin-top: 1rem;">
+                    <table class="panel-table">
+                        <thead>
+                            <tr>
+                                <th>Mağaza Bilgisi</th>
+                                <th>E-posta Adresi</th>
+                                <th class="text-end">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sellers-tbody">
+                            <tr>
+                                <td colspan="3" class="text-center py-4">Veriler yükleniyor...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    async function loadPendingSellers() {
+        const tbody = document.getElementById('sellers-tbody');
+        try {
+            const res = await fetch('/api/admin/pending-sellers');
+            const result = await res.json();
+
+            if (!result.success || !result.data || result.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4">Onay bekleyen başvuru bulunmamaktadır.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = result.data.map(s => `
+                <tr class="align-middle">
+                    <td>
+                        <div style="font-weight: 600; color: var(--primary-color);">${s.shop_name}</div>
+                        <small style="color: #888;">Başvuru Tarihi: ${new Date(s.createdAt).toLocaleDateString('tr-TR')}</small>
+                    </td>
+                    <td>${(s.user || s.User) ? (s.user || s.User).email : 'E-posta bulunamadı'}</td>
+                    <td class="text-end">
+                        <button onclick="approve('${s.id}')" class="btn btn-primary btn-sm">
+                            <span>✅</span> Onayla
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            console.error("Yükleme hatası:", err);
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-4">Veritabanı bağlantı hatası!</td></tr>';
+        }
+    }
+
+    async function approve(id) {
+        if(!confirm('Bu mağazayı onaylayarak satış yapmasına izin vermek istiyor musunuz?')) return;
+        
+        try {
+            const res = await fetch('/api/admin/approve-seller/' + id, { method: 'POST' });
+            const data = await res.json();
+            
+            if(data.success) {
+                alert("Mağaza başarıyla onaylandı!");
+                loadPendingSellers();
+            } else {
+                alert("Hata: " + data.message);
+            }
+        } catch (error) {
+            alert("Onaylama işlemi sırasında bir sunucu hatası oluştu.");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPendingSellers);
+</script>
