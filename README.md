@@ -7,7 +7,7 @@ Web tabanlı yemek sipariş ve teslimat uygulaması. Alıcılar restoranlardan s
 ## Teknoloji
 
 - **Backend:** Node.js, Express
-- **Veritabanı:** MySQL (mysql2 + Sequelize ORM)
+- **Veritabanı:** MySQL — yerel veya bulut (mysql2 + Sequelize ORM). Bulut kullanımında SSL desteklenir (Aiven, PlanetScale vb.).
 - **Oturum:** express-session (MySQL store opsiyonel)
 - **Şablon:** EJS, express-ejs-layouts
 - **Güvenlik:** Helmet, express-rate-limit, express-validator (auth)
@@ -19,7 +19,7 @@ Web tabanlı yemek sipariş ve teslimat uygulaması. Alıcılar restoranlardan s
 ## Gereksinimler
 
 - Node.js 18+
-- MySQL 8 (veya 5.7)
+- MySQL 8 (veya 5.7) — **yerel** veya **bulut** (Aiven, PlanetScale, AWS RDS vb.)
 - (Opsiyonel) SMTP veya Gmail uygulama şifresi — e-posta göndermek için
 
 ---
@@ -42,10 +42,11 @@ Web tabanlı yemek sipariş ve teslimat uygulaması. Alıcılar restoranlardan s
    ```
    Aşağıdaki değişkenleri doldurun:
    - **Veritabanı:** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+   - **Bulut veritabanı:** `DB_SSL=true` (ve isteğe bağlı `DB_CA_PATH=./path/to/ca.pem`)
    - **Güvenlik:** `SESSION_SECRET`, `JWT_SECRET` (üretimde mutlaka güçlü değerler)
    - **E-posta (opsiyonel):** `EMAIL_SERVICE` / `EMAIL_USER` / `EMAIL_PASS` veya `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASS`
 
-4. MySQL’de veritabanını oluşturun:
+4. MySQL’de veritabanını oluşturun (yerel veya bulut panelinden):
    ```sql
    CREATE DATABASE yemek_sepeti CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
@@ -63,11 +64,13 @@ Web tabanlı yemek sipariş ve teslimat uygulaması. Alıcılar restoranlardan s
 
 | Değişken | Açıklama | Varsayılan |
 |----------|----------|------------|
-| DB_HOST | MySQL sunucu | localhost |
+| DB_HOST | MySQL sunucu (yerel veya bulut host) | localhost |
 | DB_PORT | MySQL port | 3306 |
 | DB_USER | MySQL kullanıcı | root |
 | DB_PASSWORD | MySQL şifre | (boş) |
 | DB_NAME | Veritabanı adı | yemek_sepeti |
+| DB_SSL | Bulut MySQL için SSL: `true` | (boş = SSL yok) |
+| DB_CA_PATH | SSL CA sertifika dosya yolu (opsiyonel) | (boş) |
 | SESSION_SECRET | Oturum imzası | (üretimde zorunlu) |
 | JWT_SECRET | JWT imzası | (üretimde zorunlu) |
 | USE_MYSQL_SESSION | Oturumu MySQL’de sakla (true/false) | (opsiyonel) |
@@ -99,6 +102,18 @@ Web tabanlı yemek sipariş ve teslimat uygulaması. Alıcılar restoranlardan s
 | user_favorite_sellers | Alıcı favori restoranları |
 
 Session store için `sessions` tablosu kullanılır (USE_MYSQL_SESSION=true ise express-mysql-session ile oluşturulur).
+
+---
+
+## Bulut veritabanı
+
+Proje **yerel MySQL** ile birlikte **bulut MySQL** (Aiven, PlanetScale, AWS RDS, Azure Database for MySQL vb.) ile çalışacak şekilde yapılandırılmıştır:
+
+- `.env` içinde `DB_HOST` olarak bulut sunucu adresini verin (ör. `xxx.aivencloud.com`).
+- SSL zorunlu ise `DB_SSL=true` ekleyin. Kod, `DB_HOST` içinde `aivencloud.com` geçiyorsa veya `DB_SSL=true` ise otomatik SSL kullanır.
+- İsteğe bağlı: `DB_CA_PATH=./path/to/ca.pem` ile CA sertifikası verin (bazı bulut sağlayıcılar bunu ister).
+
+`config/database.js` ve `config/sequelize.js` bu ayarları okuyup bağlantıyı buna göre kurar.
 
 ---
 

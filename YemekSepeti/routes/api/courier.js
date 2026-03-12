@@ -263,6 +263,145 @@ router.put("/tasks/:id/complete", async (req, res) => {
     }
 });
 
+// Satıcıdan otomatik atanan görevi kurye tarafında kabul etme
+router.put("/tasks/:id/accept-assigned", async (req, res) => {
+    try {
+        const courierId = req.session.user.id;
+        const taskId = parseInt(req.params.id);
+        if (!taskId) return res.status(400).json({ success: false, message: "Geçersiz görev ID." });
+
+        const task = await CourierTask.findOne({
+            where: { id: taskId, courier_id: courierId },
+            attributes: ['id', 'status']
+        });
+        if (!task) return res.status(404).json({ success: false, message: "Görev bulunamadı." });
+
+        if (task.status !== 'assigned') {
+            return res.json({ success: true, message: "Görev zaten işlenmiş." });
+        }
+
+        await CourierTask.update(
+            { status: 'on_way' },
+            { where: { id: taskId, courier_id: courierId } }
+        );
+
+        return res.json({ success: true, message: "Görev kabul edildi." });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Görev kabul edilirken hata oluştu." });
+    }
+});
+
+// Satıcıdan otomatik atanan görevi kurye tarafında reddetme ve başka kuryeye atama
+router.put("/tasks/:id/reject-assigned", async (req, res) => {
+    try {
+        const courierId = req.session.user.id;
+        const taskId = parseInt(req.params.id);
+        if (!taskId) return res.status(400).json({ success: false, message: "Geçersiz görev ID." });
+
+        const task = await CourierTask.findOne({
+            where: { id: taskId, courier_id: courierId },
+            attributes: ['id', 'order_id', 'status']
+        });
+        if (!task) return res.status(404).json({ success: false, message: "Görev bulunamadı." });
+
+        if (task.status !== 'assigned') {
+            return res.json({ success: true, message: "Görev zaten işlenmiş." });
+        }
+
+        const order = await Order.findByPk(task.order_id, {
+            attributes: ['id', 'seller_id', 'user_id', 'delivery_fee', 'status', 'address_id'],
+            include: [
+                { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
+                { model: Address, as: 'address', attributes: ['district', 'city'], required: false }
+            ]
+        });
+        if (!order) {
+            await CourierTask.update(
+                { status: 'cancelled' },
+                { where: { id: taskId, courier_id: courierId } }
+            );
+            return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
+        }
+
+        // Mevcut kuryeyi siparişten düşür
+        await Order.update(
+            { courier_id: null, status: 'ready' },
+            { where: { id: order.id } }
+        );
+        await CourierTask.update(
+            { status: 'cancelled' },
+            { where: { id: taskId, courier_id: courierId } }
+        );
+
+        const activeCouriersQuery = `
+            SELECT DISTINCT u.id, u.fullname, u.email
+            FROM users u
+            WHERE u.role = 'courier'
+            AND u.is_active = TRUE
+            AND u.id <> ?
+            AND u.id NOT IN (
+                SELECT DISTINCT o.courier_id 
+                FROM orders o 
+                WHERE o.status = 'on_delivery' 
+                AND o.courier_id IS NOT NULL
+            )
+            ORDER BY RAND()
+            LIMIT 10
+        `;
+
+        const candidates = await sequelize.query(activeCouriersQuery, {
+            type: QueryTypes.SELECT,
+            replacements: [courierId]
+        });
+
+        if (!candidates || candidates.length === 0) {
+            return res.json({
+                success: true,
+                message: "Görev reddedildi ancak şu anda başka uygun kurye bulunamadı. Sipariş 'hazır' durumuna alındı."
+            });
+        }
+
+        const selected = candidates[Math.floor(Math.random() * candidates.length)];
+        const newCourierId = selected.id;
+
+        await Order.update(
+            { courier_id: newCourierId, status: 'on_delivery' },
+            { where: { id: order.id } }
+        );
+
+        const deliveryLocation = order.address
+            ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\\s*|,\\s*$/g, '') || 'Adres'
+            : (order.seller?.shop_name || 'Restoran');
+
+        const newTask = await CourierTask.create({
+            order_id: order.id,
+            courier_id: newCourierId,
+            pickup_location: order.seller?.shop_name || 'Restoran',
+            delivery_location: deliveryLocation,
+            estimated_payout: parseFloat(order.delivery_fee) || 25.00,
+            status: 'assigned'
+        });
+
+        if (global.io) {
+            global.io.to(`courier-${newCourierId}`).emit('courier_task_assigned', {
+                orderId: order.id,
+                courierId: newCourierId,
+                taskId: newTask.id,
+                source: 'courier_reject_reassign',
+                assignedAt: new Date().toISOString()
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: "Görev reddedildi ve başka kuryeye atandı."
+        });
+    } catch (error) {
+        console.error('REJECT-ASSIGNED HATA:', error);
+        return res.status(500).json({ success: false, message: "Görev reddedilirken hata oluştu." });
+    }
+});
+
 router.get("/tasks/history", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;

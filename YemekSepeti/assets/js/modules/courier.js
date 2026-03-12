@@ -682,7 +682,15 @@ async function connectCourierSocket() {
                 loadActiveTasks();
                 loadCourierStatusIndicator();
             }
-            displayMessage('🆕 Yeni görev atandı! Panel güncellendi.', 'success');
+            playCourierTaskSound();
+            const taskId = payload && payload.taskId ? payload.taskId : null;
+            if (taskId && window.confirm('Yeni bir teslimat görevi atandı. Bu görevi kabul etmek istiyor musunuz?')) {
+                acceptAssignedTask(taskId);
+            } else if (taskId) {
+                rejectAssignedTask(taskId);
+            } else {
+                displayMessage('🆕 Yeni görev atandı! Panel güncellendi.', 'success');
+            }
         });
 
         courierSocket.on('disconnect', () => {
@@ -724,6 +732,58 @@ function setupCourierAutoRefresh(mode) {
             if (document.hidden) return;
             loadAvailableOrders();
         }, COURIER_AUTO_REFRESH_MS);
+    }
+}
+
+function playCourierTaskSound() {
+    try {
+        if ('speechSynthesis' in window) {
+            const now = Date.now();
+            const utter = new SpeechSynthesisUtterance('Yeni teslimat görevi atandı');
+            utter.lang = 'tr-TR';
+            window.speechSynthesis.speak(utter);
+        }
+    } catch (e) {
+    }
+}
+
+async function acceptAssignedTask(taskId) {
+    try {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const response = await fetch(`${baseUrl}/api/courier/tasks/${taskId}/accept-assigned`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json().catch(() => ({ success: false }));
+        if (!response.ok || !data.success) {
+            displayMessage('❌ Görev kabul edilemedi: ' + (data.message || response.status), 'error');
+            return;
+        }
+        displayMessage('✅ Görev kabul edildi.', 'success');
+        loadActiveTasks();
+    } catch (error) {
+        displayMessage('❌ Görev kabul edilirken hata oluştu.', 'error');
+    }
+}
+
+async function rejectAssignedTask(taskId) {
+    try {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const response = await fetch(`${baseUrl}/api/courier/tasks/${taskId}/reject-assigned`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json().catch(() => ({ success: false }));
+        if (!response.ok || !data.success) {
+            displayMessage('❌ Görev reddedilemedi: ' + (data.message || response.status), 'error');
+            return;
+        }
+        displayMessage(data.message || 'Görev reddedildi.', 'success');
+        loadActiveTasks();
+    } catch (error) {
+        displayMessage('❌ Görev reddedilirken hata oluştu.', 'error');
     }
 }
 

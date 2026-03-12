@@ -111,6 +111,9 @@ router.post("/login", authLimiter, [
         if (!user || !(await comparePassword(password, user.password))) {
             return res.status(401).json({ success: false, message: "Hatalı e-posta veya şifre." });
         }
+        if (user.is_active === false) {
+            return res.status(403).json({ success: false, message: "Hesabınız pasif veya silinmiş görünüyor." });
+        }
         const token = generateToken(user);
         const userData = { id: user.id, email: user.email, fullname: user.fullname, role: user.role };
         if (user.role === 'seller') {
@@ -346,6 +349,43 @@ router.post("/logout", (req, res) => {
     } catch (error) {
         console.error('Logout hatası:', error);
         res.status(500).json({ success: false, message: "Çıkış yapılırken hata oluştu." });
+    }
+});
+
+// Hesap silme (admin hariç tüm roller)
+router.delete("/delete-account", async (req, res) => {
+    try {
+        const sessionUser = req.session.user;
+        if (!sessionUser) {
+            return res.status(401).json({ success: false, message: "Oturum bulunamadı." });
+        }
+        if (sessionUser.role === 'admin') {
+            return res.status(403).json({ success: false, message: "Admin hesabı bu uç nokta ile silinemez." });
+        }
+
+        const user = await User.findByPk(sessionUser.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+        }
+
+        const timestamp = Date.now();
+        const deletedEmail = `deleted+${user.id}+${timestamp}@example.local`;
+
+        await user.update({
+            is_active: false,
+            email: deletedEmail
+        });
+
+        req.session.destroy(() => {});
+        res.clearCookie('connect.sid');
+        res.clearCookie('yemek-sepeti-session');
+
+        return res.json({
+            success: true,
+            message: "Hesabınız silindi ve oturumunuz kapatıldı."
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Hesap silinirken bir hata oluştu." });
     }
 });
 

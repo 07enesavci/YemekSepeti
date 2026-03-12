@@ -176,6 +176,34 @@ async function logout() {
     }
 }
 
+async function deleteMyAccount() {
+    if (!window.confirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+        return;
+    }
+    try {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const response = await fetch(`${baseUrl}/api/auth/delete-account`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        const data = await response.json().catch(() => ({ success: false }));
+        if (!response.ok || !data.success) {
+            alert('Hesap silinemedi: ' + (data.message || response.status));
+            return;
+        }
+        alert('Hesabınız silindi. Hoşçakalın.');
+        try {
+            localStorage.clear();
+            sessionStorage.clear();
+        } catch (e) {}
+        const redirectUrl = baseUrl ? `${baseUrl}/` : '/';
+        window.location.href = redirectUrl;
+    } catch (error) {
+        alert('Hesap silinirken bir hata oluştu.');
+    }
+}
+window.deleteMyAccount = deleteMyAccount;
+
 async function updateHeader() {
     const user = await getCurrentUser();
     const header = document.querySelector('.site-header .main-nav ul');

@@ -422,6 +422,71 @@ router.get("/past/:userId", async (req, res) => {
     }
 });
 
+// Geçmiş bir siparişi tekrar sepete eklemek için
+router.post("/:orderId/repeat", requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const orderId = parseInt(req.params.orderId);
+
+        if (!orderId || Number.isNaN(orderId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Geçersiz sipariş ID."
+            });
+        }
+
+        const order = await Order.findOne({
+            where: { id: orderId, user_id: userId },
+            include: [
+                {
+                    model: OrderItem,
+                    as: 'items',
+                    attributes: ['meal_id', 'quantity']
+                }
+            ]
+        });
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Sipariş bulunamadı."
+            });
+        }
+
+        if (order.status !== 'delivered') {
+            return res.status(400).json({
+                success: false,
+                message: "Sadece teslim edilmiş siparişler tekrar edilebilir."
+            });
+        }
+
+        const items = (order.items || [])
+            .filter(i => i.meal_id && i.quantity > 0)
+            .map(i => ({
+                mealId: i.meal_id,
+                quantity: i.quantity
+            }));
+
+        if (items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Bu siparişte tekrar eklenebilecek ürün bulunamadı."
+            });
+        }
+
+        return res.json({
+            success: true,
+            orderId: order.id,
+            items
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Sipariş tekrarlanırken bir hata oluştu."
+        });
+    }
+});
+
 function getStatusText(status) {
     const statusMap = {
         'pending': 'Beklemede',
@@ -619,7 +684,7 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                     
                     if (!existingTask && orderInfoRecord) {
                         const deliveryLocation = orderInfoRecord.seller && orderInfoRecord.address ? `${orderInfoRecord.address.district || ''}, ${orderInfoRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : (orderInfoRecord.seller?.shop_name || 'Restoran');
-                        await CourierTask.create({
+                        const newTask = await CourierTask.create({
                             order_id: orderId,
                             courier_id: courierId,
                             pickup_location: orderInfoRecord.seller?.shop_name || 'Restoran',
@@ -627,16 +692,18 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                             estimated_payout: parseFloat(orderInfoRecord.delivery_fee) || 25.00,
                             status: 'assigned'
                         });
+                        if (global.io) {
+                            global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
+                                orderId,
+                                courierId,
+                                taskId: newTask.id,
+                                source: 'seller_status_ready',
+                                assignedAt: new Date().toISOString()
+                            });
+                        }
                     }
 
-                    if (global.io) {
-                        global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
-                            orderId,
-                            courierId,
-                            source: 'seller_status_ready',
-                            assignedAt: new Date().toISOString()
-                        });
-                    }
+                    
                     if (order && order.user_id) {
                         createNotification(order.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
                     }
@@ -779,9 +846,10 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         
         const existingTask = await CourierTask.findOne({ where: { order_id: orderId }, attributes: ['id'] });
         
-        if (!existingTask && orderInfoRecord) {
+        let task = existingTask;
+        if (!task && orderInfoRecord) {
             const deliveryLocation = orderInfoRecord.seller && orderInfoRecord.address ? `${orderInfoRecord.address.district || ''}, ${orderInfoRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : (orderInfoRecord.seller?.shop_name || 'Restoran');
-            await CourierTask.create({
+            task = await CourierTask.create({
                 order_id: orderId,
                 courier_id: courierId,
                 pickup_location: orderInfoRecord.seller?.shop_name || 'Restoran',
@@ -791,10 +859,11 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
             });
         }
 
-        if (global.io) {
+        if (global.io && task) {
             global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
                 orderId,
                 courierId,
+                taskId: task.id,
                 source: 'manual_assign',
                 assignedAt: new Date().toISOString()
             });

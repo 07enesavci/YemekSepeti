@@ -409,7 +409,30 @@ async function handleOrderAction(e, orderId, actionType) {
             break;
             
         case 'tekrarla':
-            alert(`Sipariş #${orderId} Sepete eklenmek üzere tekrarlandı.`);
+            try {
+                const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                const response = await fetch(`${baseUrl}/api/orders/${orderId}/repeat`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json().catch(() => ({ success: false }));
+                if (!response.ok || !data.success) {
+                    alert('Sipariş tekrarlanamadı: ' + (data.message || response.status));
+                    return;
+                }
+                if (Array.isArray(data.items) && data.items.length > 0 && window.addToCartById) {
+                    for (const item of data.items) {
+                        await window.addToCartById(item.mealId, item.quantity);
+                    }
+                }
+                alert(`Sipariş #${orderId} sepetinize eklendi.`);
+                const base = window.getBaseUrl ? window.getBaseUrl() : '';
+                window.location.href = `${base}/buyer/cart`;
+            } catch (err) {
+                console.error('Siparişi tekrarla hatası:', err);
+                alert('Sipariş tekrarlanırken bir hata oluştu.');
+            }
             break;
             
         case 'degerlendir':

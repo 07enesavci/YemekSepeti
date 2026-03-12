@@ -3,7 +3,7 @@ const router=express.Router();
 const db=require("../../config/database");
 const { requireRole }=require("../../middleware/auth");
 const bcrypt=require("bcryptjs");
-const { User, Address } = require("../../models");
+const { User, Address, Order, Review, Seller } = require("../../models");
 const { Op } = require('sequelize');
 
 router.get("/profile", requireRole('buyer'), async (req, res) => {
@@ -647,54 +647,61 @@ router.post("/orders/:orderId/review", requireRole('buyer'), async (req, res) =>
         const orderId = parseInt(req.params.orderId);
         const userId = req.session.user.id;
         const { rating, comment } = req.body;
-        if (!rating || rating < 1 || rating > 5) {
+
+        const parsedRating = parseInt(rating, 10);
+        if (!parsedRating || parsedRating < 1 || parsedRating > 5) {
             return res.status(400).json({
                 success: false,
                 message: "Yıldız değeri 1-5 arası olmalıdır."
             });
         }
-        const order = await db.query(
-            "SELECT id, user_id, seller_id, status FROM orders WHERE id = ? AND user_id = ?",
-            [orderId, userId]
-        );
-        if (order.length === 0) {
+
+        const order = await Order.findOne({
+            where: { id: orderId, user_id: userId, status: 'delivered' }
+        });
+        if (!order) {
             return res.status(404).json({
                 success: false,
-                message: "Sipariş bulunamadı."
+                message: "Sipariş bulunamadı veya henüz teslim edilmedi."
             });
         }
-        if (order[0].status !== 'delivered') {
-            return res.status(400).json({
-                success: false,
-                message: "Sadece teslim edilmiş siparişler için yorum yapılabilir."
-            });
-        }
-        const existingReview = await db.query(
-            "SELECT id FROM reviews WHERE order_id = ?",
-            [orderId]
-        );
-        if (existingReview.length > 0) {
+
+        const existingReview = await Review.findOne({ where: { order_id: orderId } });
+        if (existingReview) {
             return res.status(400).json({
                 success: false,
                 message: "Bu sipariş için zaten yorum yapılmış."
             });
         }
-        const sql = `
-            INSERT INTO reviews (order_id, user_id, seller_id, rating, comment)
-            VALUES (?, ?, ?, ?, ?)
-        `;
-        await db.execute(sql, [
-            orderId,
-            userId,
-            order[0].seller_id,
-            parseInt(rating),
-            comment || null
-        ]);
+
+        const review = await Review.create({
+            order_id: orderId,
+            user_id: userId,
+            seller_id: order.seller_id,
+            rating: parsedRating,
+            comment: (comment || '').trim() || null,
+            is_visible: true
+        });
+
+        const seller = await Seller.findByPk(order.seller_id);
+        if (seller) {
+            const count = await Review.count({ where: { seller_id: seller.id, is_visible: true } });
+            const avgRow = await Review.findOne({
+                where: { seller_id: seller.id, is_visible: true },
+                attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
+                raw: true
+            });
+            const newAvg = avgRow && avgRow.avg != null ? parseFloat(Number(avgRow.avg).toFixed(2)) : 0;
+            await seller.update({ rating: newAvg, total_reviews: count });
+        }
+
         res.json({
             success: true,
-            message: "Yorum başarıyla eklendi."
+            message: "Yorum başarıyla eklendi.",
+            review: { id: review.id, rating: review.rating, comment: review.comment }
         });
     } catch (error) {
+        console.error('Buyer review create error:', error);
         res.status(500).json({
             success: false,
             message: "Yorum eklenemedi."

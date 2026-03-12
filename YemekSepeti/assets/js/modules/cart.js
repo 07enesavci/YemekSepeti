@@ -566,6 +566,15 @@ window.getSepetTotals = async function(){
    	return { ara: ara, teslimat: teslimatUcreti, kuponIndirimi: kuponIndirimi, toplam: toplam };
 }
 
+// Geçmiş siparişten sepete ürün eklemek için yardımcı fonksiyon
+window.addToCartById = async function(mealId, quantity) {
+    try {
+        await sepeteEkle(mealId, quantity || 1);
+    } catch (e) {
+        console.error('Siparişi tekrarla sepete ekleme hatası:', e);
+    }
+};
+
 window.sepetiTemizle = function(){
    	sepet = [];
    	sepetiKaydet();
