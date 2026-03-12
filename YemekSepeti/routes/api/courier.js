@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
-const { requireRole } = require("../../middleware/auth");
+const { requireRole, requireCourierApproved } = require("../../middleware/auth");
 const { User, Order, Seller, Address, CourierTask } = require("../../models");
+
+router.use(requireRole('courier'), requireCourierApproved);
 const { Op, Sequelize, QueryTypes } = require("sequelize");
 const { sequelize } = require("../../config/database");
 
-router.get("/available", requireRole('courier'), async (req, res) => {
+router.get("/available", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
 
@@ -105,7 +107,7 @@ router.get("/available", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.post("/tasks/:id/accept", requireRole('courier'), async (req, res) => {
+router.post("/tasks/:id/accept", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id || req.session.user.courierId;
@@ -161,7 +163,7 @@ router.post("/tasks/:id/accept", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.get("/tasks/active", requireRole('courier'), async (req, res) => {
+router.get("/tasks/active", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
         const tasksRaw = await Order.findAll({
@@ -207,7 +209,7 @@ router.get("/tasks/active", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.put("/tasks/:id/pickup", requireRole('courier'), async (req, res) => {
+router.put("/tasks/:id/pickup", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id;
@@ -231,7 +233,7 @@ router.put("/tasks/:id/pickup", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.put("/tasks/:id/complete", requireRole('courier'), async (req, res) => {
+router.put("/tasks/:id/complete", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id;
@@ -253,7 +255,7 @@ router.put("/tasks/:id/complete", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.get("/tasks/history", requireRole('courier'), async (req, res) => {
+router.get("/tasks/history", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
         const { page = 1, limit = 20 } = req.query;
@@ -324,7 +326,7 @@ router.get("/tasks/history", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.get("/earnings", requireRole('courier'), async (req, res) => {
+router.get("/earnings", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
         const { period = 'month' } = req.query;
@@ -366,7 +368,7 @@ router.get("/earnings", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.put("/profile", requireRole('courier'), async (req, res) => {
+router.put("/profile", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
         const { fullname, phone, status, vehicleType } = req.body;
@@ -439,7 +441,7 @@ router.put("/profile", requireRole('courier'), async (req, res) => {
     }
 });
 
-router.get("/profile", requireRole('courier'), async (req, res) => {
+router.get("/profile", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
         if (!courierId) return res.status(400).json({ success: false, message: "Kurye ID bulunamadı." });

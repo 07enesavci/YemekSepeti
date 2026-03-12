@@ -3,8 +3,9 @@ const router=express.Router();
 const db=require("../../config/database");
 const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
-const { User, Seller }=require("../../models");
+const { User, Seller, Courier }=require("../../models");
 const { Op }=require("sequelize");
+const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
 
 router.use((req,res,next)=>{ requireAuth(req,res,next); });
 
@@ -339,41 +340,56 @@ router.delete("/coupons/:id", async (req, res) => {
         res.status(500).json({ success: false, message: "İşlem başarısız." });
     }
 });
-// --- SATICI ONAY SİSTEMİ BAŞLANGIÇ ---
+/// --- SATICI ONAY SİSTEMİ BAŞLANGIÇ ---
 
 // 1. Onay Bekleyen Satıcıları Listele (GET)
 router.get("/pending-sellers", requireRole('admin'), async (req, res) => {
     try {
         const pending = await Seller.findAll({ 
-            where: { is_active: false } 
+            where: { is_active: false }, 
+            include: [{
+                model: User,
+                as: 'user', // BURASI: 'User' yerine 'user' (küçük harf) olmalı
+                attributes: ['email', 'fullname'] 
+            }]
         });
+        console.log("Onay bekleyen satıcı sayısı:", pending.length);
         res.json({ success: true, data: pending });
     } catch (error) {
-        console.error("Liste Hatası:", error);
+        console.error("Liste Hatası Detayı:", error);
         res.status(500).json({ success: false, message: "Liste çekilemedi." });
     }
 });
-
-// 2. Satıcıyı Onayla (POST)
+// 2. Satıcıyı Onayla (POST) — Onay e-postası gönderilir
 router.post("/approve-seller/:id", requireRole('admin'), async (req, res) => {
     try {
-        const seller = await Seller.findByPk(req.params.id);
+        const seller = await Seller.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['email'] }] });
         if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
-        
+
         await seller.update({ is_active: true });
+        const user = seller.user || await User.findByPk(seller.user_id);
+        if (user && user.email) {
+            await sendSellerApprovalEmail(user.email, seller.shop_name).catch(err => console.error('Onay e-postası gönderilemedi:', err));
+        }
         res.json({ success: true, message: "Satıcı onaylandı ve mağaza aktif edildi!" });
     } catch (error) {
         res.status(500).json({ success: false, message: "Onaylama işlemi sırasında hata oluştu." });
     }
 });
 
-// 3. Satıcıyı Reddet ve Sil (POST)
+// 3. Satıcıyı Reddet ve Sil (POST) — Red e-postası gönderilir, sonra satıcı + kullanıcı silinir
 router.post("/reject-seller/:id", requireRole('admin'), async (req, res) => {
     try {
         const seller = await Seller.findByPk(req.params.id);
         if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
 
+        const user = await User.findByPk(seller.user_id);
+        if (user && user.email) {
+            await sendSellerRejectionEmail(user.email).catch(err => console.error('Red e-postası gönderilemedi:', err));
+        }
+        const userId = seller.user_id;
         await seller.destroy();
+        await User.destroy({ where: { id: userId } });
         res.json({ success: true, message: "Başvuru reddedildi ve sistemden silindi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Reddetme işlemi sırasında hata oluştu." });
@@ -381,5 +397,46 @@ router.post("/reject-seller/:id", requireRole('admin'), async (req, res) => {
 });
 
 // --- SATICI ONAY SİSTEMİ BİTİŞ ---
+
+// --- KURYE ONAY SİSTEMİ ---
+router.get("/pending-couriers", requireRole('admin'), async (req, res) => {
+    try {
+        const pending = await Courier.findAll({
+            where: { is_active: false },
+            include: [{ model: User, as: 'user', attributes: ['email', 'fullname'] }]
+        });
+        res.json({ success: true, data: pending });
+    } catch (error) {
+        console.error("Kurye listesi hatası:", error);
+        res.status(500).json({ success: false, message: "Liste çekilemedi." });
+    }
+});
+router.post("/approve-courier/:id", requireRole('admin'), async (req, res) => {
+    try {
+        const courier = await Courier.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['email'] }] });
+        if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı." });
+        await courier.update({ is_active: true });
+        const user = courier.user || await User.findByPk(courier.user_id);
+        if (user && user.email) await sendCourierApprovalEmail(user.email).catch(err => console.error('Onay e-postası gönderilemedi:', err));
+        res.json({ success: true, message: "Kurye onaylandı!" });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Onaylama işlemi sırasında hata oluştu." });
+    }
+});
+router.post("/reject-courier/:id", requireRole('admin'), async (req, res) => {
+    try {
+        const courier = await Courier.findByPk(req.params.id);
+        if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı." });
+        const user = await User.findByPk(courier.user_id);
+        if (user && user.email) await sendCourierRejectionEmail(user.email).catch(err => console.error('Red e-postası gönderilemedi:', err));
+        const userId = courier.user_id;
+        await courier.destroy();
+        await User.destroy({ where: { id: userId } });
+        res.json({ success: true, message: "Kurye başvurusu reddedildi ve sistemden silindi." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Reddetme işlemi sırasında hata oluştu." });
+    }
+});
+// --- KURYE ONAY SİSTEMİ BİTİŞ ---
 
 module.exports = router;

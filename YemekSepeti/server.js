@@ -239,6 +239,69 @@ try {
         }
     });
 
+    // Satıcı/Kurye onay durumunu her istekte güncelle (onaylandıktan/reddedildikten sonra header doğru görünsün)
+    app.use(async (req, res, next) => {
+        try {
+            const user = res.locals.user;
+            if (user && user.role === 'seller' && user.sellerId) {
+                const { Seller } = require('./models');
+                const seller = await Seller.findByPk(user.sellerId);
+                if (!seller) {
+                    req.session.user = null;
+                    req.session.isAuthenticated = false;
+                    res.locals.user = null;
+                    return next();
+                }
+                const approved = !!seller.is_active;
+                res.locals.user = { ...user, sellerApproved: approved };
+                if (req.session && req.session.user) req.session.user.sellerApproved = approved;
+            } else if (user && user.role === 'courier') {
+                const { Courier } = require('./models');
+                const courier = await Courier.findOne({ where: { user_id: user.id } });
+                if (!courier) {
+                    res.locals.user = { ...user, courierId: null, courierApproved: false };
+                    if (req.session && req.session.user) {
+                        req.session.user.courierId = null;
+                        req.session.user.courierApproved = false;
+                    }
+                    return next();
+                }
+                const approved = !!courier.is_active;
+                res.locals.user = { ...user, courierId: courier.id, courierApproved: approved };
+                if (req.session && req.session.user) {
+                    req.session.user.courierId = courier.id;
+                    req.session.user.courierApproved = approved;
+                }
+            }
+            next();
+        } catch (err) {
+            next();
+        }
+    });
+
+    // Belgeleri göndermemiş satıcı/kurye sadece /register/documents, logout ve submit-documents'a erişebilir
+    app.use((req, res, next) => {
+        const user = res.locals.user;
+        const needsDocuments = user && (
+            (user.role === 'seller' && !user.sellerId) ||
+            (user.role === 'courier' && !user.courierId)
+        );
+        if (!needsDocuments) return next();
+
+        const p = req.path;
+        const isDocumentsPage = p === '/register/documents';
+        const isLogout = p === '/api/auth/logout';
+        const isSubmitDocs = p === '/api/auth/submit-documents';
+        const isStatic = p.startsWith('/assets') || p.startsWith('/public') || p.startsWith('/uploads') || p.startsWith('/socket.io');
+
+        if (isDocumentsPage || isLogout || isSubmitDocs || isStatic) return next();
+
+        if (p.startsWith('/api/')) {
+            return res.status(403).json({ redirect: '/register/documents' });
+        }
+        return res.redirect(302, '/register/documents');
+    });
+
     // --- STATİK DOSYALAR ---
     const assetsPath = path.resolve(__dirname, 'assets');
     if (fs.existsSync(assetsPath)) app.use('/assets', express.static(assetsPath));
@@ -270,7 +333,7 @@ try {
         }
     });
 
-    const { requireRole } = require('./middleware/auth');
+    const { requireRole, requireSellerApproved, requireCourierApproved } = require('./middleware/auth');
 
     // --- ROUTE YÖNETİMİ ---
     const routeFiles = [
@@ -316,6 +379,23 @@ try {
         try { res.render("common/register", { title: "Kayıt Ol", pageCss: "auth.css", pageJs: "auth.js" }); } 
         catch (error) { renderError(res, error, "Register"); }
     });
+    app.get("/register/documents", requireRole(['seller', 'courier']), async (req, res) => {
+        try {
+            const user = req.session && req.session.user;
+            if (!user || (user.role !== 'seller' && user.role !== 'courier')) return res.redirect('/');
+            const { Seller, Courier } = require('./models');
+            if (user.role === 'seller') {
+                const existing = await Seller.findOne({ where: { user_id: user.id } });
+                if (existing) return res.redirect('/seller/pending-approval');
+            } else {
+                const existing = await Courier.findOne({ where: { user_id: user.id } });
+                if (existing) return res.redirect('/courier/pending-approval');
+            }
+            res.render("common/register-documents", { title: "Belgeleri Yükleyin", pageCss: "auth.css", role: user.role, documentsOnlyNav: true });
+        } catch (err) {
+            renderError(res, err, "Belgeler");
+        }
+    });
 
     app.get("/about", (req, res) => res.render("common/about", { title: "Hakkımızda" }));
     app.get("/contact", (req, res) => res.render("common/contact", { title: "İletişim" }));
@@ -336,43 +416,67 @@ try {
     app.get("/buyer/:id/profile", requireRole('buyer'), (req, res) => res.render("buyer/profile", { title: "Profilim", pageCss: "profile.css", pageJs: "profile.js", user: req.session.user || null, buyerId: req.params.id }));
 
     // --- SATICI (SELLER) ROUTE'LARI ---
-    app.get("/seller/dashboard", requireRole('seller'), (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
-    app.get("/seller/orders", requireRole('seller'), (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js" }));
-    app.get("/seller/menu", requireRole('seller'), (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js" }));
-    app.get("/seller/earnings", requireRole('seller'), (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js" }));
-    app.get("/seller/profile", requireRole('seller'), (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js" }));
-    app.get("/seller/coupons", requireRole('seller'), (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
+    app.get("/seller/pending-approval", requireRole('seller'), async (req, res) => {
+        try {
+            const { Seller } = require('./models');
+            const sellerId = req.session && req.session.user && req.session.user.sellerId;
+            if (!sellerId) return res.redirect('/');
+            const seller = await Seller.findByPk(sellerId);
+            if (seller && seller.is_active) return res.redirect('/seller/dashboard');
+            res.render("common/seller-pending", { title: "Başvuru Değerlendiriliyor", pageCss: "auth.css" });
+        } catch (err) {
+            renderError(res, err, "Bekleme");
+        }
+    });
+    app.get("/seller/dashboard", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
+    app.get("/seller/orders", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js" }));
+    app.get("/seller/menu", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js" }));
+    app.get("/seller/earnings", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js" }));
+    app.get("/seller/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js" }));
+    app.get("/seller/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
 
-    app.get("/seller/:id/dashboard", requireRole('seller'), (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/orders", requireRole('seller'), (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/menu", requireRole('seller'), (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/earnings", requireRole('seller'), (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/profile", requireRole('seller'), (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/coupons", requireRole('seller'), (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/dashboard", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/orders", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/menu", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/earnings", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
 
     // --- KURYE (COURIER) ROUTE'LARI ---
-    app.get("/courier/:id/dashboard", requireRole('courier'), (req, res) => res.render("courier/dashboard", { title: "Kurye Paneli", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/available", requireRole('courier'), (req, res) => res.render("courier/available", { title: "Müsait Siparişler", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/history", requireRole('courier'), (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/profile", requireRole('courier'), (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/pending-approval", requireRole('courier'), async (req, res) => {
+        try {
+            const { Courier } = require('./models');
+            const userId = req.session && req.session.user && req.session.user.id;
+            if (!userId) return res.redirect('/');
+            const courier = await Courier.findOne({ where: { user_id: userId } });
+            if (courier && courier.is_active) return res.redirect('/courier/dashboard');
+            res.render("common/courier-pending", { title: "Başvuru Değerlendiriliyor", pageCss: "auth.css" });
+        } catch (err) {
+            renderError(res, err, "Bekleme");
+        }
+    });
+    app.get("/courier/:id/dashboard", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/dashboard", { title: "Kurye Paneli", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/available", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/available", { title: "Müsait Siparişler", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/history", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/profile", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
 
     // ID'siz kurye URL'leri için otomatik yönlendirme (F5 / manuel URL ihtiyacını azaltır)
-    app.get("/courier/dashboard", requireRole('courier'), (req, res) => {
+    app.get("/courier/dashboard", requireRole('courier'), requireCourierApproved, (req, res) => {
         const courierId = req.session?.user?.courierId || req.session?.user?.id;
         if (!courierId) return res.redirect("/");
         return res.redirect(`/courier/${courierId}/dashboard`);
     });
-    app.get("/courier/available", requireRole('courier'), (req, res) => {
+    app.get("/courier/available", requireRole('courier'), requireCourierApproved, (req, res) => {
         const courierId = req.session?.user?.courierId || req.session?.user?.id;
         if (!courierId) return res.redirect("/");
         return res.redirect(`/courier/${courierId}/available`);
     });
-    app.get("/courier/history", requireRole('courier'), (req, res) => {
+    app.get("/courier/history", requireRole('courier'), requireCourierApproved, (req, res) => {
         const courierId = req.session?.user?.courierId || req.session?.user?.id;
         if (!courierId) return res.redirect("/");
         return res.redirect(`/courier/${courierId}/history`);
     });
-    app.get("/courier/profile", requireRole('courier'), (req, res) => {
+    app.get("/courier/profile", requireRole('courier'), requireCourierApproved, (req, res) => {
         const courierId = req.session?.user?.courierId || req.session?.user?.id;
         if (!courierId) return res.redirect("/");
         return res.redirect(`/courier/${courierId}/profile`);
@@ -380,6 +484,10 @@ try {
 
     // --- ADMIN ROUTE'LARI ---
     app.get("/admin/users", requireRole('admin'), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
+    
+    // YENİ EKLEYECEĞİN SATIR BURASI:
+    app.get("/admin/sellers", requireRole('admin'), (req, res) => res.render("admin/sellers", { title: "Satıcı Onay Listesi", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/couriers", requireRole('admin'), (req, res) => res.render("admin/couriers", { title: "Kurye Onay Listesi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/coupons", requireRole('admin'), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---

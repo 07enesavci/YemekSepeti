@@ -97,24 +97,48 @@ async function forgotPassword(email)
     }
 }
 
-async function verifyEmail(email, code, userData) 
+async function verifyEmail(email, code, userData, formData) 
 {
     try 
     {
-        const response=await fetch(`${API_BASE_URL}/api/auth/verify-email`, {
+        const opts = {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ email, code, ...userData })
-        });
+            credentials: 'include'
+        };
+        if (formData) {
+            opts.body = formData;
+        } else {
+            opts.headers = { 'Content-Type': 'application/json' };
+            opts.body = JSON.stringify({ email, code, ...userData });
+        }
+        const response = await fetch(`${API_BASE_URL}/api/auth/verify-email`, opts);
         
         if (!response.ok) 
         {
-            const errorData=await response.json().catch(() => ({ message: 'Sunucu hatası' }));
+            const errorData = await response.json().catch(() => ({ message: 'Sunucu hatası' }));
             return { success: false, message: errorData.message || 'Doğrulama başarısız' };
         }
         
         return await response.json();
+    } 
+    catch (error) 
+    {
+        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+    }
+}
+
+async function submitDocuments(formData) 
+{
+    try 
+    {
+        const response = await fetch(`${API_BASE_URL}/api/auth/submit-documents`, {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return { success: false, message: data.message || 'Belgeler yüklenemedi.' };
+        return data;
     } 
     catch (error) 
     {
@@ -660,6 +684,7 @@ window.loginUser=loginUser;
 window.registerUser=registerUser;
 window.forgotPassword=forgotPassword;
 window.verifyEmail=verifyEmail;
+window.submitDocuments=submitDocuments;
 window.verify2FA=verify2FA;
 window.searchSellers=searchSellers;
 window.getSellerDetails=getSellerDetails;

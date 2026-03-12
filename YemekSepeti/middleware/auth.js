@@ -343,10 +343,80 @@ function requireRole(allowedRoles)
 	};
 }
 
+function requireSellerApproved(req, res, next) 
+{
+	var isApi = req.originalUrl && req.originalUrl.indexOf('/api/') === 0;
+	var sellerId = req.session && req.session.user && req.session.user.sellerId;
+	if (!sellerId) 
+	{
+		if (!isApi) return res.redirect('/seller/pending-approval');
+		return res.status(403).json({
+			success: false,
+			message: 'Başvurunuz henüz onaylanmadı.',
+			redirect: '/seller/pending-approval'
+		});
+	}
+	var { Seller } = require('../models');
+	Seller.findByPk(sellerId)
+		.then(function(seller) 
+		{
+			if (!seller || !seller.is_active) 
+			{
+				if (!isApi) return res.redirect('/seller/pending-approval');
+				return res.status(403).json({
+					success: false,
+					message: 'Başvurunuz henüz onaylanmadı.',
+					redirect: '/seller/pending-approval'
+				});
+			}
+			next();
+		})
+		.catch(function(err) 
+		{
+			return res.status(500).json({ success: false, message: 'Sunucu hatası.' });
+		});
+}
+
+function requireCourierApproved(req, res, next) 
+{
+	var isApi = req.originalUrl && req.originalUrl.indexOf('/api/') === 0;
+	var courierId = req.session && req.session.user && (req.session.user.courierId || req.session.user.id);
+	if (!courierId) 
+	{
+		if (!isApi) return res.redirect('/courier/pending-approval');
+		return res.status(403).json({
+			success: false,
+			message: 'Başvurunuz henüz onaylanmadı.',
+			redirect: '/courier/pending-approval'
+		});
+	}
+	var { Courier } = require('../models');
+	Courier.findOne({ where: { user_id: req.session.user.id } })
+		.then(function(courier) 
+		{
+			if (!courier || !courier.is_active) 
+			{
+				if (!isApi) return res.redirect('/courier/pending-approval');
+				return res.status(403).json({
+					success: false,
+					message: 'Başvurunuz henüz onaylanmadı.',
+					redirect: '/courier/pending-approval'
+				});
+			}
+			next();
+		})
+		.catch(function(err) 
+		{
+			return res.status(500).json({ success: false, message: 'Sunucu hatası.' });
+		});
+}
+
 module.exports = {
 	getTokenFromRequest,
 	authenticateToken,
 	requireAdmin,
 	requireAuth,
-	requireRole
+	requireRole,
+	requireSellerApproved,
+	requireCourierApproved
 };

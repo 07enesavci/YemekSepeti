@@ -1,0 +1,91 @@
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="card auth-card">
+            <div class="card-content">
+                <h1 class="card-title text-center">Belgeleri Yükleyin</h1>
+                <p class="text-center auth-subtext">Hesap türünüze göre aşağıdaki belgeleri yükleyin. Tüm alanlar zorunludur.</p>
+
+                <form id="documents-form" enctype="multipart/form-data">
+                    <div id="seller-docs" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Vergi Levhası <span class="text-danger">*</span></label>
+                            <input type="file" name="taxPlate" class="form-input" accept="image/*,.pdf" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Kimlik Fotokopisi <span class="text-danger">*</span></label>
+                            <input type="file" name="idCard" class="form-input" accept="image/*,.pdf" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Faaliyet Belgesi / Esnaf Odası Kaydı <span class="text-danger">*</span></label>
+                            <input type="file" name="activityCert" class="form-input" accept="image/*,.pdf" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">İşyeri Ruhsatı <span class="text-danger">*</span></label>
+                            <input type="file" name="businessLicense" class="form-input" accept="image/*,.pdf" required>
+                        </div>
+                    </div>
+                    <div id="courier-docs" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Kimlik Fotokopisi <span class="text-danger">*</span></label>
+                            <input type="file" name="idCard" class="form-input" accept="image/*,.pdf" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Ehliyet Fotokopisi <span class="text-danger">*</span></label>
+                            <input type="file" name="driverLicense" class="form-input" accept="image/*,.pdf" required>
+                        </div>
+                    </div>
+                    <div class="text-center" style="margin-top: 1.5rem;">
+                        <button type="submit" class="btn btn-primary btn-full">Belgeleri Gönder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var role = '<%= typeof role !== "undefined" ? role : "" %>';
+    if (role === 'seller') {
+        document.getElementById('seller-docs').style.display = 'block';
+        document.querySelectorAll('#courier-docs input').forEach(function(i) { i.removeAttribute('required'); });
+    } else if (role === 'courier') {
+        document.getElementById('courier-docs').style.display = 'block';
+        document.querySelectorAll('#seller-docs input').forEach(function(i) { i.removeAttribute('required'); });
+    }
+    document.getElementById('documents-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var formData = new FormData();
+        if (role === 'seller') {
+            var s = document.getElementById('seller-docs');
+            ['taxPlate','idCard','activityCert','businessLicense'].forEach(function(name) {
+                var input = s.querySelector('input[name="' + name + '"]');
+                if (input && input.files[0]) formData.append(name, input.files[0]);
+            });
+        } else if (role === 'courier') {
+            var c = document.getElementById('courier-docs');
+            ['idCard','driverLicense'].forEach(function(name) {
+                var input = c.querySelector('input[name="' + name + '"]');
+                if (input && input.files[0]) formData.append(name, input.files[0]);
+            });
+        }
+        var btn = this.querySelector('button[type=submit]');
+        var oldText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Gönderiliyor...';
+        try {
+            var result = await window.submitDocuments(formData);
+            if (result && result.success && result.redirectUrl) {
+                window.location.href = (window.getBaseUrl ? window.getBaseUrl() : '') + result.redirectUrl;
+            } else {
+                alert(result && result.message ? result.message : 'Belgeler yüklenemedi.');
+                btn.disabled = false;
+                btn.textContent = oldText;
+            }
+        } catch (err) {
+            alert('Hata: ' + (err.message || 'Belgeler yüklenemedi.'));
+            btn.disabled = false;
+            btn.textContent = oldText;
+        }
+    });
+})();
+</script>

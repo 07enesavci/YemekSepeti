@@ -1,0 +1,126 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+<style>
+.doc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.doc-modal { background: var(--card-bg, #fff); border-radius: 12px; max-width: 700px; width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+.doc-modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color, #eee); display: flex; justify-content: space-between; align-items: center; }
+.doc-modal-body { padding: 1.25rem; overflow-y: auto; }
+.doc-item { margin-bottom: 1rem; }
+.doc-item label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+.doc-item a { color: var(--primary-color); text-decoration: underline; }
+.doc-item img { max-width: 100%; max-height: 280px; border: 1px solid #ddd; border-radius: 8px; margin-top: 0.5rem; display: block; }
+.doc-item .no-doc { color: #888; font-style: italic; }
+</style>
+
+<div class="panel-layout">
+    <%- include('../partials/sidebar') %>
+    <main class="panel-content">
+        <h1 class="panel-title">Kurye Onay Listesi</h1>
+        <div class="card">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Onay Bekleyen Kurye Başvuruları</h3>
+                <p class="text-muted" style="margin-bottom: 1rem;">Kuryeler kayıt sırasında yüklediği belgeler (Kimlik, Ehliyet) ile listelenir. Belgeleri inceleyip onaylayabilir veya reddedebilirsiniz.</p>
+                <div class="table-responsive" style="margin-top: 1rem;">
+                    <table class="panel-table">
+                        <thead>
+                            <tr>
+                                <th>Başvuru Bilgisi</th>
+                                <th>E-posta</th>
+                                <th>Belgeler</th>
+                                <th class="text-end">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="couriers-tbody">
+                            <tr><td colspan="4" class="text-center py-4">Veriler yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="doc-modal-overlay" class="doc-modal-overlay" style="display: none;">
+    <div class="doc-modal">
+        <div class="doc-modal-header">
+            <h3 style="margin: 0;">Yüklenen Belgeler</h3>
+            <button type="button" id="doc-modal-close" class="btn btn-secondary btn-sm">Kapat</button>
+        </div>
+        <div class="doc-modal-body" id="doc-modal-body"></div>
+    </div>
+</div>
+
+<script>
+var pendingCouriersList = [];
+var docsList = [
+    { key: 'id_card', label: 'Kimlik Fotokopisi' },
+    { key: 'driver_license', label: 'Ehliyet Fotokopisi' }
+];
+function openDocModal(id) {
+    var c = pendingCouriersList.find(function(x) { return x.id == id; });
+    if (!c) return;
+    var base = window.location.origin || (window.location.protocol + '//' + window.location.host);
+    var body = document.getElementById('doc-modal-body');
+    var user = c.user || c.User;
+    var email = user ? user.email : '';
+    var html = '<p style="margin-bottom: 1rem;"><strong>' + (user ? user.fullname : '') + '</strong> – ' + email + '</p>';
+    docsList.forEach(function(d) {
+        var path = c[d.key];
+        var url = path ? (path.indexOf('http') === 0 ? path : base + path) : null;
+        html += '<div class="doc-item"><label>' + d.label + '</label>';
+        if (url) {
+            html += '<a href="' + url + '" target="_blank" rel="noopener">Belgeyi aç</a>';
+            var ext = (path.split('.').pop() || '').split('?')[0].toLowerCase();
+            if (['jpg','jpeg','png','gif','webp'].indexOf(ext) !== -1) html += '<img src="' + url + '" alt="' + d.label + '" loading="lazy">';
+        } else html += '<span class="no-doc">Yüklenmemiş</span>';
+        html += '</div>';
+    });
+    body.innerHTML = html;
+    document.getElementById('doc-modal-overlay').style.display = 'flex';
+}
+document.getElementById('doc-modal-close').onclick = function() { document.getElementById('doc-modal-overlay').style.display = 'none'; };
+document.getElementById('doc-modal-overlay').onclick = function(e) { if (e.target === this) this.style.display = 'none'; };
+
+async function loadPendingCouriers() {
+    var tbody = document.getElementById('couriers-tbody');
+    try {
+        var res = await fetch('/api/admin/pending-couriers');
+        var result = await res.json();
+        if (!result.success || !result.data || result.data.length === 0) {
+            pendingCouriersList = [];
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Onay bekleyen kurye başvurusu yok.</td></tr>';
+            return;
+        }
+        pendingCouriersList = result.data;
+        var user = function(c) { return c.user || c.User; };
+        tbody.innerHTML = result.data.map(function(c) {
+            var u = user(c);
+            var hasDocs = !!(c.id_card || c.driver_license);
+            return '<tr class="align-middle">' +
+                '<td><div style="font-weight: 600;">' + (u ? u.fullname : '-') + '</div><small style="color:#888">' + (c.createdAt ? new Date(c.createdAt).toLocaleDateString('tr-TR') : '') + '</small></td>' +
+                '<td>' + (u ? u.email : '-') + '</td>' +
+                '<td>' + (hasDocs ? '<button type="button" onclick="openDocModal(' + c.id + ')" class="btn btn-secondary btn-sm">Belgeleri Görüntüle</button>' : '<span class="text-muted">Belge yok</span>') + '</td>' +
+                '<td class="text-end"><button onclick="approve(' + c.id + ')" class="btn btn-primary btn-sm">Onayla</button> <button onclick="reject(' + c.id + ')" class="btn btn-outline-danger btn-sm">Reddet</button></td></tr>';
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">Yüklenemedi.</td></tr>';
+    }
+}
+async function approve(id) {
+    if (!confirm('Bu kuryeyi onaylamak istiyor musunuz?')) return;
+    try {
+        var res = await fetch('/api/admin/approve-courier/' + id, { method: 'POST' });
+        var data = await res.json();
+        if (data.success) { alert('Kurye onaylandı!'); loadPendingCouriers(); } else alert('Hata: ' + (data.message || ''));
+    } catch (e) { alert('Sunucu hatası.'); }
+}
+async function reject(id) {
+    if (!confirm('Bu kurye başvurusunu reddetmek istediğinize emin misiniz?')) return;
+    try {
+        var res = await fetch('/api/admin/reject-courier/' + id, { method: 'POST' });
+        var data = await res.json();
+        if (data.success) { alert('Başvuru reddedildi.'); loadPendingCouriers(); } else alert('Hata: ' + (data.message || ''));
+    } catch (e) { alert('Sunucu hatası.'); }
+}
+document.addEventListener('DOMContentLoaded', loadPendingCouriers);
+</script>

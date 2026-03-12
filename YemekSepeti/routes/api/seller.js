@@ -1,10 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
-const { requireRole } = require("../../middleware/auth");
+const { requireRole, requireSellerApproved } = require("../../middleware/auth");
 const { Seller, Meal } = require("../../models");
 
-router.get("/menu", requireRole('seller'), async (req, res) => {
+router.use(requireRole('seller'), requireSellerApproved);
+
+router.get("/menu", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const seller = await Seller.findOne({
@@ -47,7 +49,7 @@ router.get("/menu", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.post("/menu", requireRole('seller'), async (req, res) => {
+router.post("/menu", async (req, res) => {
     try {
         const userId = req.session?.user?.id;
         if (!userId) {
@@ -126,7 +128,7 @@ router.post("/menu", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.put("/menu/:id", requireRole('seller'), async (req, res) => {
+router.put("/menu/:id", async (req, res) => {
     try {
         const mealId = parseInt(req.params.id);
         const userId = req.session.user.id;
@@ -211,7 +213,7 @@ router.put("/menu/:id", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.delete("/menu/:id", requireRole('seller'), async (req, res) => {
+router.delete("/menu/:id", async (req, res) => {
     try {
         const mealId = parseInt(req.params.id);
         const sellerId = req.session.user.id;
@@ -242,7 +244,7 @@ router.delete("/menu/:id", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.get("/earnings", requireRole('seller'), async (req, res) => {
+router.get("/earnings", async (req, res) => {
     try {
         const sellerId = req.session.user.id;
         const { period = 'month' } = req.query;
@@ -303,7 +305,7 @@ router.get("/earnings", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.get("/dashboard", requireRole('seller'), async (req, res) => {
+router.get("/dashboard", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const sellerQuery = await db.query(
@@ -384,7 +386,7 @@ router.get("/dashboard", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.put("/profile", requireRole('seller'), async (req, res) => {
+router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl } = req.body;
@@ -549,7 +551,7 @@ router.put("/profile", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.get("/profile", requireRole('seller'), async (req, res) => {
+router.get("/profile", async (req, res) => {
     try {
         if (!req.session || !req.session.user) {
             return res.status(401).json({
@@ -635,7 +637,7 @@ router.get("/profile", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.get("/coupons", requireRole('seller'), async (req, res) => {
+router.get("/coupons", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const sellerQuery = await db.query(
@@ -709,7 +711,7 @@ router.get("/coupons", requireRole('seller'), async (req, res) => {
     }
 });
 
-router.post("/coupons", requireRole('seller'), async (req, res) => {
+router.post("/coupons", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, validDays } = req.body;

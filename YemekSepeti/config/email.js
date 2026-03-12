@@ -11,8 +11,10 @@ const createTransporter = () => {
 
     if (!hasLiveCreds) {
         cachedMode = 'test';
+        console.warn('[E-posta] .env içinde EMAIL_USER ve (EMAIL_HOST veya EMAIL_SERVICE) tanımlı değil → e-postalar GÖNDERİLMİYOR (test modu). Kayıt doğrulama kodu mail ile gitmez. .env.example dosyasına bakın.');
         cachedTransporter = {
             async sendMail(opts) {
+                console.warn('[E-posta Test] Gerçek gönderim yok. Alıcı:', opts.to, 'Konu:', opts.subject);
                 return { messageId: 'test-message-id' };
             }
         };
@@ -171,8 +173,132 @@ async function sendPasswordResetLink(email, resetLink) {
     return await sendEmail(email, 'Şifre Sıfırlama - Ev Lezzetleri', html);
 }
 
+const CONTACT_EMAIL = 'evlezzetleri.site@gmail.com';
+
+async function sendSellerApprovalEmail(email, shopName = '') {
+    const shopText = shopName ? ` (${shopName})` : '';
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Ev Lezzetleri</h1>
+                    <p>Satıcı Hesabı Onaylandı</p>
+                </div>
+                <div class="content">
+                    <p>Merhaba${shopText},</p>
+                    <p><strong>Hesabınız onaylandı.</strong> Artık satıcı panelinize giriş yaparak mağazanızı yönetebilir, ürün ekleyebilir ve siparişleri takip edebilirsiniz.</p>
+                    <p>Hayırlı satışlar dileriz.</p>
+                </div>
+                <div class="footer">
+                    <p>© ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    return await sendEmail(email, 'Hesabınız Onaylandı - Ev Lezzetleri', html);
+}
+
+async function sendSellerRejectionEmail(email) {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                .contact { background: #fff; border-left: 4px solid #4b5563; padding: 12px 16px; margin: 16px 0; }
+                .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Ev Lezzetleri</h1>
+                    <p>Başvuru Sonucu</p>
+                </div>
+                <div class="content">
+                    <p>Merhaba,</p>
+                    <p>Maalesef satıcı hesabınız onaylanmadı.</p>
+                    <p>Detaylar için <strong>evlezzetleri.site@gmail.com</strong> adresi üzerinden bizimle iletişime geçebilirsiniz.</p>
+                    <div class="contact">İletişim: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></div>
+                </div>
+                <div class="footer">
+                    <p>© ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    return await sendEmail(email, 'Başvuru Sonucu - Ev Lezzetleri', html);
+}
+
+async function sendCourierApprovalEmail(email) {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8">
+        <style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333}.container{max-width:600px;margin:0 auto;padding:20px}.header{background:linear-gradient(135deg,#059669 0%,#10b981 100%);color:white;padding:30px;text-align:center;border-radius:10px 10px 0 0}.content{background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px}.footer{text-align:center;margin-top:20px;color:#666;font-size:12px}</style>
+        </head>
+        <body>
+        <div class="container">
+        <div class="header"><h1>Ev Lezzetleri</h1><p>Kurye Hesabı Onaylandı</p></div>
+        <div class="content">
+        <p>Merhaba,</p>
+        <p><strong>Kurye hesabınız onaylandı.</strong> Artık kurye panelinize giriş yaparak teslimat yapabilirsiniz.</p>
+        <p>Hayırlı teslimatlar dileriz.</p>
+        </div>
+        <div class="footer"><p>© ${new Date().getFullYear()} Ev Lezzetleri.</p></div>
+        </div>
+        </body>
+        </html>`;
+    return await sendEmail(email, 'Kurye Hesabınız Onaylandı - Ev Lezzetleri', html);
+}
+
+async function sendCourierRejectionEmail(email) {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8">
+        <style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333}.container{max-width:600px;margin:0 auto;padding:20px}.header{background:linear-gradient(135deg,#6b7280 0%,#4b5563 100%);color:white;padding:30px;text-align:center;border-radius:10px 10px 0 0}.content{background:#f9f9f9;padding:30px;border-radius:0 0 10px 10px}.contact{background:#fff;border-left:4px solid #4b5563;padding:12px 16px;margin:16px 0}.footer{text-align:center;margin-top:20px;color:#666;font-size:12px}</style>
+        </head>
+        <body>
+        <div class="container">
+        <div class="header"><h1>Ev Lezzetleri</h1><p>Başvuru Sonucu</p></div>
+        <div class="content">
+        <p>Merhaba,</p>
+        <p>Maalesef kurye hesabınız onaylanmadı.</p>
+        <p>Detaylar için <strong>${CONTACT_EMAIL}</strong> adresi üzerinden bizimle iletişime geçebilirsiniz.</p>
+        <div class="contact">İletişim: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></div>
+        </div>
+        <div class="footer"><p>© ${new Date().getFullYear()} Ev Lezzetleri.</p></div>
+        </div>
+        </body>
+        </html>`;
+    return await sendEmail(email, 'Kurye Başvuru Sonucu - Ev Lezzetleri', html);
+}
+
 module.exports = {
     sendEmail,
     sendVerificationCode,
-    sendPasswordResetLink
+    sendPasswordResetLink,
+    sendSellerApprovalEmail,
+    sendSellerRejectionEmail,
+    sendCourierApprovalEmail,
+    sendCourierRejectionEmail
 };

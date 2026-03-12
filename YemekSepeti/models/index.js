@@ -3,6 +3,7 @@ const {DataTypes}=require('sequelize');
 
 const User=require('./User')(sequelize, DataTypes);
 const Seller=require('./Seller')(sequelize, DataTypes);
+const Courier=require('./Courier')(sequelize, DataTypes);
 const Meal=require('./Meal')(sequelize, DataTypes);
 const Address=require('./Address')(sequelize, DataTypes);
 const CartItem=require('./CartItem')(sequelize, DataTypes);
@@ -19,6 +20,8 @@ const EmailVerificationCode=require('./EmailVerificationCode')(sequelize, DataTy
 
 User.hasOne(Seller, {foreignKey: 'user_id', as: 'seller'});
 Seller.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
+User.hasOne(Courier, {foreignKey: 'user_id', as: 'courier'});
+Courier.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
 
 Seller.hasMany(Meal, {foreignKey: 'seller_id', as: 'meals'});
 Meal.belongsTo(Seller, {foreignKey: 'seller_id', as: 'seller'});
@@ -85,6 +88,7 @@ module.exports={
     sequelize,
     User,
     Seller,
+    Courier,
     Meal,
     Address,
     CartItem,

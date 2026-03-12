@@ -57,6 +57,11 @@ document.addEventListener("DOMContentLoaded", function ()
                     } 
                     else if (role === "seller") 
                     {
+                        if (result.user.sellerApproved !== true) 
+                        {
+                            window.location.href=baseUrl + "/seller/pending-approval";
+                            return;
+                        }
                         var sellerId=result.user.sellerId;
                         if (sellerId) 
                         {
@@ -64,51 +69,18 @@ document.addEventListener("DOMContentLoaded", function ()
                         } 
                         else 
                         {
-                            fetch(`${baseUrl}/api/auth/me`, { credentials: 'include' })
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (data.success && data.user && data.user.sellerId) 
-                                    {
-                                        window.location.href=`${baseUrl}/seller/${data.user.sellerId}/dashboard`;
-                                    } 
-                                    else 
-                                    {
-                                        window.location.href=`${baseUrl}/seller/dashboard`;
-                                    }
-                                })
-                                .catch((err) => {
-                                    window.location.href=`${baseUrl}/seller/dashboard`;
-                                });
+                            window.location.href=`${baseUrl}/seller/dashboard`;
                         }
                     } 
                     else if (role === "courier") 
                     {
-                        var courierId=result.user.courierId || result.user.id;
-                        if (courierId) 
+                        if (result.user.courierApproved !== true) 
                         {
-                            window.location.href=`${baseUrl}/courier/${courierId}/dashboard`;
-                        } 
-                        else 
-                        {
-                            fetch(`${baseUrl}/api/auth/me`, { credentials: 'include' })
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (data.success && data.user)
-                                    {
-                                        var finalCourierId=data.user.courierId || data.user.id;
-                                        window.location.href=`${baseUrl}/courier/${finalCourierId}/dashboard`;
-                                    } 
-                                    else 
-                                    {
-                                        var fallbackId=result.user.id;
-                                        window.location.href=`${baseUrl}/courier/${fallbackId}/dashboard`;
-                                    }
-                                })
-                                .catch((err) => {
-                                    var fallbackId=result.user.id;
-                                    window.location.href=`${baseUrl}/courier/${fallbackId}/dashboard`;
-                                });
+                            window.location.href=baseUrl + "/courier/pending-approval";
+                            return;
                         }
+                        var courierId=result.user.courierId || result.user.id;
+                        window.location.href=`${baseUrl}/courier/${courierId}/dashboard`;
                     } 
                     else if (role === "buyer")
                     {
@@ -203,7 +175,7 @@ document.addEventListener("DOMContentLoaded", function ()
 
             try 
             {
-                var result=await window.registerUser({ fullname, email, password, role });
+                var result=await window.registerUser({ email });
                 if (result && result.success) 
                 {
                     if (result.requiresVerification) 
@@ -293,52 +265,17 @@ document.addEventListener("DOMContentLoaded", function ()
                 if (result && result.success) 
                 {
                     localStorage.setItem("user", JSON.stringify(result.user));
-                    
-                    if (window.updateHeader)
+                    if (window.updateHeader) await window.updateHeader();
+                    var baseUrl=window.getBaseUrl ? window.getBaseUrl() : '';
+                    if (result.needsDocuments && result.redirectUrl) 
                     {
-                        await window.updateHeader();
+                        window.location.href=baseUrl + result.redirectUrl;
+                        return;
                     }
-                    
                     var role=result.user.role;
-                    var baseUrl;
-                    if (window.getBaseUrl) 
-                    {
-                        baseUrl=window.getBaseUrl();
-                    } 
-                    else 
-                    {
-                        baseUrl='';
-                    }
-                    
-                    if (role === "admin") 
-                    {
-                        window.location.href = `${baseUrl}/admin/users`;
-                    } 
-                    else if (role === "seller") 
-                    {
-                        const sellerId = result.user.sellerId;
-                        if (sellerId) 
-                        {
-                            window.location.href = `${baseUrl}/seller/${sellerId}/dashboard`;
-                        } 
-                        else 
-                        {
-                            window.location.href = `${baseUrl}/seller/dashboard`;
-                        }
-                    } 
-                    else if (role === "courier") 
-                    {
-                        const courierId = result.user.courierId || result.user.id;
-                        window.location.href = `${baseUrl}/courier/${courierId}/dashboard`;
-                    } 
-                    else if (role === "buyer") 
-                    {
-                        window.location.href = `${baseUrl}/`;
-                    } 
-                    else 
-                    {
-                        window.location.href = `${baseUrl}/`;
-                    }
+                    if (role === "admin") window.location.href=baseUrl + "/admin/users";
+                    else if (role === "buyer") window.location.href=baseUrl + "/";
+                    else window.location.href=baseUrl + "/";
                 } 
                 else 
                 {

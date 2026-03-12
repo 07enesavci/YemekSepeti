@@ -6,7 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const db = require("../../config/database");
-const { User, EmailVerificationCode, Seller } = require("../../models");
+const { User, EmailVerificationCode, Seller, Courier } = require("../../models");
 const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
 
@@ -99,7 +99,23 @@ router.post("/login", async (req, res) => {
         }
         const token = generateToken(user);
         const userData = { id: user.id, email: user.email, fullname: user.fullname, role: user.role };
-        
+        if (user.role === 'seller') {
+            const seller = await Seller.findOne({ where: { user_id: user.id } });
+            if (seller) {
+                userData.sellerId = seller.id;
+                userData.sellerApproved = !!seller.is_active;
+            } else {
+                userData.sellerApproved = false;
+            }
+        } else if (user.role === 'courier') {
+            const courier = await Courier.findOne({ where: { user_id: user.id } });
+            if (courier) {
+                userData.courierId = courier.id;
+                userData.courierApproved = !!courier.is_active;
+            } else {
+                userData.courierApproved = false;
+            }
+        }
         req.session.user = userData;
         req.session.isAuthenticated = true;
         res.json({ success: true, user: userData, token });
@@ -125,13 +141,8 @@ router.post("/register", async (req, res) => {
     }
 });
 
-// VERIFY EMAIL & FINALIZE REGISTER (Dosyalar burada kaydedilir)
-router.post("/verify-email", upload.fields([
-    { name: 'taxPlate', maxCount: 1 },
-    { name: 'idCard', maxCount: 1 },
-    { name: 'activityCert', maxCount: 1 },
-    { name: 'businessLicense', maxCount: 1 }
-]), async (req, res) => {
+// VERIFY EMAIL & HESAP OLUŞTUR (3. adım: belgeler ayrı sayfada)
+router.post("/verify-email", async (req, res) => {
     const { email, code, fullname, password, role = "buyer" } = req.body;
 
     try {
@@ -148,32 +159,102 @@ router.post("/verify-email", upload.fields([
         });
 
         const userData = { id: user.id, email, fullname, role };
-
-        // --- SATICI İSE BELGELERİ SELLER TABLOSUNA YAZ ---
-        if (role === 'seller') {
-            const getPath = (name) => req.files[name] ? `/uploads/merchants/${req.files[name][0].filename}` : null;
-            
-            const seller = await Seller.create({
-                user_id: user.id,
-                shop_name: fullname + "'nın Mutfağı",
-                is_active: false, // Onay bekliyor
-                // Veritabanı sütun isimlerinizle eşleşmeli:
-                tax_plate: getPath('taxPlate'),
-                id_card: getPath('idCard'),
-                activity_cert: getPath('activityCert'),
-                business_license: getPath('businessLicense')
-            });
-            userData.sellerId = seller.id;
-        }
-
         const token = generateToken(user);
         req.session.user = userData;
         req.session.isAuthenticated = true;
+
+        if (role === 'seller' || role === 'courier') {
+            return res.status(201).json({
+                success: true,
+                user: userData,
+                token,
+                needsDocuments: true,
+                redirectUrl: '/register/documents'
+            });
+        }
 
         res.status(201).json({ success: true, user: userData, token });
     } catch (error) {
         console.error("Kayıt Hatası:", error);
         res.status(500).json({ success: false, message: "Kayıt tamamlanamadı." });
+    }
+});
+
+// BELGE YÜKLE (Satıcı/Kurye — 3. adım, giriş yapmış kullanıcı)
+const docsUploadDir = 'public/uploads/merchants';
+if (!fs.existsSync(docsUploadDir)) fs.mkdirSync(docsUploadDir, { recursive: true });
+const documentStorage = multer.diskStorage({
+    destination: function (req, file, cb) { cb(null, docsUploadDir); },
+    filename: function (req, file, cb) {
+        cb(null, file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname || ''));
+    }
+});
+router.post("/submit-documents", multer({ storage: documentStorage }).fields([
+    { name: 'taxPlate', maxCount: 1 },
+    { name: 'idCard', maxCount: 1 },
+    { name: 'activityCert', maxCount: 1 },
+    { name: 'businessLicense', maxCount: 1 },
+    { name: 'driverLicense', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        if (!req.session || !req.session.user || !req.session.isAuthenticated) {
+            return res.status(401).json({ success: false, message: "Oturum bulunamadı. Lütfen giriş yapın." });
+        }
+        const { role } = req.session.user;
+        const userId = req.session.user.id;
+        const files = req.files || {};
+        const getPath = (name) => (files[name] && files[name][0]) ? `/uploads/merchants/${path.basename(files[name][0].path)}` : null;
+
+        if (role === 'seller') {
+            const existing = await Seller.findOne({ where: { user_id: userId } });
+            if (existing) return res.status(400).json({ success: false, message: "Belgeler zaten gönderildi." });
+            const user = await User.findByPk(userId);
+            if (!user) return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+            const taxPlate = getPath('taxPlate');
+            const idCard = getPath('idCard');
+            const activityCert = getPath('activityCert');
+            const businessLicense = getPath('businessLicense');
+            if (!taxPlate || !idCard || !activityCert || !businessLicense) {
+                return res.status(400).json({ success: false, message: "Satıcı için 4 belge zorunludur." });
+            }
+            const seller = await Seller.create({
+                user_id: userId,
+                shop_name: user.fullname + "'nın Mutfağı",
+                location: 'Belirtilmedi',
+                is_active: false,
+                tax_plate: taxPlate,
+                id_card: idCard,
+                activity_cert: activityCert,
+                business_license: businessLicense
+            });
+            req.session.user.sellerId = seller.id;
+            req.session.user.sellerApproved = false;
+            return res.status(201).json({ success: true, redirectUrl: '/seller/pending-approval' });
+        }
+
+        if (role === 'courier') {
+            const existing = await Courier.findOne({ where: { user_id: userId } });
+            if (existing) return res.status(400).json({ success: false, message: "Belgeler zaten gönderildi." });
+            const idCard = getPath('idCard');
+            const driverLicense = getPath('driverLicense');
+            if (!idCard || !driverLicense) {
+                return res.status(400).json({ success: false, message: "Kurye için Kimlik ve Ehliyet belgeleri zorunludur." });
+            }
+            const courier = await Courier.create({
+                user_id: userId,
+                id_card: idCard,
+                driver_license: driverLicense,
+                is_active: false
+            });
+            req.session.user.courierId = courier.id;
+            req.session.user.courierApproved = false;
+            return res.status(201).json({ success: true, redirectUrl: '/courier/pending-approval' });
+        }
+
+        return res.status(403).json({ success: false, message: "Bu işlem sadece satıcı veya kurye için geçerlidir." });
+    } catch (error) {
+        console.error("Belge yükleme hatası:", error);
+        res.status(500).json({ success: false, message: "Belgeler yüklenemedi." });
     }
 });
 
@@ -202,6 +283,17 @@ router.get("/me", async (req, res) => {
     try {
         if (req.session && req.session.user && req.session.isAuthenticated) {
             const user = req.session.user;
+            let sellerApproved = null;
+            let courierApproved = null;
+            if (user.role === 'seller' && user.sellerId) {
+                const seller = await Seller.findByPk(user.sellerId);
+                sellerApproved = !!(seller && seller.is_active);
+            }
+            if (user.role === 'courier') {
+                const { Courier } = require("../../models");
+                const courier = await Courier.findOne({ where: { user_id: user.id } });
+                courierApproved = !!(courier && courier.is_active);
+            }
             return res.json({
                 success: true,
                 user: {
@@ -210,7 +302,9 @@ router.get("/me", async (req, res) => {
                     fullname: user.fullname,
                     role: user.role,
                     sellerId: user.sellerId || null,
-                    courierId: user.courierId || user.id
+                    courierId: user.courierId || user.id,
+                    sellerApproved,
+                    courierApproved
                 }
             });
         }
