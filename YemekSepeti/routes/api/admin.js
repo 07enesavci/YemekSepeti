@@ -3,8 +3,9 @@ const router=express.Router();
 const db=require("../../config/database");
 const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
-const { User, Seller, Courier }=require("../../models");
+const { User, Seller, Courier, Order }=require("../../models");
 const { Op }=require("sequelize");
+const { Sequelize }=require("sequelize");
 const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
 
 router.use((req,res,next)=>{ requireAuth(req,res,next); });
@@ -439,5 +440,45 @@ router.post("/reject-courier/:id", requireRole('admin'), async (req, res) => {
     }
 });
 // --- KURYE ONAY SİSTEMİ BİTİŞ ---
+
+// --- ADMİN RAPORLARI ---
+router.get("/reports/summary", async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const totalOrders = await Order.count();
+        const ordersToday = await Order.count({ where: { created_at: { [Op.gte]: today } } });
+        const ordersThisWeek = await Order.count({ where: { created_at: { [Op.gte]: startOfWeek } } });
+        const deliveredOrders = await Order.count({ where: { status: 'delivered' } });
+        const revenueResult = await Order.findOne({
+            where: { status: 'delivered' },
+            attributes: [[Sequelize.fn('SUM', Sequelize.col('total_amount')), 'total']],
+            raw: true
+        });
+        const totalRevenue = revenueResult && revenueResult.total != null ? parseFloat(revenueResult.total) : 0;
+        const activeSellers = await Seller.count({ where: { is_active: true } });
+        const activeCouriers = await Courier.count({ where: { is_active: true } });
+
+        res.json({
+            success: true,
+            summary: {
+                totalOrders,
+                ordersToday,
+                ordersThisWeek,
+                deliveredOrders,
+                totalRevenue: Math.round(totalRevenue * 100) / 100,
+                activeSellers,
+                activeCouriers
+            }
+        });
+    } catch (err) {
+        console.error("Admin reports error:", err);
+        res.status(500).json({ success: false, message: "Rapor yüklenemedi." });
+    }
+});
 
 module.exports = router;

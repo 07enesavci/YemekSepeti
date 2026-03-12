@@ -1,691 +1,159 @@
-# 🍽️ Ev Lezzetleri - Yemek Sepeti Projesi
+# Yemek Sepeti / Ev Lezzetleri
 
-Modern, güvenli ve ölçeklenebilir bir yemek siparişi ve teslimat platformu. Express.js, Sequelize ORM ve MySQL kullanılarak geliştirilmiştir.
-
-![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)
-![Express](https://img.shields.io/badge/Express-4.22-blue.svg)
-![Sequelize](https://img.shields.io/badge/Sequelize-6.37-blue.svg)
-![MySQL](https://img.shields.io/badge/MySQL-8.0-orange.svg)
+Web tabanlı yemek sipariş ve teslimat uygulaması. Alıcılar restoranlardan sipariş verir, satıcılar menü/sipariş yönetir, kuryeler teslimat yapar; admin paneli ile satıcı/kurye onayları ve raporlar yönetilir.
 
 ---
 
-## 📋 İçindekiler
+## Teknoloji
 
-- [Genel Bakış](#genel-bakış)
-- [Test Kullanıcıları ve Giriş Bilgileri](#test-kullanıcıları-ve-giriş-bilgileri)
-- [Kullanıcı Rolleri ve Yetkileri](#kullanıcı-rolleri-ve-yetkileri)
-- [Genel İşlevler](#genel-işlevler)
-- [Kurulum](#kurulum)
-- [Yapılandırma](#yapılandırma)
-- [API Dokümantasyonu](#api-dokümantasyonu)
-- [Proje Yapısı](#proje-yapısı)
-- [Geliştirme](#geliştirme)
+- **Backend:** Node.js, Express
+- **Veritabanı:** MySQL (mysql2 + Sequelize ORM)
+- **Oturum:** express-session (MySQL store opsiyonel)
+- **Şablon:** EJS, express-ejs-layouts
+- **Güvenlik:** Helmet, express-rate-limit, express-validator (auth)
+- **Gerçek zamanlı:** Socket.IO
+- **E-posta:** Nodemailer (kayıt doğrulama, şifre sıfırlama, onay e-postaları)
 
 ---
 
-## 🎯 Genel Bakış
+## Gereksinimler
 
-Ev Lezzetleri, müşterilerin restoranlardan yemek siparişi verebileceği, satıcıların menülerini yönetebileceği ve kuryelerin teslimat yapabileceği kapsamlı bir platformdur. Proje, modern web teknolojileri kullanılarak geliştirilmiş, güvenli, ölçeklenebilir ve bakımı kolay bir yapıya sahiptir.
-
-### Ana Bileşenler
-
-- **Müşteri Paneli**: Yemek arama, sipariş verme, sipariş takibi
-- **Satıcı Paneli**: Menü yönetimi, sipariş yönetimi, kazanç takibi
-- **Kurye Paneli**: Teslimat görevleri, kazanç takibi, geçmiş teslimatlar
-- **Admin Paneli**: Kullanıcı yönetimi, kupon yönetimi, sistem yönetimi
+- Node.js 18+
+- MySQL 8 (veya 5.7)
+- (Opsiyonel) SMTP veya Gmail uygulama şifresi — e-posta göndermek için
 
 ---
 
-## 👥 Test Kullanıcıları ve Giriş Bilgileri
+## Kurulum
 
-Projeyi test etmek için hazır kullanıcı hesapları:
+1. Depoyu klonlayın, proje klasörüne girin:
+   ```bash
+   cd YemekSepeti
+   ```
 
-### 🔑 Admin Kullanıcısı
+2. Bağımlılıkları yükleyin:
+   ```bash
+   npm install
+   ```
 
-- **Email**: `admin@gmail.com`
-- **Şifre**: `123456`
-- **Rol**: Admin
-- **Erişim**: Tüm sistem yönetimi yetkileri
+3. `.env` dosyası oluşturun (`.env.example` kopyalayıp düzenleyin):
+   ```bash
+   cp .env.example .env
+   ```
+   Aşağıdaki değişkenleri doldurun:
+   - **Veritabanı:** `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+   - **Güvenlik:** `SESSION_SECRET`, `JWT_SECRET` (üretimde mutlaka güçlü değerler)
+   - **E-posta (opsiyonel):** `EMAIL_SERVICE` / `EMAIL_USER` / `EMAIL_PASS` veya `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_USER` / `EMAIL_PASS`
 
-### 🛒 Müşteri (Buyer) Kullanıcıları
+4. MySQL’de veritabanını oluşturun:
+   ```sql
+   CREATE DATABASE yemek_sepeti CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+   Uygulama ilk çalıştırmada Sequelize ile tabloları oluşturur/senkronize eder.
 
-1. **Enes Avcı**
-   - **Email**: `enes@gmail.com`
-   - **Şifre**: `123456`
-   - **Rol**: Buyer
-
-### 🏪 Satıcı (Seller) Kullanıcısı
-
-- **Email**: `veganlezzetler@gmail.com`
-- **Şifre**: `123456`
-- **Rol**: Seller
-- **Satıcı Adı**: "Vegan Lezzetler"
-- **Konum**: Moda
-
-### 🚴 Kurye (Courier) Kullanıcısı
-
-- **Email**: `kurye@gmail.com`
-- **Şifre**: `123456`
-- **Rol**: Courier
-
-> **Not**: Tüm test kullanıcıları için şifre: `123456`
-
----
-
-## 🎭 Kullanıcı Rolleri ve Yetkileri
-
-### 👤 Buyer (Müşteri) - `/buyer/*`
-
-**Yapabildikleri:**
-- ✅ Restoranları görüntüleme ve arama
-- ✅ Menü öğelerini görüntüleme
-- ✅ Sepete ürün ekleme/çıkarma
-- ✅ Sipariş verme
-- ✅ Sipariş takibi (aktif ve geçmiş siparişler)
-- ✅ Adres yönetimi (ekleme, düzenleme, silme)
-- ✅ Profil bilgilerini güncelleme
-- ✅ Şifre değiştirme
-- ✅ Cüzdan işlemleri (bakiye görüntüleme, geçmiş)
-- ✅ Kupon kullanma
-- ✅ Sipariş iptali
-
-**Erişemeyecekleri:**
-- ❌ Admin paneline erişim
-- ❌ Satıcı paneline erişim
-- ❌ Kurye paneline erişim
+5. Uygulamayı başlatın:
+   ```bash
+   npm run dev
+   ```
+   Tarayıcıda: **http://localhost:3000**
 
 ---
 
-### 🏪 Seller (Satıcı) - `/seller/:id/*`
+## Ortam Değişkenleri (.env)
 
-**Yapabildikleri:**
-- ✅ Menü yönetimi (yemek ekleme, düzenleme, silme)
-- ✅ Kategori oluşturma ve yönetimi
-- ✅ Menü öğelerinin görselini yükleme
-- ✅ Sipariş görüntüleme ve yönetimi
-- ✅ Sipariş durumu güncelleme (onaylama, hazırlama, hazır)
-- ✅ Satıcı profil yönetimi (logo, banner, açıklama, çalışma saatleri)
-- ✅ Kupon oluşturma ve yönetimi
-- ✅ Kazanç takibi ve raporlama
-- ✅ Günlük/haftalık/aylık istatistikler
-
-**Erişemeyecekleri:**
-- ❌ Admin paneline erişim
-- ❌ Diğer satıcıların menülerini düzenleme
-- ❌ Kurye paneline erişim
-- ❌ Müşteri sipariş verme işlemleri (sadece kendi siparişlerini görür)
+| Değişken | Açıklama | Varsayılan |
+|----------|----------|------------|
+| DB_HOST | MySQL sunucu | localhost |
+| DB_PORT | MySQL port | 3306 |
+| DB_USER | MySQL kullanıcı | root |
+| DB_PASSWORD | MySQL şifre | (boş) |
+| DB_NAME | Veritabanı adı | yemek_sepeti |
+| SESSION_SECRET | Oturum imzası | (üretimde zorunlu) |
+| JWT_SECRET | JWT imzası | (üretimde zorunlu) |
+| USE_MYSQL_SESSION | Oturumu MySQL’de sakla (true/false) | (opsiyonel) |
+| NODE_ENV | development / production | development |
+| EMAIL_* | E-posta (Gmail veya SMTP) | Test modunda e-posta gönderilmez |
 
 ---
 
-### 🚴 Courier (Kurye) - `/courier/:id/*`
+## Veritabanı Tabloları (Sequelize modelleri)
 
-**Yapabildikleri:**
-- ✅ Mevcut teslimat görevlerini görüntüleme
-- ✅ Teslimat görevini kabul etme
-- ✅ Teslimat durumunu güncelleme
-- ✅ Teslimat tamamlama
-- ✅ Geçmiş teslimatları görüntüleme
-- ✅ Kazanç takibi (günlük, haftalık, aylık)
-- ✅ Profil yönetimi
-- ✅ Teslimat istatistikleri
+| Tablo | Açıklama |
+|-------|----------|
+| users | Kullanıcılar (alıcı, satıcı, kurye, admin) |
+| sellers | Satıcı mağaza bilgisi, belgeler, location |
+| couriers | Kurye bilgisi, kimlik/ehliyet belgeleri, is_active |
+| meals | Ürünler (satıcıya bağlı) |
+| addresses | Kullanıcı adresleri (latitude, longitude opsiyonel) |
+| cart_items | Sepet kalemleri (user_id, meal_id, adet) |
+| orders | Siparişler (user_id, seller_id, courier_id, address_id, status, delivery_fee, total_amount, delivered_at) |
+| order_items | Sipariş kalemleri |
+| coupons | Kuponlar (code, discount_type, discount_value, min_order_amount, applicable_seller_ids, valid_from, valid_until) |
+| coupon_usages | Kupon kullanım kayıtları |
+| reviews | Restoran/sipariş değerlendirmeleri (rating, comment) |
+| wallet_transactions | Cüzdan hareketleri (ileride ödeme için) |
+| courier_tasks | Kurye görevleri (order_id, courier_id, pickup/delivery location, estimated_payout, actual_payout, status, picked_up_at, delivered_at) |
+| payments | Ödeme kayıtları (şu an placeholder) |
+| notifications | Kullanıcı bildirimleri |
+| email_verification_codes | E-posta doğrulama kodları |
+| user_favorite_sellers | Alıcı favori restoranları |
 
-**Erişemeyecekleri:**
-- ❌ Admin paneline erişim
-- ❌ Satıcı paneline erişim
-- ❌ Sipariş verme veya menü görüntüleme (normal müşteri gibi)
-
----
-
-### 👨‍💻 Admin - `/admin/*`
-
-**Yapabildikleri:**
-- ✅ Tüm kullanıcıları görüntüleme
-- ✅ Yeni kullanıcı ekleme (seller, courier)
-- ✅ Kullanıcıları dondurma/aktifleştirme
-- ✅ Kullanıcı silme
-- ✅ Tüm kuponları görüntüleme ve yönetme
-- ✅ Kupon oluşturma, düzenleme, silme
-- ✅ Satıcı yönetimi
-- ✅ Sistem izleme ve log görüntüleme
-- ✅ Sistem ayarları
-
-**Erişemeyecekleri:**
-- ❌ Kendi sipariş verme (normal bir müşteri olarak kayıt olması gerekir)
-- ❌ Satıcı menü düzenleme (sadece kullanıcı yönetimi)
+Session store için `sessions` tablosu kullanılır (USE_MYSQL_SESSION=true ise express-mysql-session ile oluşturulur).
 
 ---
 
-## 🚀 Genel İşlevler
+## Proje Yapısı (özet)
 
-### 🔐 Kimlik Doğrulama Sistemi
-
-- **Email Doğrulamalı Kayıt**: Yeni kullanıcılar email doğrulama kodu ile kayıt olur
-- **Güvenli Giriş**: JWT token ve session tabanlı kimlik doğrulama
-- **Şifre Sıfırlama**: Email ile şifre sıfırlama linki gönderimi
-- **2FA Desteği**: İsteğe bağlı iki faktörlü kimlik doğrulama
-
-### 🛒 Sipariş Sistemi
-
-**Sipariş Durumları:**
-1. `pending` - Beklemede (müşteri sipariş verdi, satıcı henüz onaylamadı)
-2. `confirmed` - Onaylandı (satıcı siparişi onayladı)
-3. `preparing` - Hazırlanıyor (satıcı siparişi hazırlıyor)
-4. `ready` - Hazır (sipariş hazır, kurye bekleniyor)
-5. `on_delivery` - Yolda (kurye teslimata gitti)
-6. `delivered` - Teslim Edildi (sipariş teslim edildi)
-7. `cancelled` - İptal Edildi
-
-**Sipariş Akışı:**
 ```
-Müşteri → Sipariş Verir → Satıcı Onaylar → Hazırlanır → Hazır Olur 
-→ Kurye Alır → Teslimata Gider → Teslim Edilir
-```
-
-### 💰 Ödeme ve Cüzdan Sistemi
-
-- Kullanıcı cüzdanı ile ödeme
-- Kredi kartı ile ödeme
-- Kupon indirimleri
-- Otomatik bakiye güncelleme
-- İşlem geçmişi
-
-### 🎟️ Kupon Sistemi
-
-**Kupon Tipleri:**
-- Sabit tutar indirimi (örn: 50 TL indirim)
-- Yüzde indirimi (örn: %20 indirim)
-- Maksimum indirim limiti
-- Minimum sipariş tutarı
-- Belirli satıcılarda geçerlilik
-- Geçerlilik süresi
-
-### 📊 Raporlama ve İstatistikler
-
-**Satıcı için:**
-- Günlük kazanç
-- Haftalık/aylık raporlar
-- Sipariş istatistikleri
-- Popüler ürünler
-
-**Kurye için:**
-- Günlük teslimat sayısı
-- Günlük kazanç
-- Geçmiş teslimatlar
-- Performans metrikleri
-
-**Admin için:**
-- Toplam kullanıcı sayısı
-- Aktif sipariş sayısı
-- Sistem durumu
-
----
-
-## 🛠️ Teknoloji Yığını
-
-### Backend
-- **Runtime**: Node.js (v18+)
-- **Framework**: Express.js 4.22
-- **ORM**: Sequelize 6.37
-- **Database**: MySQL 8.0+ (Aiven Cloud uyumlu)
-- **Session**: express-session + MySQL session store
-- **Authentication**: JWT + Session-based
-- **File Upload**: Multer 2.0
-
-### Frontend
-- **Template Engine**: EJS (Embedded JavaScript)
-- **Styling**: Vanilla CSS (CSS Variables, Flexbox, Grid)
-- **JavaScript**: Vanilla JavaScript (ES6+)
-- **Build Tool**: None (Vanilla JS)
-
-### Güvenlik
-- **Password Hashing**: bcryptjs
-- **Email**: Nodemailer
-- **Validation**: Express middleware
-
----
-
-## 📦 Kurulum
-
-### Gereksinimler
-
-- Node.js v18 veya üzeri
-- MySQL 8.0+ veya Aiven Cloud
-- npm veya yarn
-- Git
-
-### Adım 1: Projeyi Klonlayın
-
-```bash
-git clone https://github.com/07enesavci/YemekSepeti
-cd Yemek-Sepeti
-```
-
-### Adım 2: Bağımlılıkları Yükleyin
-
-```bash
-npm install
-```
-
-### Adım 3: Environment Variables (.env) Oluşturun
-
-Proje kök dizininde `.env` dosyası oluşturun:
-
-```env
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=yemek_sepeti
-DB_SSL=false
-
-# JWT Secret (ÖNEMLİ: Production'da güçlü bir secret kullanın)
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-
-# Email Configuration (Gmail örneği)
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
-EMAIL_FROM=noreply@evlezzetleri.com
-
-# Session Secret
-SESSION_SECRET=your_session_secret_change_this_in_production
-
-# Application URL
-BASE_URL=http://localhost:3000
-```
-
-### Adım 4: Veritabanını Kurun
-
-```bash
-mysql -u root -p < database/yemek_sepeti.sql
-```
-
-veya MySQL içinde:
-
-```sql
-source database/yemek_sepeti.sql;
-```
-
-### Adım 5: Sunucuyu Başlatın
-
-Development modunda:
-```bash
-npm run dev
-```
-
-Production modunda:
-```bash
-npm start
-```
-
-Uygulama `http://localhost:3000` adresinde çalışacaktır.
-
----
-
-## ⚙️ Yapılandırma
-
-### Veritabanı Yapılandırması
-
-#### Yerel MySQL
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=yemek_sepeti
-DB_SSL=false
-```
-
-#### Aiven Cloud / Bulut Veritabanı
-
-```env
-DB_HOST=your-project-name.i.aivencloud.com
-DB_PORT=14973
-DB_USER=avnadmin
-DB_PASSWORD=your_password
-DB_NAME=yemek_sepeti
-DB_SSL=true
-```
-
-**Not**: Aiven Cloud için SSL bağlantısı zorunludur. `.env` dosyasında `DB_SSL=true` olarak ayarlayın.
-
-### Email Yapılandırması
-
-#### Gmail
-
-1. Google Hesabınızda "2 Adımlı Doğrulama"yı etkinleştirin
-2. "Uygulama Şifreleri" oluşturun
-3. `.env` dosyasında kullanın:
-
-```env
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
+YemekSepeti/
+├── config/          # database.js, sequelize, email
+├── middleware/      # auth, security (rate-limit, helmet), validate
+├── models/          # Sequelize modelleri (User, Order, Seller, Courier, ...)
+├── routes/api/      # auth, seller, orders, cart, admin, courier, buyer, notifications, favorites, reviews
+├── views/           # EJS şablonları (common, buyer, seller, courier, admin)
+├── public/          # Statik dosyalar, uploads
+├── assets/          # CSS, JS (modules: cart, orders, courier, admin, ...)
+├── scripts/         # seed-users, verify-seed-login (test/seed)
+├── server.js        # Uygulama giriş noktası
+├── .env.example
+├── API_LIST.md      # Tüm API endpoint listesi
+├── PROJECT_IMPROVEMENTS.md  # İyileştirme ve yol haritası
+└── README.md        # Bu dosya
 ```
 
 ---
 
-## 📚 API Dokümantasyonu
+## Komutlar
 
-### Authentication Endpoints
-
-#### POST `/api/auth/register`
-Kullanıcı kaydı
-
-**Request:**
-```json
-{
-  "fullname": "Ahmet Yılmaz",
-  "email": "ahmet@example.com",
-  "password": "securePassword123",
-  "role": "buyer"
-}
-```
-
-#### POST `/api/auth/verify-email`
-Email doğrulama
-
-#### POST `/api/auth/login`
-Kullanıcı girişi
-
-**Request:**
-```json
-{
-  "email": "admin@yemeksepeti.com",
-  "password": "password"
-}
-```
-
-#### POST `/api/auth/forgot-password`
-Şifre sıfırlama isteği
-
-#### POST `/api/auth/reset-password`
-Şifre sıfırlama
-
-### Seller Endpoints
-
-- `GET /api/seller/menu` - Menüyü getir
-- `POST /api/seller/menu` - Yemek ekle
-- `PUT /api/seller/menu/:id` - Yemek güncelle
-- `DELETE /api/seller/menu/:id` - Yemek sil
-- `GET /api/seller/dashboard` - Dashboard verileri
-- `GET /api/seller/orders` - Siparişler
-
-### Courier Endpoints
-
-- `GET /api/courier/tasks/available` - Mevcut görevler
-- `GET /api/courier/tasks/active` - Aktif görevler
-- `GET /api/courier/tasks/history` - Geçmiş görevler
-- `PUT /api/courier/tasks/:id/accept` - Görev kabul
-- `PUT /api/courier/tasks/:id/complete` - Görev tamamla
-
-### Admin Endpoints
-
-- `GET /api/admin/users` - Tüm kullanıcılar
-- `POST /api/admin/users` - Kullanıcı ekle
-- `PUT /api/admin/users/:id/suspend` - Kullanıcı dondur/aktifleştir
-- `DELETE /api/admin/users/:id` - Kullanıcı sil
-- `GET /api/admin/coupons` - Tüm kuponlar
-- `POST /api/admin/coupons` - Kupon ekle
-
-### Public Endpoints
-
-- `GET /api/sellers` - Tüm satıcılar
-- `GET /api/sellers/:id` - Satıcı detayları
-- `GET /api/sellers/:id/menu` - Satıcı menüsü
+| Komut | Açıklama |
+|--------|----------|
+| npm run dev | Nodemon ile geliştirme (localhost:3000) |
+| npm start | Production: node server.js |
 
 ---
 
-## 📁 Proje Yapısı
+## Dokümantasyon
 
-
-```
-YemekSepeti-main
-└─ YemekSepeti-main
-   ├─ README.md
-   └─ YemekSepeti
-      ├─ assets
-      │  ├─ css
-      │  │  ├─ components.css
-      │  │  ├─ layout.css
-      │  │  ├─ main.css
-      │  │  ├─ pages
-      │  │  │  ├─ admin.css
-      │  │  │  ├─ auth.css
-      │  │  │  ├─ cart.css
-      │  │  │  ├─ checkout.css
-      │  │  │  ├─ courier-available.css
-      │  │  │  ├─ courier-dashboard.css
-      │  │  │  ├─ courier-history.css
-      │  │  │  ├─ courier.css
-      │  │  │  ├─ floating-cart.css
-      │  │  │  ├─ home.css
-      │  │  │  ├─ modal.css
-      │  │  │  ├─ order-confirmation.css
-      │  │  │  ├─ orders.css
-      │  │  │  ├─ profile.css
-      │  │  │  ├─ seller-dashboard.css
-      │  │  │  ├─ seller-earnings.css
-      │  │  │  ├─ seller-menu.css
-      │  │  │  ├─ seller-orders.css
-      │  │  │  ├─ seller-profile-admin.css
-      │  │  │  └─ seller-profile.css
-      │  │  └─ responsive.css
-      │  └─ js
-      │     ├─ api.js
-      │     ├─ auth.js
-      │     ├─ main.js
-      │     └─ modules
-      │        ├─ addresses.js
-      │        ├─ admin.js
-      │        ├─ auth-check.js
-      │        ├─ auth.js
-      │        ├─ cart.js
-      │        ├─ checkout.js
-      │        ├─ courier.js
-      │        ├─ floating-cart.js
-      │        ├─ header.js
-      │        ├─ home.js
-      │        ├─ meal-modal.js
-      │        ├─ orders.js
-      │        ├─ profile.js
-      │        ├─ scroll-to-top.js
-      │        ├─ security.js
-      │        ├─ seller-profile.js
-      │        ├─ seller.js
-      │        └─ wallet.js
-      ├─ ca.pem
-      ├─ config
-      │  ├─ database.js
-      │  ├─ email.js
-      │  └─ sequelize.js
-      ├─ database
-      │  └─ yemek_sepeti.sql
-      ├─ env
-      ├─ middleware
-      │  └─ auth.js
-      ├─ models
-      │  ├─ Address.js
-      │  ├─ CartItem.js
-      │  ├─ Coupon.js
-      │  ├─ CouponUsage.js
-      │  ├─ CourierTask.js
-      │  ├─ EmailVerificationCode.js
-      │  ├─ index.js
-      │  ├─ Meal.js
-      │  ├─ Notification.js
-      │  ├─ Order.js
-      │  ├─ OrderItem.js
-      │  ├─ Payment.js
-      │  ├─ Review.js
-      │  ├─ Seller.js
-      │  ├─ User.js
-      │  └─ WalletTransaction.js
-      ├─ package.json
-      ├─ public
-      │  └─ uploads
-      │     └─ sellers
-      │        ├─ 1
-      │        │  ├─ banner_1766240092222.jpeg
-      │        │  └─ logo_1766240087681.jpeg
-      │        ├─ 10
-      │        │  ├─ banner_1766240271469.jpg
-      │        │  └─ logo_1766240265664.jpg
-      │        ├─ 15
-      │        │  ├─ banner_1766119824290.jpeg
-      │        │  └─ logo_1766119819397.jpeg
-      │        ├─ 5
-      │        │  ├─ banner_1766240300769.jpeg
-      │        │  └─ logo_1766240292477.jpeg
-      │        └─ 7
-      │           ├─ banner_1766119760883.jpg
-      │           ├─ banner_1766227165670.jpg
-      │           ├─ banner_1766240241607.jpg
-      │           ├─ logo_1766119754317.jpg
-      │           ├─ logo_1766227159191.jpg
-      │           └─ logo_1766240234393.jpg
-      ├─ routes
-      │  └─ api
-      │     ├─ admin.js
-      │     ├─ auth.js
-      │     ├─ buyer.js
-      │     ├─ cart.js
-      │     ├─ courier.js
-      │     ├─ orders.js
-      │     ├─ seller.js
-      │     ├─ sellers.js
-      │     └─ upload.js
-      ├─ run-migration.js
-      ├─ server.js
-      ├─ views
-      │  ├─ admin
-      │  │  ├─ coupons.ejs
-      │  │  └─ user-management.ejs
-      │  ├─ buyer
-      │  │  ├─ addresses.ejs
-      │  │  ├─ cart.ejs
-      │  │  ├─ checkout.ejs
-      │  │  ├─ order-confirmation.ejs
-      │  │  ├─ orders.ejs
-      │  │  ├─ profile.ejs
-      │  │  ├─ security.ejs
-      │  │  ├─ seller-profile.ejs
-      │  │  └─ wallet.ejs
-      │  ├─ common
-      │  │  ├─ about.ejs
-      │  │  ├─ contact.ejs
-      │  │  ├─ forgot-password.ejs
-      │  │  ├─ login.ejs
-      │  │  ├─ register.ejs
-      │  │  ├─ reset-password.ejs
-      │  │  └─ terms.ejs
-      │  ├─ courier
-      │  │  ├─ available.ejs
-      │  │  ├─ dashboard.ejs
-      │  │  ├─ history.ejs
-      │  │  └─ profile.ejs
-      │  ├─ index.ejs
-      │  ├─ layouts
-      │  │  └─ main.ejs
-      │  ├─ partials
-      │  │  ├─ breadcrumb.ejs
-      │  │  ├─ footer.ejs
-      │  │  ├─ header.ejs
-      │  │  ├─ meal-card.ejs
-      │  │  ├─ seller-card.ejs
-      │  │  └─ sidebar.ejs
-      │  └─ seller
-      │     ├─ coupons.ejs
-      │     ├─ dashboard.ejs
-      │     ├─ earnings.ejs
-      │     ├─ menu.ejs
-      │     ├─ orders.ejs
-      │     └─ profile.ejs
-      └─ web.config
-
-```
+- **[API_LIST.md](API_LIST.md)** — Tüm API endpoint’leri (auth, sellers, cart, orders, courier, admin, notifications, favorites, reviews, kupon).
+- **[PROJECT_IMPROVEMENTS.md](PROJECT_IMPROVEMENTS.md)** — Yapılan düzeltmeler, eklenebilecek özellikler, 3 kişilik görev dağılımı ve sprint önerisi.
 
 ---
 
-## 💻 Geliştirme
+## Eklenebilecek Özellikler (kısa)
 
-### Kodlama Standartları
+- **Ödeme:** Stripe / Iyzico / PayTR entegrasyonu
+- **Canlı konum:** Kurye konumunu haritada gösterme
+- **Çoklu dil (i18n):** TR/EN
+- **PWA:** Offline sepette temel destek, “Ana ekrana ekle”
+- **Kampanya / flash indirim:** Zamanlı indirimler
+- **Sipariş iptali ve iade:** İptal sebepleri, kısmi iade akışı
+- **Gelişmiş arama/filtre:** Mutfak türü, min sipariş, teslimat ücreti, rating
+- **Admin grafikleri:** Günlük/haftalık sipariş ve gelir grafikleri
 
-- JavaScript: ES6+ özellikleri
-- Indentation: 4 spaces
-- Naming: camelCase (JavaScript), snake_case (SQL)
-- Comments: Türkçe açıklamalar
-
-### Yeni Özellik Ekleme
-
-1. Route'u `routes/api/` altında oluşturun
-2. Gerekli modeli `models/` altında oluşturun
-3. Frontend kodunu `assets/js/modules/` altında ekleyin
-4. View dosyasını `views/` altında oluşturun
+Detaylı liste ve öncelikler için [PROJECT_IMPROVEMENTS.md](PROJECT_IMPROVEMENTS.md) dosyasına bakın.
 
 ---
 
-## 🔒 Güvenlik
+## Lisans
 
-### Uygulanan Güvenlik Önlemleri
-
-1. **Password Hashing**: bcryptjs ile şifre hashleme
-2. **JWT Tokens**: Güvenli token tabanlı kimlik doğrulama
-3. **Session Management**: Güvenli session yönetimi
-4. **SQL Injection**: Sequelize ORM ile korunma
-5. **XSS Protection**: EJS template engine ile otomatik escape
-6. **CSRF Protection**: Session tabanlı koruma
-7. **Input Validation**: Express middleware ile validasyon
-
----
-
-## 🐛 Sorun Giderme
-
-### Veritabanı Bağlantı Sorunları
-
-**Hata**: `ER_ACCESS_DENIED_ERROR`
-- `.env` dosyasındaki `DB_USER` ve `DB_PASSWORD` değerlerini kontrol edin
-
-**Hata**: `ECONNREFUSED`
-- MySQL sunucusunun çalıştığından emin olun
-- `.env` dosyasındaki `DB_HOST` ve `DB_PORT` değerlerini kontrol edin
-
-**Hata**: `ER_BAD_DB_ERROR`
-- Veritabanının oluşturulduğundan emin olun: `database/yemek_sepeti.sql` dosyasını çalıştırın
-
-### Email Gönderim Sorunları
-
-**Gmail ile sorun yaşıyorsanız**:
-1. Google Hesabınızda "2 Adımlı Doğrulama"yı etkinleştirin
-2. "Uygulama Şifreleri" oluşturun
-3. `.env` dosyasında bu şifreyi kullanın
-
----
-
-## 📝 Notlar
-
-- Tüm test kullanıcıları için şifre: `password`
-- İlk kurulumda veritabanı script'i çalıştırıldığında test kullanıcıları otomatik oluşturulur
-- Production ortamında mutlaka güçlü şifreler kullanın
-- JWT_SECRET ve SESSION_SECRET değerlerini production'da değiştirin
-
----
-
-## 📄 Lisans
-
-Bu proje ISC lisansı altında lisanslanmıştır.
-
----
-
-**Son Güncelleme**: 2025-01-23  
-**Versiyon**: 1.0.0
-
-Made with ❤️ for food lovers
+ISC

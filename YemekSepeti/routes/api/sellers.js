@@ -5,7 +5,7 @@ const { Seller } = require("../../models");
 
 router.get("/", async (req, res) => {
     try {
-        const { location, rating } = req.query;
+        const { location, rating, q, min_order } = req.query;
         const dbSellers = await Seller.findAll({
             where: { is_active: true },
             attributes: [
@@ -50,6 +50,20 @@ router.get("/", async (req, res) => {
             const minRating = parseFloat(rating);
             if (!isNaN(minRating) && minRating >= 0 && minRating <= 5) {
                 filteredSellers = filteredSellers.filter(s => s.rating >= minRating);
+            }
+        }
+        if (q && String(q).trim()) {
+            const qLower = String(q).trim().toLowerCase();
+            filteredSellers = filteredSellers.filter(s =>
+                (s.name && s.name.toLowerCase().includes(qLower)) ||
+                (s.description && s.description.toLowerCase().includes(qLower)) ||
+                (s.location && s.location.toLowerCase().includes(qLower))
+            );
+        }
+        if (min_order !== undefined && min_order !== '') {
+            const minOrderVal = parseFloat(min_order);
+            if (!isNaN(minOrderVal) && minOrderVal >= 0) {
+                filteredSellers = filteredSellers.filter(s => (s.minOrderAmount || 0) <= minOrderVal);
             }
         }
 

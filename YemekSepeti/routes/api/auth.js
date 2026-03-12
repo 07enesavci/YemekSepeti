@@ -9,9 +9,11 @@ const db = require("../../config/database");
 const { User, EmailVerificationCode, Seller, Courier } = require("../../models");
 const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
+const { body, validationResult } = require('express-validator');
+const { authLimiter } = require('../../middleware/security');
 
 // --- MULTER YAPILANDIRMASI (DOSYA YÜKLEME) ---
-const uploadDir = 'public/uploads/merchants';
+const uploadDir = path.resolve(__dirname, '..', '..', 'public', 'uploads', 'merchants');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -87,10 +89,22 @@ async function verifyCode(email, code, type) {
     return false;
 }
 
+function handleValidationErrors(req, res, next) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const msg = errors.array()[0]?.msg || 'Geçersiz veri.';
+        return res.status(400).json({ success: false, message: msg });
+    }
+    next();
+}
+
 // --- ROTALAR ---
 
-// LOGIN (Değişmedi)
-router.post("/login", async (req, res) => {
+// LOGIN (rate limit sadece giriş denemeleri için; /me, logout vb. sayılmaz)
+router.post("/login", authLimiter, [
+    body('email').isEmail().withMessage('Geçerli bir e-posta girin.'),
+    body('password').notEmpty().withMessage('Şifre gerekli.')
+], handleValidationErrors, async (req, res) => {
     const { email, password } = req.body;
     try {
         const user = await User.findOne({ where: { email } });
@@ -125,7 +139,9 @@ router.post("/login", async (req, res) => {
 });
 
 // REGISTER (Önce kod gönderir)
-router.post("/register", async (req, res) => {
+router.post("/register", [
+    body('email').isEmail().withMessage('Geçerli bir e-posta girin.')
+], handleValidationErrors, async (req, res) => {
     const { email } = req.body;
     try {
         const existingUser = await User.findOne({ where: { email } });
@@ -203,7 +219,7 @@ router.post("/submit-documents", multer({ storage: documentStorage }).fields([
         const { role } = req.session.user;
         const userId = req.session.user.id;
         const files = req.files || {};
-        const getPath = (name) => (files[name] && files[name][0]) ? `/uploads/merchants/${path.basename(files[name][0].path)}` : null;
+        const getPath = (name) => (files[name] && files[name][0] && files[name][0].path) ? `/uploads/merchants/${path.basename(files[name][0].path)}` : null;
 
         if (role === 'seller') {
             const existing = await Seller.findOne({ where: { user_id: userId } });

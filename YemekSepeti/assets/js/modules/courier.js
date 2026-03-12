@@ -554,42 +554,48 @@ function initializeAvailablePage() {
 
 
 async function handleTaskComplete(event) {
-    const orderId = event.currentTarget.getAttribute('data-order-id');
+    const btn = event.currentTarget;
+    const orderId = btn ? btn.getAttribute('data-order-id') : null;
     if (!orderId) return;
 
-    event.currentTarget.disabled = true;
-    event.currentTarget.textContent = 'Teslimat Onaylanıyor...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Teslimat Onaylanıyor...';
+    }
 
     try {
         await completeTask(parseInt(orderId));
-        displayMessage(`✅ Görev #${orderId} başarıyla tamamlandı ve Teslimat Geçmişine eklendi!`, 'success');
-        setTimeout(() => {
-            loadActiveTasks();
-        }, 1000);
+        displayMessage('✅ Görev #' + orderId + ' başarıyla tamamlandı ve Teslimat Geçmişine eklendi!', 'success');
+        setTimeout(function() { loadActiveTasks(); }, 1000);
     } catch (error) {
-        event.currentTarget.disabled = false;
-        event.currentTarget.textContent = 'Görevi Tamamladım';
-        displayMessage('❌ ' + error.message, 'error');
+        if (btn && btn.parentNode) {
+            btn.disabled = false;
+            btn.textContent = '✅ Teslim Ettim';
+        }
+        displayMessage('❌ ' + (error && error.message ? error.message : 'İşlem başarısız.'), 'error');
     }
 }
 
 async function handleTaskPickup(event) {
-    const orderId = event.currentTarget.getAttribute('data-order-id');
+    const btn = event.currentTarget;
+    const orderId = btn ? btn.getAttribute('data-order-id') : null;
     if (!orderId) return;
 
-    event.currentTarget.disabled = true;
-    event.currentTarget.textContent = 'Paket Teslim Alınıyor...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Paket Teslim Alınıyor...';
+    }
 
     try {
         await pickupTask(parseInt(orderId));
-        displayMessage(`✅ Sipariş #${orderId} için paket teslim alındı. Rota teslimat noktasına güncelleniyor...`, 'success');
-        setTimeout(() => {
-            loadActiveTasks();
-        }, 700);
+        displayMessage('✅ Sipariş #' + orderId + ' için paket teslim alındı. Rota teslimat noktasına güncelleniyor...', 'success');
+        setTimeout(function() { loadActiveTasks(); }, 700);
     } catch (error) {
-        event.currentTarget.disabled = false;
-        event.currentTarget.textContent = '📦 Paketi Teslim Aldım';
-        displayMessage('❌ ' + error.message, 'error');
+        if (btn && btn.parentNode) {
+            btn.disabled = false;
+            btn.textContent = '📦 Paketi Teslim Aldım';
+        }
+        displayMessage('❌ ' + (error && error.message ? error.message : 'İşlem başarısız.'), 'error');
     }
 }
 
@@ -974,8 +980,11 @@ async function initIdleCourierMap() {
 function createActiveTaskCard(order) {
     const dropoffName = (order.dropoff || '').split('(')[0].trim();
     const dropoffFull = order.dropoffFullAddress || dropoffName;
-    
+    const pickupAddr = (order.pickup || '') + (order.pickupLocation ? ', ' + order.pickupLocation : '');
     const isPickedUp = !!order.isPickedUp;
+    const dropoffLat = order.dropoffLat != null && order.dropoffLng != null ? order.dropoffLat + ',' + order.dropoffLng : '';
+    const dropoffEnc = encodeURIComponent(dropoffFull);
+    const pickupEnc = encodeURIComponent(pickupAddr.trim() || order.pickup || '');
 
     const statusText = isPickedUp
         ? 'Durum: Restorandan alındı / Teslimata gidiliyor'
@@ -999,6 +1008,17 @@ function createActiveTaskCard(order) {
             </div>
             
             <div id="route-info" class="courier-route-info"></div>
+            <div class="courier-directions-row" style="margin-bottom: 1rem;">
+                <button type="button" class="btn btn-secondary btn-open-google-maps" 
+                    data-origin="current" 
+                    data-destination="${dropoffEnc}" 
+                    data-destination-lat-lng="${dropoffLat}"
+                    data-waypoints="${isPickedUp ? '' : pickupEnc}"
+                    data-travelmode="driving"
+                    title="Mevcut konumdan hedefe Google Maps ile yol tarifi">
+                    🧭 Google Maps ile Yol Tarifi
+                </button>
+            </div>
             
             <div class="task-details">
                 <div class="task-step task-step-pickup ${isPickedUp ? 'task-step-picked-up' : 'task-step-pickup-pending active'}">
@@ -1023,6 +1043,24 @@ function createActiveTaskCard(order) {
         </div>
     `;
     return cardHTML;
+}
+
+function openGoogleMapsDirections(btn) {
+    if (!btn || !btn.dataset) return;
+    var destLatLng = (btn.dataset.destinationLatLng || '').trim();
+    var destAddr = (btn.dataset.destination || '').trim();
+    var waypoints = (btn.dataset.waypoints || '').trim();
+    var travelmode = (btn.dataset.travelmode || 'driving').toLowerCase();
+    var destination = destLatLng && /^-?[\d.]+,-?[\d.]+$/.test(destLatLng.replace(/\s/g, ''))
+        ? destLatLng
+        : (destAddr ? (function(s) { try { return decodeURIComponent(s); } catch (e) { return s; } })(destAddr) : '');
+    if (!destination) return;
+    var params = new URLSearchParams();
+    params.set('api', '1');
+    params.set('travelmode', travelmode);
+    params.set('destination', destination);
+    if (waypoints) params.set('waypoints', (function(s) { try { return decodeURIComponent(s); } catch (e) { return s; } })(waypoints));
+    window.open('https://www.google.com/maps/dir/?' + params.toString(), '_blank', 'noopener,noreferrer');
 }
 
 async function updateStats() {
@@ -1075,6 +1113,8 @@ async function loadActiveTasks() {
                 pickupLocation: activeTask.pickupLocation || '',
                 dropoff: activeTask.dropoff,
                 dropoffFullAddress: activeTask.dropoffFullAddress || activeTask.dropoff,
+                dropoffLat: activeTask.dropoffLat ?? null,
+                dropoffLng: activeTask.dropoffLng ?? null,
                 payout: activeTask.payout,
                 isPickedUp: isPickedUp
             });
@@ -1090,6 +1130,11 @@ async function loadActiveTasks() {
             const completeBtn = taskContainer.querySelector('.complete-task-btn');
             if (completeBtn) {
                 completeBtn.addEventListener('click', handleTaskComplete);
+            }
+
+            const googleMapsBtn = taskContainer.querySelector('.btn-open-google-maps');
+            if (googleMapsBtn) {
+                googleMapsBtn.addEventListener('click', function() { openGoogleMapsDirections(this); });
             }
 
             // Haritayı başlat — yeni koordinat desteği ile

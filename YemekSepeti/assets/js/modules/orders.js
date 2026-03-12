@@ -33,6 +33,17 @@ async function showOrderDetail(orderId) {
                     <button class="order-detail-modal-close" onclick="closeOrderDetailModal()">&times;</button>
                 </div>
                 <div class="order-detail-modal-body">
+                    <div class="order-detail-section order-status-timeline">
+                        <h3>Sipariş Durumu</h3>
+                        <div class="timeline-steps">
+                            ${['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered'].map((st, i) => {
+                                const labels = { pending: 'Alındı', confirmed: 'Onaylandı', preparing: 'Hazırlanıyor', ready: 'Hazır', on_delivery: 'Yolda', delivered: 'Teslim Edildi' };
+                                const done = orderDetail.status === 'cancelled' ? (st === 'pending') : (['pending','confirmed','preparing','ready','on_delivery','delivered'].indexOf(orderDetail.status) >= i);
+                                const current = orderDetail.status === st;
+                                return `<div class="timeline-step ${done ? 'done' : ''} ${current ? 'current' : ''}"><span class="timeline-dot"></span><span class="timeline-label">${labels[st] || st}</span></div>`;
+                            }).join('')}
+                        </div>
+                    </div>
                     <div class="order-detail-section">
                         <h3>Sipariş Bilgileri</h3>
                         <div class="order-detail-info">
@@ -519,31 +530,37 @@ async function renderOrders() {
     const pastSection = document.getElementById('past-orders');
 
     let userId = null;
-    
-    try {
-        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const authResponse = await fetch(`${baseUrl}/api/auth/me`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        
-        if (authResponse.ok) {
-            const authData = await authResponse.json();
-            if (authData.success && authData.user) {
-                userId = authData.user.id;
-            }
-        }
-    } catch (e) {
-        console.warn('Session bilgisi alınamadı:', e);
+    if (typeof window.__buyerOrdersUserId !== 'undefined' && window.__buyerOrdersUserId != null) {
+        const parsed = parseInt(window.__buyerOrdersUserId, 10);
+        if (!isNaN(parsed) && parsed > 0) userId = parsed;
     }
-    
+    if (!userId && typeof window.__userId !== 'undefined' && window.__userId) {
+        const parsed = parseInt(window.__userId, 10);
+        if (!isNaN(parsed) && parsed > 0) userId = parsed;
+    }
     if (!userId) {
-        console.error('Kullanıcı ID bulunamadı. Lütfen giriş yapın.');
+        try {
+            const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+            const authResponse = await fetch(`${baseUrl}/api/auth/me`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            if (authResponse.ok) {
+                const authData = await authResponse.json();
+                if (authData.success && authData.user && authData.user.id) {
+                    userId = parseInt(authData.user.id, 10) || null;
+                }
+            }
+        } catch (e) {
+            console.warn('Session bilgisi alınamadı:', e);
+        }
+    }
+    if (!userId) {
         if (activeSection) {
-            activeSection.innerHTML = '<p style="color: red;">Lütfen giriş yapın.</p>';
+            activeSection.innerHTML = '<p style="text-align: center; padding: 1rem; color: var(--text-color-light);">Siparişlerinizi görmek için lütfen <a href="/login">giriş yapın</a>.</p>';
         }
         if (pastSection) {
-            pastSection.innerHTML = '<p style="color: red;">Lütfen giriş yapın.</p>';
+            pastSection.innerHTML = '<p style="text-align: center; padding: 1rem; color: var(--text-color-light);">Siparişlerinizi görmek için lütfen <a href="/login">giriş yapın</a>.</p>';
         }
         return;
     }

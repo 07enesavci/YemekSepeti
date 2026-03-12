@@ -53,8 +53,23 @@
                     
                     <% if (user) { %>
                         <% if(user.role === 'buyer') { %>
+                            <li><a href="/buyer/favorites" class="btn btn-secondary">Favorilerim</a></li>
                             <li><a href="/buyer/profile" class="btn btn-secondary">Profilim</a></li>
                         <% } %>
+                        <li class="header-notifications-wrap" style="position: relative;">
+                            <button type="button" id="header-notifications-btn" class="btn btn-secondary" aria-label="Bildirimler" style="position: relative;">
+                                <span aria-hidden="true">🔔</span>
+                                <span id="header-notifications-badge" class="notifications-badge" style="display: none;">0</span>
+                            </button>
+                            <div id="header-notifications-dropdown" class="notifications-dropdown" style="display: none;">
+                                <div class="notifications-dropdown-header">
+                                    <span>Bildirimler</span>
+                                    <button type="button" id="notifications-mark-all-read" class="btn btn-sm">Hepsini oku</button>
+                                </div>
+                                <div id="notifications-list" class="notifications-list"></div>
+                                <div id="notifications-empty" class="notifications-empty" style="display: none;">Bildirim yok.</div>
+                            </div>
+                        </li>
                         <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
                     <% } else { %>
                         <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>

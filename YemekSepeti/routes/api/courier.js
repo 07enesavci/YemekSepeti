@@ -165,14 +165,16 @@ router.post("/tasks/:id/accept", async (req, res) => {
 
 router.get("/tasks/active", async (req, res) => {
     try {
-        const courierId = req.session.user.id || req.session.user.courierId;
+        const courierId = req.session.user?.id || req.session.user?.courierId;
+        if (!courierId) return res.status(401).json({ success: false, message: "Oturum bulunamadı." });
+
         const tasksRaw = await Order.findAll({
             where: {
                 courier_id: courierId,
                 status: { [Op.in]: ['on_delivery', 'ready'] }
             },
             include: [
-                { model: Seller, as: 'seller', attributes: ['shop_name', 'location'], required: false },
+                { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
                 { model: Address, as: 'address', attributes: ['district', 'city', 'full_address', 'latitude', 'longitude'], required: false },
                 { model: User, as: 'buyer', attributes: ['fullname', 'phone'], required: false },
                 { model: CourierTask, as: 'courierTask', attributes: ['picked_up_at', 'delivered_at'], required: false }
@@ -180,32 +182,35 @@ router.get("/tasks/active", async (req, res) => {
             order: [['created_at', 'DESC']]
         });
 
-        const formattedTasks = tasksRaw.map(task => ({
-            id: task.id,
-            orderNumber: task.order_number,
-            pickup: task.seller?.shop_name || 'Restoran',
-            pickupLocation: task.seller?.location || '',
-            dropoff: task.address
-                ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '')
-                : 'Adres bilgisi yok',
-            dropoffFullAddress: task.address?.full_address || (task.address ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : 'Adres bilgisi yok'),
-            dropoffLat: task.address?.latitude ? parseFloat(task.address.latitude) : null,
-            dropoffLng: task.address?.longitude ? parseFloat(task.address.longitude) : null,
-            customer: task.buyer
-                ? `${task.buyer.fullname || 'Müşteri'} (${(task.buyer.phone || '000').substring(0, 3)}***)`
-                : 'Müşteri',
-            payout: parseFloat(task.delivery_fee) || 25.00,
-            status: task.status,
-            estimatedTime: task.estimated_delivery_time,
-            pickedUpAt: task.courierTask?.picked_up_at || null,
-            deliveredAt: task.courierTask?.delivered_at || null,
-            createdAt: task.created_at
-        }));
+        const formattedTasks = (tasksRaw || []).map(task => {
+            const seller = task.seller || {};
+            const address = task.address || {};
+            const buyer = task.buyer || {};
+            const ct = task.courierTask || {};
+            const dropoffStr = [address.district, address.city].filter(Boolean).join(', ') || 'Adres bilgisi yok';
+            return {
+                id: task.id,
+                orderNumber: task.order_number || `SIP-${task.id}`,
+                pickup: seller.shop_name || 'Restoran',
+                pickupLocation: seller.location || '',
+                dropoff: dropoffStr,
+                dropoffFullAddress: address.full_address || dropoffStr,
+                dropoffLat: address.latitude != null ? parseFloat(address.latitude) : null,
+                dropoffLng: address.longitude != null ? parseFloat(address.longitude) : null,
+                customer: buyer.fullname ? `${buyer.fullname} (${(buyer.phone || '000').toString().substring(0, 3)}***)` : 'Müşteri',
+                payout: parseFloat(task.delivery_fee) || 25.00,
+                status: task.status,
+                estimatedTime: task.estimated_delivery_time,
+                pickedUpAt: ct.picked_up_at || null,
+                deliveredAt: ct.delivered_at || null,
+                createdAt: task.created_at
+            };
+        });
 
         res.json({ success: true, tasks: formattedTasks });
     } catch (error) {
         console.error('ACTIVE TASKS HATA:', error);
-        res.status(500).json({ success: false, message: "Sunucu hatası." });
+        res.status(500).json({ success: false, message: "Sunucu hatası.", error: error.message });
     }
 });
 
@@ -243,10 +248,13 @@ router.put("/tasks/:id/complete", async (req, res) => {
         if (orderCheck.courier_id !== courierId) return res.status(403).json({ success: false, message: "Bu sipariş size ait değil." });
 
         await Order.update({ status: 'delivered', delivered_at: new Date() }, { where: { id: orderId } });
-        await CourierTask.update(
-            { status: 'delivered', delivered_at: new Date(), actual_payout: sequelize.literal('estimated_payout') },
-            { where: { order_id: orderId, courier_id: courierId } }
-        );
+        const taskRow = await CourierTask.findOne({ where: { order_id: orderId, courier_id: courierId }, attributes: ['id', 'estimated_payout'] });
+        if (taskRow) {
+            await CourierTask.update(
+                { status: 'delivered', delivered_at: new Date(), actual_payout: taskRow.estimated_payout },
+                { where: { order_id: orderId, courier_id: courierId } }
+            );
+        }
 
         res.json({ success: true, message: 'Görev başarıyla tamamlandı.' });
     } catch (error) {
@@ -329,17 +337,20 @@ router.get("/tasks/history", async (req, res) => {
 router.get("/earnings", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
+        if (!courierId) return res.status(400).json({ success: false, message: "Kurye oturumu bulunamadı." });
         const { period = 'month' } = req.query;
 
-        const whereClause = { courier_id: courierId, status: 'delivered' };
+        const whereBase = { courier_id: courierId, status: 'delivered' };
+        let whereDeliveredAt = {};
         if (period === 'day') {
             const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-            whereClause.delivered_at = { [Op.gte]: startOfDay };
+            whereDeliveredAt = { [Op.gte]: startOfDay };
         } else if (period === 'week') {
-            whereClause.delivered_at = { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
+            whereDeliveredAt = { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
         } else if (period === 'month') {
-            whereClause.delivered_at = { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
+            whereDeliveredAt = { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
         }
+        const whereClause = whereDeliveredAt && Object.keys(whereDeliveredAt).length ? { ...whereBase, delivered_at: whereDeliveredAt } : whereBase;
 
         const statsRaw = await CourierTask.findAll({
             attributes: [
@@ -351,20 +362,27 @@ router.get("/earnings", async (req, res) => {
             raw: true
         });
 
-        const stats = statsRaw[0] || { total_deliveries: 0, total_earnings: 0, avg_earnings_per_delivery: 0 };
+        const stats = statsRaw[0] || {};
+        const totalDeliveries = parseInt(stats.total_deliveries, 10) || 0;
+        const totalEarnings = parseFloat(stats.total_earnings) || 0;
+        const avgEarningsPerDelivery = totalDeliveries > 0 ? (totalEarnings / totalDeliveries) : 0;
 
         res.json({
             success: true,
             period: period,
             stats: {
-                totalDeliveries: parseInt(stats.total_deliveries) || 0,
-                totalEarnings: parseFloat(stats.total_earnings) || 0,
-                avgEarningsPerDelivery: parseFloat(stats.avg_earnings_per_delivery) || 0
+                totalDeliveries,
+                totalEarnings,
+                avgEarningsPerDelivery
             }
         });
     } catch (error) {
         console.error('EARNINGS HATA:', error);
-        res.status(500).json({ success: false, message: "Sunucu hatası." });
+        res.json({
+            success: true,
+            period: req.query.period || 'month',
+            stats: { totalDeliveries: 0, totalEarnings: 0, avgEarningsPerDelivery: 0 }
+        });
     }
 });
 

@@ -860,36 +860,35 @@ async function loadAvailableCoupons() {
                 ? 'Min. ' + tl(coupon.minOrderAmount) + ' TL'
                 : '';
             
+            var isApplied = appliedCoupon && (appliedCoupon.code === coupon.code || appliedCoupon.id === coupon.id);
             var couponCard = document.createElement('div');
             couponCard.className = 'coupon-card';
-            couponCard.style.cssText = 'padding: 0.75rem; border: 1px solid #e0e0e0; border-radius: 6px; background: #f9f9f9; cursor: pointer; transition: all 0.2s;';
-            couponCard.onmouseover = function() {
-                this.style.borderColor = '#4CAF50';
-                this.style.background = '#f0f8f0';
-            };
-            couponCard.onmouseout = function() {
-                this.style.borderColor = '#e0e0e0';
-                this.style.background = '#f9f9f9';
-            };
-            couponCard.onclick = function() {
-                var couponInput = document.getElementById('coupon');
-                if (couponInput) {
-                    couponInput.value = coupon.code;
-                    couponInput.focus();
-                }
-            };
-            
-            couponCard.innerHTML = 
+            couponCard.style.cssText = 'padding: 0.75rem; border: 1px solid ' + (isApplied ? '#4CAF50' : '#e0e0e0') + '; border-radius: 6px; background: ' + (isApplied ? '#f0f8f0' : '#f9f9f9') + '; cursor: ' + (isApplied ? 'default' : 'pointer') + '; transition: all 0.2s;';
+            if (!isApplied) {
+                couponCard.onmouseover = function() {
+                    this.style.borderColor = '#4CAF50';
+                    this.style.background = '#f0f8f0';
+                };
+                couponCard.onmouseout = function() {
+                    this.style.borderColor = '#e0e0e0';
+                    this.style.background = '#f9f9f9';
+                };
+                couponCard.onclick = async function() {
+                    var couponInput = document.getElementById('coupon');
+                    if (couponInput) couponInput.value = coupon.code;
+                    await applyCoupon();
+                };
+            }
+            couponCard.innerHTML =
                 '<div style="display: flex; justify-content: space-between; align-items: center;">' +
                     '<div>' +
                         '<strong style="color: #4CAF50; font-size: 0.9rem;">' + coupon.code + '</strong>' +
-                        '<div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">' + discountText + 
+                        '<div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">' + discountText +
                         (minOrderText ? ' • ' + minOrderText : '') + '</div>' +
                         (coupon.description ? '<div style="font-size: 0.8rem; color: #999; margin-top: 0.25rem;">' + coupon.description + '</div>' : '') +
                     '</div>' +
-                    '<span style="font-size: 0.75rem; color: #999;">Tıkla</span>' +
+                    '<span style="font-size: 0.75rem; color: ' + (isApplied ? '#4CAF50' : '#999') + ';">' + (isApplied ? '✓ Uygulandı' : 'Kullan') + '</span>' +
                 '</div>';
-            
             couponsList.appendChild(couponCard);
         });
         
@@ -924,6 +923,18 @@ function removeCoupon() {
     loadAvailableCoupons();
 }
 
+document.addEventListener('click', function(e) {
+	var cartLink = e.target.closest('a[href*="/buyer/cart"]');
+	if (!cartLink) return;
+	sepetiYukle();
+	if (sepet.length === 0) {
+		e.preventDefault();
+		alert('Sepetiniz boş. Ana sayfaya yönlendiriliyorsunuz.');
+		var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+		window.location.href = baseUrl ? baseUrl + '/' : '/';
+	}
+}, true);
+
 document.addEventListener('DOMContentLoaded', async function(){
 	const isAuthPage = window.location.pathname.includes('/login') || 
 	                   window.location.pathname.includes('/register') ||
@@ -933,7 +944,14 @@ document.addEventListener('DOMContentLoaded', async function(){
 		return;
 	}
 	
+   	sepetiYukle();
    	if (window.location.pathname.includes('/buyer/cart') || window.location.pathname.includes('/buyer/checkout')) {
+   		if (sepet.length === 0) {
+   			alert('Sepetiniz boş. Ana sayfaya yönlendiriliyorsunuz.');
+   			const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+   			window.location.href = baseUrl || '/';
+   			return;
+   		}
    		if (!await checkAuth()) {
    			alert('Sepeti görüntülemek için lütfen giriş yapın.');
    			const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -942,7 +960,6 @@ document.addEventListener('DOMContentLoaded', async function(){
    		}
    	}
    	
-   	sepetiYukle();
    	sepetiYenile();
    	attachCartEventListeners();
    	

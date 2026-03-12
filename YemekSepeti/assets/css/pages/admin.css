@@ -168,3 +168,71 @@
         width: 100%;
     }
 }
+
+/* 4. Admin Raporlar Sayfası
+-------------------------------------- */
+.reports-card .card-content {
+    position: relative;
+}
+
+.reports-loading {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-color-light);
+}
+
+.reports-error {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-color);
+    background: rgba(231, 76, 60, 0.08);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: var(--border-radius);
+}
+
+.reports-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.reports-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    background: var(--bg-color);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.reports-stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.reports-stat-label {
+    font-size: 0.875rem;
+    color: var(--text-color-light);
+    font-weight: 500;
+}
+
+.reports-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    line-height: 1.2;
+}
+
+@media (max-width: 768px) {
+    .reports-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .reports-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

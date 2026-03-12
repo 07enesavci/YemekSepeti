@@ -17,6 +17,7 @@ const CourierTask=require('./CourierTask')(sequelize, DataTypes);
 const Payment=require('./Payment')(sequelize, DataTypes);
 const Notification=require('./Notification')(sequelize, DataTypes);
 const EmailVerificationCode=require('./EmailVerificationCode')(sequelize, DataTypes);
+const UserFavoriteSeller=require('./UserFavoriteSeller')(sequelize, DataTypes);
 
 User.hasOne(Seller, {foreignKey: 'user_id', as: 'seller'});
 Seller.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
@@ -84,6 +85,11 @@ Payment.belongsTo(Order, {foreignKey: 'order_id', as: 'order'});
 User.hasMany(Notification, {foreignKey: 'user_id', as: 'notifications'});
 Notification.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
 
+User.belongsToMany(Seller, { through: UserFavoriteSeller, foreignKey: 'user_id', otherKey: 'seller_id', as: 'favoriteSellers' });
+Seller.belongsToMany(User, { through: UserFavoriteSeller, foreignKey: 'seller_id', otherKey: 'user_id', as: 'favoritedBy' });
+UserFavoriteSeller.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+UserFavoriteSeller.belongsTo(Seller, { foreignKey: 'seller_id', as: 'seller' });
+
 module.exports={
     sequelize,
     User,
@@ -101,5 +107,6 @@ module.exports={
     CourierTask,
     Payment,
     Notification,
-    EmailVerificationCode
+    EmailVerificationCode,
+    UserFavoriteSeller
 };

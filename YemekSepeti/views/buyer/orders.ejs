@@ -1,5 +1,7 @@
 <link rel="stylesheet" href="/assets/css/pages/profile.css">
-
+<script>
+    window.__buyerOrdersUserId = <%= typeof user !== 'undefined' && user && user.id ? user.id : 'null' %>;
+</script>
 <div class="container section-padding">
     <h1 class="section-title">Hesabım</h1>
 

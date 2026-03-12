@@ -58,6 +58,23 @@ const createTransporter = () => {
     return cachedTransporter;
 };
 
+function emailLayout(innerHtml, title = 'Ev Lezzetleri') {
+    return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>body{font-family:Arial,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background:#f5f5f5}.container{max-width:600px;margin:0 auto;padding:20px}.header{background:linear-gradient(135deg,#DC2626 0%,#EF4444 100%);color:white;padding:24px;text-align:center;border-radius:10px 10px 0 0}.content{background:#fff;padding:24px;border-radius:0 0 10px 10px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}.footer{text-align:center;margin-top:16px;color:#666;font-size:12px}</style>
+</head>
+<body>
+<div class="container">
+<div class="header"><h1 style="margin:0;font-size:1.5rem">${title}</h1></div>
+<div class="content">${innerHtml}</div>
+<div class="footer"><p>© ${new Date().getFullYear()} ${title}. Tüm hakları saklıdır.</p></div>
+</div>
+</body>
+</html>`;
+}
+
 async function sendEmail(to, subject, html, text = null) {
     try {
         const transporter = createTransporter();

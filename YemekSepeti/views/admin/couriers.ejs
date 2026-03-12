@@ -81,10 +81,11 @@ function openDocModal(id) {
 document.getElementById('doc-modal-close').onclick = function() { document.getElementById('doc-modal-overlay').style.display = 'none'; };
 document.getElementById('doc-modal-overlay').onclick = function(e) { if (e.target === this) this.style.display = 'none'; };
 
+var baseUrl = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '') || '';
 async function loadPendingCouriers() {
     var tbody = document.getElementById('couriers-tbody');
     try {
-        var res = await fetch('/api/admin/pending-couriers');
+        var res = await fetch(baseUrl + '/api/admin/pending-couriers', { credentials: 'include' });
         var result = await res.json();
         if (!result.success || !result.data || result.data.length === 0) {
             pendingCouriersList = [];
@@ -99,28 +100,44 @@ async function loadPendingCouriers() {
             return '<tr class="align-middle">' +
                 '<td><div style="font-weight: 600;">' + (u ? u.fullname : '-') + '</div><small style="color:#888">' + (c.createdAt ? new Date(c.createdAt).toLocaleDateString('tr-TR') : '') + '</small></td>' +
                 '<td>' + (u ? u.email : '-') + '</td>' +
-                '<td>' + (hasDocs ? '<button type="button" onclick="openDocModal(' + c.id + ')" class="btn btn-secondary btn-sm">Belgeleri Görüntüle</button>' : '<span class="text-muted">Belge yok</span>') + '</td>' +
-                '<td class="text-end"><button onclick="approve(' + c.id + ')" class="btn btn-primary btn-sm">Onayla</button> <button onclick="reject(' + c.id + ')" class="btn btn-outline-danger btn-sm">Reddet</button></td></tr>';
+                '<td>' + (hasDocs ? '<button type="button" class="btn btn-secondary btn-sm btn-doc-view" data-courier-id="' + c.id + '">Belgeleri Görüntüle</button>' : '<span class="text-muted">Belge yok</span>') + '</td>' +
+                '<td class="text-end"><button type="button" class="btn btn-primary btn-sm btn-courier-approve" data-courier-id="' + c.id + '">Onayla</button> <button type="button" class="btn btn-outline-danger btn-sm btn-courier-reject" data-courier-id="' + c.id + '">Reddet</button></td></tr>';
         }).join('');
     } catch (err) {
         tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">Yüklenemedi.</td></tr>';
     }
 }
-async function approve(id) {
+function openDocModalById(id) {
+    var c = pendingCouriersList.find(function(x) { return x.id == id; });
+    if (!c) return;
+    openDocModal(id);
+}
+async function doApprove(id) {
     if (!confirm('Bu kuryeyi onaylamak istiyor musunuz?')) return;
     try {
-        var res = await fetch('/api/admin/approve-courier/' + id, { method: 'POST' });
-        var data = await res.json();
-        if (data.success) { alert('Kurye onaylandı!'); loadPendingCouriers(); } else alert('Hata: ' + (data.message || ''));
-    } catch (e) { alert('Sunucu hatası.'); }
+        var res = await fetch(baseUrl + '/api/admin/approve-courier/' + id, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+        var data = await res.json().catch(function() { return { success: false, message: 'Yanıt okunamadı.' }; });
+        if (data.success) { alert('Kurye onaylandı!'); loadPendingCouriers(); } else alert('Hata: ' + (data.message || res.status));
+    } catch (e) { alert('Sunucu hatası: ' + (e.message || '')); }
 }
-async function reject(id) {
+async function doReject(id) {
     if (!confirm('Bu kurye başvurusunu reddetmek istediğinize emin misiniz?')) return;
     try {
-        var res = await fetch('/api/admin/reject-courier/' + id, { method: 'POST' });
-        var data = await res.json();
-        if (data.success) { alert('Başvuru reddedildi.'); loadPendingCouriers(); } else alert('Hata: ' + (data.message || ''));
-    } catch (e) { alert('Sunucu hatası.'); }
+        var res = await fetch(baseUrl + '/api/admin/reject-courier/' + id, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+        var data = await res.json().catch(function() { return { success: false, message: 'Yanıt okunamadı.' }; });
+        if (data.success) { alert('Başvuru reddedildi.'); loadPendingCouriers(); } else alert('Hata: ' + (data.message || res.status));
+    } catch (e) { alert('Sunucu hatası: ' + (e.message || '')); }
 }
-document.addEventListener('DOMContentLoaded', loadPendingCouriers);
+document.addEventListener('DOMContentLoaded', function() {
+    loadPendingCouriers();
+    document.getElementById('couriers-tbody').addEventListener('click', function(e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        var id = btn.getAttribute('data-courier-id');
+        if (!id) return;
+        if (btn.classList.contains('btn-doc-view')) { openDocModalById(parseInt(id, 10)); return; }
+        if (btn.classList.contains('btn-courier-approve')) { doApprove(id); return; }
+        if (btn.classList.contains('btn-courier-reject')) { doReject(id); return; }
+    });
+});
 </script>

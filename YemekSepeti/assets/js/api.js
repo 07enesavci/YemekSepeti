@@ -701,3 +701,44 @@ window.getAllSellers=getAllSellers;
 window.adminAddCoupon=adminAddCoupon;
 window.getCoupons=getCoupons;
 window.adminDeleteCoupon=adminDeleteCoupon;
+
+async function getNotifications(limit) {
+    const response = await fetch(`${API_BASE_URL}/api/notifications?limit=${limit || 20}`, { credentials: 'include', headers: getAuthHeaders() });
+    if (!response.ok) return { notifications: [], unreadCount: 0 };
+    return await response.json();
+}
+async function markNotificationRead(id) {
+    const response = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, { method: 'PUT', credentials: 'include', headers: getAuthHeaders() });
+    return response.ok;
+}
+async function markAllNotificationsRead() {
+    const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
+    return response.ok;
+}
+async function getFavorites() {
+    const response = await fetch(`${API_BASE_URL}/api/favorites`, { credentials: 'include', headers: getAuthHeaders() });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.favorites || [];
+}
+async function addFavorite(sellerId) {
+    const response = await fetch(`${API_BASE_URL}/api/favorites/${sellerId}`, { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
+    return await response.json();
+}
+async function removeFavorite(sellerId) {
+    const response = await fetch(`${API_BASE_URL}/api/favorites/${sellerId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+    return await response.json();
+}
+async function checkFavorite(sellerId) {
+    const response = await fetch(`${API_BASE_URL}/api/favorites/check/${sellerId}`, { credentials: 'include', headers: getAuthHeaders() });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return !!data.isFavorite;
+}
+window.getNotifications=getNotifications;
+window.markNotificationRead=markNotificationRead;
+window.markAllNotificationsRead=markAllNotificationsRead;
+window.getFavorites=getFavorites;
+window.addFavorite=addFavorite;
+window.removeFavorite=removeFavorite;
+window.checkFavorite=checkFavorite;

@@ -95,19 +95,86 @@ async function loadSellerProfile() {
 
 async function loadSellerReviews(sellerId) {
     const reviewsContent = document.getElementById('reviews-content');
-    if (!reviewsContent) {
-        console.warn('reviews-content bulunamadı');
-        return;
+    if (!reviewsContent) return;
+    const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+    reviewsContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yorumlar yükleniyor...</p>';
+    try {
+        const res = await fetch(baseUrl + '/api/reviews/seller/' + sellerId);
+        const data = await res.json();
+        const reviews = data.reviews || [];
+        const averageRating = data.averageRating != null ? data.averageRating : 0;
+        let reviewableOrders = [];
+        try {
+            const ordRes = await fetch(baseUrl + '/api/orders/reviewable?seller_id=' + sellerId, { credentials: 'include' });
+            const ordData = await ordRes.json();
+            if (ordData.success && ordData.orders && ordData.orders.length > 0) reviewableOrders = ordData.orders;
+        } catch (e) {}
+        let html = '<div class="card"><div class="card-content">';
+        html += '<p style="margin-bottom: 1rem;"><strong>Ortalama puan:</strong> ';
+        for (let i = 1; i <= 5; i++) html += (i <= averageRating ? '★' : '☆');
+        html += ' ' + averageRating.toFixed(1) + '</p>';
+        if (reviewableOrders.length > 0) {
+            html += '<div class="review-form-card" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-color); border-radius: 8px;">';
+            html += '<h4 style="margin: 0 0 0.75rem 0;">Değerlendir</h4>';
+            html += '<form id="review-form">';
+            html += '<input type="hidden" name="seller_id" value="' + sellerId + '">';
+            html += '<div style="margin-bottom: 0.75rem;"><label>Sipariş seçin</label><select name="order_id" class="form-input" style="width: 100%;">';
+            reviewableOrders.forEach(function(o) {
+                html += '<option value="' + o.order_id + '">#' + (o.order_number || o.order_id) + ' - ' + (o.date || '') + '</option>';
+            });
+            html += '</select></div>';
+            html += '<div style="margin-bottom: 0.75rem;"><label>Puan (1-5)</label><select name="rating" class="form-input" style="width: 100%;">';
+            for (let r = 1; r <= 5; r++) html += '<option value="' + r + '">' + r + ' yıldız</option>';
+            html += '</select></div>';
+            html += '<div style="margin-bottom: 0.75rem;"><label>Yorum (isteğe bağlı)</label><textarea name="comment" class="form-input" rows="2" style="width: 100%;"></textarea></div>';
+            html += '<button type="submit" class="btn btn-primary">Gönder</button></form></div>';
+        }
+        html += '<h4 style="margin: 0 0 0.75rem 0;">Yorumlar</h4>';
+        if (reviews.length === 0) {
+            html += '<p style="color: #666;">Henüz yorum yok.</p>';
+        } else {
+            reviews.forEach(function(r) {
+                let stars = '';
+                for (let i = 1; i <= 5; i++) stars += (i <= r.rating ? '★' : '☆');
+                html += '<div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">';
+                html += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' + stars + ' <strong>' + escapeHtml(r.userName) + '</strong> <span style="font-size: 0.85rem; color: #888;">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : '') + '</span></div>';
+                if (r.comment) html += '<p style="margin: 0; font-size: 0.95rem;">' + escapeHtml(r.comment) + '</p>';
+                html += '</div>';
+            });
+        }
+        html += '</div></div>';
+        reviewsContent.innerHTML = html;
+        var form = document.getElementById('review-form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var orderId = form.querySelector('[name="order_id"]').value;
+                var rating = form.querySelector('[name="rating"]').value;
+                var comment = (form.querySelector('[name="comment"]').value || '').trim();
+                fetch(baseUrl + '/api/reviews', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order_id: parseInt(orderId, 10), rating: parseInt(rating, 10), comment: comment || null })
+                }).then(function(res) { return res.json(); }).then(function(data) {
+                    if (data.success) {
+                        alert('Değerlendirmeniz kaydedildi.');
+                        loadSellerReviews(sellerId);
+                    } else {
+                        alert(data.message || 'Kaydedilemedi.');
+                    }
+                }).catch(function() { alert('Bir hata oluştu.'); });
+            });
+        }
+    } catch (e) {
+        reviewsContent.innerHTML = '<div class="card"><div class="card-content"><p style="color: #666;">Yorumlar yüklenemedi.</p></div></div>';
     }
-    
-    reviewsContent.innerHTML = `
-        <div class="card">
-            <div class="card-content" style="text-align: center; padding: 3rem 2rem;">
-                <p style="font-size: 1.1rem; color: #666; margin-bottom: 0.5rem;">Yorumlar özelliği henüz aktif edilmedi.</p>
-                <p style="font-size: 0.9rem; color: #999;">Bu özellik yakında kullanıma sunulacaktır.</p>
-            </div>
-        </div>
-    `;
+}
+function escapeHtml(s) {
+    if (!s) return '';
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
 }
 
 function initializeTabs() {

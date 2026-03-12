@@ -59,7 +59,14 @@ async function loadRestaurants() {
         
         console.log('🎨 Restoranlar ekrana yazdırılıyor...');
         try {
-            displayRestaurants(sellers);
+            if (window.__userRole === 'buyer' && typeof window.getFavorites === 'function') {
+                window.getFavorites().then(function(favs) {
+                    favoriteSellerIds = (favs || []).map(function(f) { return f.id; });
+                    displayRestaurants(sellers);
+                }).catch(function() { displayRestaurants(sellers); });
+            } else {
+                displayRestaurants(sellers);
+            }
             console.log('✅ Restoranlar başarıyla gösterildi');
         } catch (displayError) {
             console.error('❌ displayRestaurants hatası:', displayError);
@@ -72,6 +79,7 @@ async function loadRestaurants() {
 }
 
 let allRestaurants = [];
+let favoriteSellerIds = [];
 let currentFilters = {
     searchTerm: '',
     minRating: 0,
@@ -318,9 +326,15 @@ function displayRestaurants(sellers) {
             starsHTML += '<span style="color: #ddd;">★</span>';
         }
         
+        const isFavorite = window.__userRole === 'buyer' && favoriteSellerIds.indexOf(seller.id) !== -1;
+        const heartBtn = window.__userRole === 'buyer' ? `
+            <button type="button" class="favorite-heart-btn" data-seller-id="${seller.id}" onclick="event.preventDefault(); event.stopPropagation();" style="position: absolute; top: 10px; left: 10px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(255,255,255,0.9); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; z-index: 2;">${isFavorite ? '❤️' : '🤍'}</button>
+        ` : '';
+        
         return `
             <div class="restaurant-card" data-seller-id="${seller.id}" style="cursor: pointer;">
                 <div class="card-image-wrapper" style="position: relative; width: 100%; height: 220px; overflow: hidden; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    ${heartBtn}
                     ${usePlaceholder ? `
                         <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 28px; font-weight: bold; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                             ${safeName}
@@ -364,13 +378,33 @@ function displayRestaurants(sellers) {
         `;
     }).join('');
     
-    setTimeout(() => {
-        document.querySelectorAll('.restaurant-card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                if (!e.target.closest('a')) {
+    setTimeout(function() {
+        document.querySelectorAll('.restaurant-card').forEach(function(card) {
+            card.addEventListener('click', function(e) {
+                if (!e.target.closest('a') && !e.target.closest('.favorite-heart-btn')) {
                     const sellerId = card.getAttribute('data-seller-id');
                     const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                    window.location.href = `${baseUrl}/buyer/seller-profile/${sellerId}`;
+                    window.location.href = baseUrl + '/buyer/seller-profile/' + sellerId;
+                }
+            });
+        });
+        document.querySelectorAll('.favorite-heart-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var sellerId = parseInt(this.getAttribute('data-seller-id'), 10);
+                if (!sellerId || typeof window.addFavorite !== 'function') return;
+                var isFav = favoriteSellerIds.indexOf(sellerId) !== -1;
+                if (isFav) {
+                    window.removeFavorite(sellerId).then(function() {
+                        favoriteSellerIds = favoriteSellerIds.filter(function(id) { return id !== sellerId; });
+                        btn.textContent = '🤍';
+                    });
+                } else {
+                    window.addFavorite(sellerId).then(function() {
+                        favoriteSellerIds.push(sellerId);
+                        btn.textContent = '❤️';
+                    });
                 }
             });
         });

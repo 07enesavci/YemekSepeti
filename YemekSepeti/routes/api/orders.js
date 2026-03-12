@@ -3,8 +3,9 @@ const router = express.Router();
 const db = require("../../config/database");
 const { authenticateToken, requireAuth, requireRole } = require("../../middleware/auth");
 const { sequelize } = require("../../config/database");
-const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, CourierTask } = require("../../models");
+const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, CourierTask, Review } = require("../../models");
 const { Op, QueryTypes } = require("sequelize");
+const { createNotification } = require("../../lib/notificationHelper");
 
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
@@ -206,6 +207,8 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 await OrderItem.bulkCreate(orderItems, { transaction });
             }
             await transaction.commit();
+
+            createNotification(userId, 'order', 'Siparişiniz alındı', `Sipariş #${orderNumber} oluşturuldu.`, order.id).catch(() => {});
 
             // Satıcıya Socket.IO ile yeni siparişi bildir
             if (global.io) {
@@ -432,6 +435,33 @@ function getStatusText(status) {
     return statusMap[status] || status;
 }
 
+router.get("/reviewable", requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const sellerId = parseInt(req.query.seller_id);
+        if (!sellerId) return res.json({ success: true, orders: [] });
+        const delivered = await Order.findAll({
+            where: { user_id: userId, seller_id: sellerId, status: 'delivered' },
+            attributes: ['id', 'order_number', 'created_at'],
+            order: [['created_at', 'DESC']]
+        });
+        const reviewed = await Review.findAll({
+            where: { user_id: userId, seller_id: sellerId },
+            attributes: ['order_id'],
+            raw: true
+        });
+        const reviewedIds = new Set(reviewed.map(r => r.order_id));
+        const list = delivered.filter(o => !reviewedIds.has(o.id)).map(o => ({
+            order_id: o.id,
+            order_number: o.order_number,
+            date: new Date(o.created_at).toLocaleDateString('tr-TR')
+        }));
+        res.json({ success: true, orders: list });
+    } catch (e) {
+        res.status(500).json({ success: false, orders: [] });
+    }
+});
+
 router.get("/seller/orders", requireRole('seller'), async (req, res) => {
     try {
         const userId = req.session.user.id;
@@ -559,7 +589,6 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                     SELECT DISTINCT u.id, u.fullname, u.email
                     FROM users u
                     WHERE u.role = 'courier'
-                    AND (u.courier_status = 'online' OR u.courier_status IS NULL)
                     AND u.is_active = TRUE
                     AND u.id NOT IN (
                         SELECT DISTINCT o.courier_id 
@@ -608,7 +637,9 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                             assignedAt: new Date().toISOString()
                         });
                     }
-                    
+                    if (order && order.user_id) {
+                        createNotification(order.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
+                    }
                     res.json({
                         success: true,
                         message: "Sipariş durumu güncellendi ve kuryeye atandı.",
@@ -622,7 +653,11 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
             } catch (courierError) {}
         }
         await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
-        
+        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id'] });
+        const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
+        if (updatedOrder && statusTitles[status]) {
+            createNotification(updatedOrder.user_id, 'order', statusTitles[status], `Sipariş #${orderId} durumu: ${statusTitles[status]}.`, orderId).catch(() => {});
+        }
         // Socket.IO ile iptal bildirimini gönder
         if (status === 'cancelled' && global.io) {
             try {
@@ -705,7 +740,6 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
             SELECT DISTINCT u.id, u.fullname, u.email
             FROM users u
             WHERE u.role = 'courier'
-            AND (u.courier_status = 'online' OR u.courier_status IS NULL)
             AND u.is_active = TRUE
             AND u.id NOT IN (
                 SELECT DISTINCT o.courier_id 
@@ -730,7 +764,7 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         const selectedCourier = activeCouriers[randomIndex];
         const courierId = selectedCourier.id;
         const orderInfoRecord = await Order.findByPk(orderId, {
-            attributes: ['delivery_fee'],
+            attributes: ['delivery_fee', 'user_id'],
             include: [
                 { model: Seller, as: 'seller', attributes: ['shop_name'] },
                 { model: Address, as: 'address', attributes: ['district', 'city'] }
@@ -738,6 +772,10 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         });
         
         await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId, seller_id: shopId } });
+        
+        if (orderInfoRecord && orderInfoRecord.user_id) {
+            createNotification(orderInfoRecord.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
+        }
         
         const existingTask = await CourierTask.findOne({ where: { order_id: orderId }, attributes: ['id'] });
         

@@ -441,3 +441,81 @@
 }
 
 /* Spinner animasyonu kaldırıldı */
+
+/* 7. NOTIFICATIONS DROPDOWN
+-------------------------------------- */
+.notifications-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--primary-color, #e63946);
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.notifications-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    width: 320px;
+    max-height: 400px;
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color);
+    z-index: 1100;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.notifications-dropdown-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+}
+.notifications-list {
+    overflow-y: auto;
+    max-height: 320px;
+}
+.notifications-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.notifications-item:hover {
+    background: var(--bg-color);
+}
+.notifications-item.read {
+    opacity: 0.8;
+}
+.notifications-item-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.notifications-item-message {
+    font-size: 0.85rem;
+    color: var(--text-color-light);
+    margin-top: 4px;
+}
+.notifications-item-time {
+    font-size: 0.75rem;
+    color: var(--text-color-light);
+    margin-top: 4px;
+}
+.notifications-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--text-color-light);
+}

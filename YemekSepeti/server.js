@@ -178,18 +178,16 @@ try {
             try {
                 const MySQLStore = require(mysqlSessionModule)(session);
                 const isCloudDB = process.env.DB_HOST && (process.env.DB_HOST.includes('aivencloud.com') || process.env.DB_SSL === 'true');
-                
                 const storeConfig = {
-                    host: 'yemek-sepeti-yemeksepeti.i.aivencloud.com',
-                    port: 14973,
-                    user: 'avnadmin',
-                    password: 'AVNS_KngOGLfNZbx-76xa9YT',
-                    database: 'defaultdb',
+                    host: process.env.DB_HOST || 'localhost',
+                    port: parseInt(process.env.DB_PORT, 10) || 3306,
+                    user: process.env.DB_USER || 'root',
+                    password: process.env.DB_PASSWORD || '',
+                    database: process.env.DB_NAME || 'yemek_sepeti',
                     createTableIfNotExists: true,
-                    ssl: {
-                        rejectUnauthorized: false,
-                        minVersion: 'TLSv1.2'
-                    },
+                    ...(isCloudDB ? {
+                        ssl: { rejectUnauthorized: false, minVersion: 'TLSv1.2' }
+                    } : {}),
                     connectionLimit: 10,
                     charset: 'utf8mb4'
                 };
@@ -334,11 +332,18 @@ try {
     });
 
     const { requireRole, requireSellerApproved, requireCourierApproved } = require('./middleware/auth');
+    const { requireEnv, apiLimiter, helmetMiddleware } = require('./middleware/security');
+
+    app.use(requireEnv);
+    app.use(helmetMiddleware());
+    app.use('/api', apiLimiter);
 
     // --- ROUTE YÖNETİMİ ---
+    app.use('/api/auth', require('./routes/api/auth'));
     const routeFiles = [
-        "/api/auth", "/api/sellers", "/api/seller", "/api/orders",
-        "/api/admin", "/api/cart", "/api/courier", "/api/buyer", "/api/upload"
+        "/api/sellers", "/api/seller", "/api/orders",
+        "/api/admin", "/api/cart", "/api/courier", "/api/buyer", "/api/upload",
+        "/api/notifications", "/api/favorites", "/api/reviews"
     ];
 
     routeFiles.forEach(route => {
@@ -406,12 +411,13 @@ try {
     // --- ALICI (BUYER) ROUTE'LARI ---
     app.get("/buyer/cart", requireRole('buyer'), (req, res) => res.render("buyer/cart", { title: "Sepetim", pageCss: "cart.css", pageJs: "cart.js" }));
     app.get("/buyer/checkout", requireRole('buyer'), (req, res) => res.render("buyer/checkout", { title: "Ödeme", pageCss: "checkout.css", pageJs: "checkout.js" }));
-    app.get("/buyer/orders", requireRole('buyer'), (req, res) => res.render("buyer/orders", { title: "Siparişlerim", pageCss: "orders.css", pageJs: "orders.js" }));
+    app.get("/buyer/orders", requireRole('buyer'), (req, res) => res.render("buyer/orders", { title: "Siparişlerim", pageCss: "orders.css", pageJs: "orders.js", user: req.session.user || null }));
     app.get("/buyer/order-confirmation/:orderId", requireRole('buyer'), (req, res) => res.render("buyer/order-confirmation", { title: "Sipariş Onayı", pageCss: "order-confirmation.css", orderId: req.params.orderId }));
     app.get("/buyer/profile", requireRole('buyer'), (req, res) => res.render("buyer/profile", { title: "Profilim", pageCss: "profile.css", pageJs: "profile.js", user: req.session.user || null }));
     app.get("/buyer/addresses", requireRole('buyer'), (req, res) => res.render("buyer/addresses", { title: "Adreslerim", pageCss: "profile.css", pageJs: "addresses.js", user: req.session.user || null }));
     app.get("/buyer/security", requireRole('buyer'), (req, res) => res.render("buyer/security", { title: "Güvenlik", pageCss: "profile.css", pageJs: "security.js", user: req.session.user || null }));
     app.get("/buyer/wallet", requireRole('buyer'), (req, res) => res.render("buyer/wallet", { title: "Cüzdan & Kuponlar", pageCss: "profile.css", pageJs: "wallet.js", user: req.session.user || null }));
+    app.get("/buyer/favorites", requireRole('buyer'), (req, res) => res.render("buyer/favorites", { title: "Favori Restoranlar", pageCss: "profile.css", pageJs: "favorites.js", user: req.session.user || null }));
     app.get("/buyer/seller-profile/:id", (req, res) => res.render("buyer/seller-profile", { title: "Satıcı Profili", pageCss: "seller-profile.css", pageJs: "seller-profile.js", sellerId: req.params.id }));
     app.get("/buyer/:id/profile", requireRole('buyer'), (req, res) => res.render("buyer/profile", { title: "Profilim", pageCss: "profile.css", pageJs: "profile.js", user: req.session.user || null, buyerId: req.params.id }));
 
@@ -487,6 +493,7 @@ try {
     app.get("/admin/coupons", requireRole('admin'), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/sellers", requireRole('admin'), (req, res) => res.render("admin/sellers", { title: "Satıcı Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/couriers", requireRole('admin'), (req, res) => res.render("admin/couriers", { title: "Kurye Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/reports", requireRole('admin'), (req, res) => res.render("admin/reports", { title: "Raporlar", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---
     function renderError(res, error, pageName) {
@@ -527,6 +534,7 @@ try {
         console.log(`🟢 Socket.IO client bağlandı - Socket ID: ${socket.id}, User ID: ${userId}, Role: ${userRole || 'unknown'}`);
         
         if (userId) {
+            socket.join(`user-${userId}`);
             const roomName = `seller-${userId}`;
             socket.join(roomName);
             console.log(`   ✅ Room'a katıldı: ${roomName}`);

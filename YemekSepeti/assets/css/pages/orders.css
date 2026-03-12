@@ -307,3 +307,35 @@
     padding-top: 1rem;
     border-top: 1px solid var(--border-color);
 }
+
+.timeline-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.timeline-step {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-color-light);
+}
+.timeline-step .timeline-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-color);
+    flex-shrink: 0;
+}
+.timeline-step.done .timeline-dot {
+    background: var(--primary-color);
+}
+.timeline-step.current .timeline-dot {
+    background: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.3);
+}
+.timeline-step.current .timeline-label {
+    font-weight: 700;
+    color: var(--primary-color);
+}

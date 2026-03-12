@@ -1,0 +1,91 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+
+<div class="panel-layout">
+    <%- include('../partials/sidebar') %>
+    <main class="panel-content">
+        <h1 class="panel-title">Raporlar</h1>
+        <div class="card reports-card">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Özet İstatistikler</h3>
+                <div id="reports-loading" class="reports-loading">Yükleniyor...</div>
+                <div id="reports-error" class="reports-error" style="display: none;"></div>
+                <div id="reports-summary" class="reports-stats-grid" style="display: none;">
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Toplam Sipariş</span>
+                        <span id="stat-total-orders" class="reports-stat-value">0</span>
+                    </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Bugünkü Sipariş</span>
+                        <span id="stat-orders-today" class="reports-stat-value">0</span>
+                    </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Bu Hafta</span>
+                        <span id="stat-orders-week" class="reports-stat-value">0</span>
+                    </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Teslim Edilen</span>
+                        <span id="stat-delivered" class="reports-stat-value">0</span>
+                    </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Toplam Gelir (TL)</span>
+                        <span id="stat-revenue" class="reports-stat-value">0</span>
+                    </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Aktif Satıcı</span>
+                        <span id="stat-sellers" class="reports-stat-value">0</span>
+                    </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Aktif Kurye</span>
+                        <span id="stat-couriers" class="reports-stat-value">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+(function() {
+    const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+    function authHeaders() {
+        const t = localStorage.getItem('token');
+        const h = { 'Content-Type': 'application/json' };
+        if (t) h['Authorization'] = 'Bearer ' + t;
+        return h;
+    }
+    async function load() {
+        const loading = document.getElementById('reports-loading');
+        const summary = document.getElementById('reports-summary');
+        const errorEl = document.getElementById('reports-error');
+        try {
+            const res = await fetch(baseUrl + '/api/admin/reports/summary', { credentials: 'include', headers: authHeaders() });
+            const data = await res.json();
+            loading.style.display = 'none';
+            if (data.success && data.summary) {
+                errorEl.style.display = 'none';
+                summary.style.display = 'grid';
+                var s = data.summary;
+                var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+                set('stat-total-orders', s.totalOrders != null ? s.totalOrders : 0);
+                set('stat-orders-today', s.ordersToday != null ? s.ordersToday : 0);
+                set('stat-orders-week', s.ordersThisWeek != null ? s.ordersThisWeek : 0);
+                set('stat-delivered', s.deliveredOrders != null ? s.deliveredOrders : 0);
+                set('stat-revenue', s.totalRevenue != null ? Number(s.totalRevenue).toFixed(2) : '0');
+                set('stat-sellers', s.activeSellers != null ? s.activeSellers : 0);
+                set('stat-couriers', s.activeCouriers != null ? s.activeCouriers : 0);
+            } else {
+                errorEl.style.display = 'block';
+                errorEl.textContent = data.message || 'Rapor yüklenemedi.';
+            }
+        } catch (e) {
+            loading.style.display = 'none';
+            summary.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.textContent = 'Rapor yüklenirken bağlantı hatası oluştu.';
+        }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load);
+    else load();
+})();
+</script>
