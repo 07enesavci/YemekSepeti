@@ -484,10 +484,6 @@ try {
 
     // --- ADMIN ROUTE'LARI ---
     app.get("/admin/users", requireRole('admin'), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
-    
-    // YENİ EKLEYECEĞİN SATIR BURASI:
-    app.get("/admin/sellers", requireRole('admin'), (req, res) => res.render("admin/sellers", { title: "Satıcı Onay Listesi", pageCss: "admin.css", pageJs: "admin.js" }));
-    app.get("/admin/couriers", requireRole('admin'), (req, res) => res.render("admin/couriers", { title: "Kurye Onay Listesi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/coupons", requireRole('admin'), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---

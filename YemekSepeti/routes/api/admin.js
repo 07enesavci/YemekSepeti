@@ -360,7 +360,8 @@ router.get("/pending-sellers", requireRole('admin'), async (req, res) => {
         res.status(500).json({ success: false, message: "Liste çekilemedi." });
     }
 });
-// 2. Satıcıyı Onayla (POST) — Onay e-postası gönderilir
+
+// 2. Satıcıyı Onayla (POST)
 router.post("/approve-seller/:id", requireRole('admin'), async (req, res) => {
     try {
         const seller = await Seller.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['email'] }] });
