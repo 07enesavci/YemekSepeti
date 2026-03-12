@@ -6,7 +6,16 @@ const bcrypt = require('bcryptjs');
 const { User, Seller, sequelize } = require('../models');
 
 const TEST_PASSWORD = '123456';
-const EMAILS = ['admin@gmail.com', 'enes@gmail.com', 'atomsos@gmail.com', 'köfteciyusuf@gmail.com', 'kurye@gmail.com'];
+const EMAILS = [
+  'admin@gmail.com',
+  'enes@gmail.com',
+  'atomsos@gmail.com',
+  'köfteciyusuf@gmail.com',
+  'burgerpoint@gmail.com',
+  'pideciusta@gmail.com',
+  'sushiexpress@gmail.com',
+  'kurye@gmail.com'
+];
 
 async function verify() {
   await sequelize.authenticate();
