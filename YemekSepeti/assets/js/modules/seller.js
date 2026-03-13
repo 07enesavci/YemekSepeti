@@ -402,6 +402,88 @@ async function updateOrderStatus(orderId, status) {
     }
 }
 
+let sellerOrdersCurrentTab = 'new';
+let sellerOrdersPageInitialized = false;
+
+function showSellerActionMessage(message, type = 'success') {
+    if (!message) return;
+
+    const existing = document.getElementById('seller-action-toast');
+    if (existing) {
+        existing.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.id = 'seller-action-toast';
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 10000;
+        min-width: 280px;
+        max-width: 420px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        color: #fff;
+        font-weight: 600;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+        background: ${type === 'error' ? '#dc2626' : '#16a34a'};
+        opacity: 0;
+        transform: translateY(-8px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    `;
+
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    });
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 220);
+    }, 2600);
+}
+
+function getSellerDashboardStatusMeta(status) {
+    switch (status) {
+        case 'delivered':
+            return { text: 'Teslim Edildi', className: 'delivered' };
+        case 'preparing':
+            return { text: 'Hazırlanıyor', className: 'preparing' };
+        case 'ready':
+            return { text: 'Hazır', className: 'preparing' };
+        case 'on_delivery':
+            return { text: 'Yolda', className: 'preparing' };
+        case 'cancelled':
+            return { text: 'İptal Edildi', className: 'cancelled' };
+        case 'confirmed':
+            return { text: 'Onaylandı', className: '' };
+        case 'pending':
+        default:
+            return { text: 'Bekliyor', className: '' };
+    }
+}
+
+function setSellerTabCount(tab, count) {
+    const tabButton = document.querySelector(`.tab-link[data-tab="${tab}"]`);
+    if (!tabButton || tab === 'history') return;
+
+    const baseLabel = tabButton.dataset.baseLabel || tabButton.textContent.replace(/\s*\(\d+\)\s*$/, '');
+    tabButton.dataset.baseLabel = baseLabel;
+    tabButton.textContent = `${baseLabel} (${count})`;
+}
+
+async function refreshSellerOrderTabs(tabs) {
+    const uniqueTabs = [...new Set((tabs || []).filter(Boolean))];
+    if (uniqueTabs.length === 0) return;
+
+    await Promise.all(uniqueTabs.map(tab => loadOrdersForTab(tab, { silent: tab !== sellerOrdersCurrentTab })));
+}
+
 function createOrderCardHTML(order) {
     const statusClass = order.status === 'delivered' ? 'delivered' : 
                        order.status === 'cancelled' ? 'cancelled' : '';
@@ -415,10 +497,6 @@ function createOrderCardHTML(order) {
     } else if (order.status === 'preparing') {
         actionButtons = `
             <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}">Kuryeye Hazır Olduğunu Bildir</button>
-        `;
-    } else if (order.status === 'ready' && !order.courierId) {
-        actionButtons = `
-            <button class="btn btn-primary assign-courier-btn" data-order-id="${order.id}">Kuryeye Bildir</button>
         `;
     }
     
@@ -449,47 +527,51 @@ function createOrderCardHTML(order) {
 async function loadOrdersPage() {
     const tabs = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
-    
-    let currentTab = 'new';
-    
-    tabs.forEach(tab => {
-        tab.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const tabName = e.target.getAttribute('data-tab');
-            currentTab = tabName;
-            
-            tabs.forEach(t => t.classList.remove('active'));
-            e.target.classList.add('active');
-            
-            tabContents.forEach(content => {
-                if (content.id === tabName) {
-                    content.style.display = 'block';
-                    content.classList.add('active');
-                } else {
-                    content.style.display = 'none';
-                    content.classList.remove('active');
-                }
+
+    sellerOrdersCurrentTab = document.querySelector('.tab-link.active')?.getAttribute('data-tab') || 'new';
+
+    if (!sellerOrdersPageInitialized) {
+        tabs.forEach(tab => {
+            tab.dataset.baseLabel = tab.textContent.replace(/\s*\(\d+\)\s*$/, '');
+            tab.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const tabName = e.currentTarget.getAttribute('data-tab');
+                sellerOrdersCurrentTab = tabName;
+
+                tabs.forEach(t => t.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+
+                tabContents.forEach(content => {
+                    if (content.id === tabName) {
+                        content.style.display = 'block';
+                        content.classList.add('active');
+                    } else {
+                        content.style.display = 'none';
+                        content.classList.remove('active');
+                    }
+                });
+
+                await loadOrdersForTab(tabName);
             });
-            
-            await loadOrdersForTab(tabName);
         });
-    });
-    
-    await loadOrdersForTab(currentTab);
-    
-    setInterval(async () => {
-        await loadOrdersForTab(currentTab);
-    }, 10000);
+
+        sellerOrdersPageInitialized = true;
+    }
+
+    await refreshSellerOrderTabs(['new', 'preparing', 'history']);
 }
 
-async function loadOrdersForTab(tab) {
+async function loadOrdersForTab(tab, options = {}) {
     const tabContent = document.getElementById(tab);
     if (!tabContent) return;
-    
-    tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
+
+    if (!options.silent) {
+        tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
+    }
     
     try {
         const orders = await fetchSellerOrders(tab);
+        setSellerTabCount(tab, orders.length);
         
         if (orders.length === 0) {
             const tabNames = {
@@ -499,12 +581,6 @@ async function loadOrdersForTab(tab) {
             };
             tabContent.innerHTML = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
             return;
-        }
-        
-        const tabButton = document.querySelector(`.tab-link[data-tab="${tab}"]`);
-        if (tabButton) {
-            const tabText = tabButton.textContent.replace(/\(\d+\)/, `(${orders.length})`);
-            tabButton.textContent = tabText;
         }
         
         tabContent.innerHTML = '';
@@ -522,13 +598,15 @@ function attachOrderEventListeners() {
     document.querySelectorAll('.accept-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            const button = e.currentTarget;
+            button.disabled = true;
             try {
                 await updateOrderStatus(orderId, 'preparing');
-                alert('Sipariş onaylandı ve hazırlamaya başlandı.');
-                await loadOrdersForTab('new');
-                await loadOrdersForTab('preparing');
+                showSellerActionMessage('Sipariş onaylandı ve hazırlamaya başlandı.');
+                await refreshSellerOrderTabs(['new', 'preparing', 'history']);
             } catch (error) {
-                alert('Hata: ' + error.message);
+                button.disabled = false;
+                showSellerActionMessage('Hata: ' + error.message, 'error');
             }
         });
     });
@@ -537,13 +615,16 @@ function attachOrderEventListeners() {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
             if (!confirm('Bu siparişi reddetmek istediğinize emin misiniz?')) return;
+            const button = e.currentTarget;
+            button.disabled = true;
             
             try {
                 await updateOrderStatus(orderId, 'cancelled');
-                alert('Sipariş reddedildi.');
-                await loadOrdersForTab('new');
+                showSellerActionMessage('Sipariş reddedildi.');
+                await refreshSellerOrderTabs(['new', 'preparing', 'history']);
             } catch (error) {
-                alert('Hata: ' + error.message);
+                button.disabled = false;
+                showSellerActionMessage('Hata: ' + error.message, 'error');
             }
         });
     });
@@ -551,45 +632,15 @@ function attachOrderEventListeners() {
     document.querySelectorAll('.ready-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
-            try {
-                await updateOrderStatus(orderId, 'ready');
-                alert('Kuryeye hazır olduğu bildirildi.');
-                await loadOrdersForTab('preparing');
-            } catch (error) {
-                alert('Hata: ' + error.message);
-            }
-        });
-    });
-    
-    document.querySelectorAll('.assign-courier-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const orderId = parseInt(e.target.getAttribute('data-order-id'));
-            const button = e.target;
+            const button = e.currentTarget;
             button.disabled = true;
-            button.textContent = 'Atanıyor...';
-            
             try {
-                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-                const response = await fetch(`${baseUrl}/api/orders/seller/assign-courier/${orderId}`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.message || 'Kurye atama başarısız');
-                }
-                
-                const data = await response.json();
-                alert(data.message || 'Sipariş kuryeye atandı.');
-                
-                // Siparişleri yenile
-                await loadOrdersForTab('preparing');
+                const result = await updateOrderStatus(orderId, 'ready');
+                showSellerActionMessage(result?.message || 'Sipariş hazırlandı ve kuryelere bildirildi.');
+                await refreshSellerOrderTabs(['new', 'preparing', 'history']);
             } catch (error) {
-                alert('Hata: ' + error.message);
                 button.disabled = false;
-                button.textContent = 'Kuryeye Bildir';
+                showSellerActionMessage('Hata: ' + error.message, 'error');
             }
         });
     });
@@ -621,13 +672,7 @@ function renderRecentOrdersList(orders, containerId) {
         return;
     }
     ordersList.innerHTML = orders.map(order => {
-        const statusClass = order.status === 'delivered' ? 'delivered' : 
-                           order.status === 'preparing' ? 'preparing' : 
-                           order.status === 'cancelled' ? 'cancelled' : '';
-        const statusText = order.status === 'delivered' ? 'Teslim Edildi' :
-                          order.status === 'preparing' ? 'Hazırlanıyor' :
-                          order.status === 'cancelled' ? 'İptal Edildi' :
-                          order.status === 'ready' ? 'Hazır' : 'Bekliyor';
+        const statusMeta = getSellerDashboardStatusMeta(order.status);
         const total = parseFloat(order.total) || 0;
         return `
             <div class="order-list-item">
@@ -635,8 +680,8 @@ function renderRecentOrdersList(orders, containerId) {
                     <strong>#${order.orderNumber || order.id} - ${order.customer || 'Müşteri'}</strong>
                     <span>${order.items || 'Belirtilmemiş'}</span>
                 </div>
-                <div class="order-status ${statusClass}">
-                    ${statusText}
+                <div class="order-status ${statusMeta.className}">
+                    ${statusMeta.text}
                 </div>
                 <div class="order-price">
                     ${total.toFixed(2)} TL
@@ -1520,17 +1565,7 @@ async function connectSellerSocket() {
             // Orders sayfasında ise siparişleri yenile
             if (isOrdersPage) {
                 try {
-                    const tabContent = document.querySelector('.tab-content');
-                    if (tabContent) {
-                        const orders = await fetchSellerOrders('pending');
-                        if (orders.length > 0) {
-                            tabContent.innerHTML = '';
-                            orders.forEach(order => {
-                                tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                            });
-                            attachOrderEventListeners();
-                        }
-                    }
+                    await refreshSellerOrderTabs(['new', 'preparing', 'history']);
                 } catch (error) {
                     console.error('Orders listesi güncellenirken hata:', error);
                 }
@@ -1558,24 +1593,42 @@ async function connectSellerSocket() {
             // Orders sayfasında ise siparişleri yenile
             if (isOrdersPage) {
                 try {
-                    const tabContent = document.querySelector('.tab-content');
-                    if (tabContent) {
-                        const orders = await fetchSellerOrders('pending');
-                        if (orders.length > 0) {
-                            tabContent.innerHTML = '';
-                            orders.forEach(order => {
-                                tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                            });
-                            attachOrderEventListeners();
-                        } else {
-                            tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş yok</p>';
-                        }
-                    }
+                    await refreshSellerOrderTabs(['new', 'preparing', 'history']);
                 } catch (error) {
                     console.error('İptal edilen sipariş güncellenirken hata:', error);
                 }
             }
             
+        });
+
+        window.sellerSocket.on('seller_order_status_changed', async (payload) => {
+            const isOrdersPage = document.querySelector('.tabs') !== null;
+            const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
+            const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
+
+            if (payload && payload.status === 'delivered') {
+                showSellerActionMessage(`Sipariş #${payload.orderId} teslim edildi.`);
+            }
+
+            if (isOrdersPage) {
+                try {
+                    await refreshSellerOrderTabs(['new', 'preparing', 'history']);
+                } catch (error) {
+                    console.error('Satıcı sipariş listesi güncellenirken hata:', error);
+                }
+            }
+
+            if (isDashboardPage) {
+                loadDashboardPage().catch((error) => {
+                    console.error('Dashboard yenilenmesi hatası:', error);
+                });
+            }
+
+            if (isEarningsPage) {
+                loadRecentOrdersForPanel().catch((error) => {
+                    console.error('Son siparişler yenilenmesi hatası:', error);
+                });
+            }
         });
 
         window.sellerSocket.on('connect_error', (error) => {

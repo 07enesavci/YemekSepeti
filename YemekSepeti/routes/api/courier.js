@@ -9,6 +9,53 @@ const { Op, Sequelize, QueryTypes } = require("sequelize");
 const { sequelize } = require("../../config/database");
 const { createNotification } = require("../../lib/notificationHelper");
 
+async function emitSellerOrderStatusChanged(orderId) {
+    if (!global.io || !orderId) return;
+
+    try {
+        const order = await Order.findByPk(orderId, {
+            attributes: ['id', 'status', 'courier_id', 'seller_id', 'updated_at']
+        });
+
+        if (!order || !order.seller_id) return;
+
+        const seller = await Seller.findByPk(order.seller_id, {
+            attributes: ['user_id']
+        });
+
+        if (!seller || !seller.user_id) return;
+
+        global.io.to(`seller-${seller.user_id}`).emit('seller_order_status_changed', {
+            orderId: order.id,
+            status: order.status,
+            courierId: order.courier_id || null,
+            updatedAt: order.updated_at || new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Seller sipariş durumu emit hatası:', error);
+    }
+}
+
+function emitCourierPoolOrderTaken(orderId, courierId, source = 'courier_accept') {
+    if (!global.io || !orderId) return;
+
+    global.io.to('couriers-available').emit('courier_order_taken', {
+        orderId,
+        courierId: courierId || null,
+        source,
+        claimedAt: new Date().toISOString()
+    });
+
+    if (courierId) {
+        global.io.to(`courier-${courierId}`).emit('courier_active_task_updated', {
+            orderId,
+            courierId,
+            source,
+            updatedAt: new Date().toISOString()
+        });
+    }
+}
+
 router.get("/available", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
@@ -113,7 +160,7 @@ router.post("/tasks/:id/accept", async (req, res) => {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id || req.session.user.courierId;
         const orderRecord = await Order.findByPk(orderId, {
-            attributes: ['id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time'],
+            attributes: ['id', 'seller_id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time'],
             include: [
                 { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
                 { model: Address, as: 'address', attributes: ['district', 'city'], required: false }
@@ -156,6 +203,9 @@ router.post("/tasks/:id/accept", async (req, res) => {
             console.error('GÖREV KABUL HATA:', err);
             return res.status(500).json({ success: false, message: 'Görev kabul edilirken hata oluştu.' });
         }
+
+        emitCourierPoolOrderTaken(orderId, courierId);
+        await emitSellerOrderStatusChanged(orderId);
 
         res.json({ success: true, message: 'Görev başarıyla kabul edildi.' });
     } catch (error) {
@@ -266,6 +316,9 @@ router.put("/tasks/:id/complete", async (req, res) => {
                 orderId
             ).catch(() => {});
         }
+
+        await emitSellerOrderStatusChanged(orderId);
+        emitCourierPoolOrderTaken(orderId, courierId, 'courier_complete');
 
         res.json({ success: true, message: 'Görev başarıyla tamamlandı.' });
     } catch (error) {

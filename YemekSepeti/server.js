@@ -545,6 +545,8 @@ try {
                 const courierRoom = `courier-${userId}`;
                 socket.join(courierRoom);
                 console.log(`   ✅ Room'a katıldı: ${courierRoom}`);
+                socket.join('couriers-available');
+                console.log('   ✅ Room\'a katıldı: couriers-available');
             }
             if (userRole === 'buyer') {
                 const buyerRoom = `buyer-${userId}`;
