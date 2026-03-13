@@ -82,8 +82,10 @@ try {
         const sequelize = models.sequelize; 
 
         if (sequelize) {
-            // alter: true -> Modellerdeki (Seller.js gibi) yeni sütunları SQL'e otomatik ekler
-            sequelize.sync({ alter: true })
+            // sync() -> Tabloları oluşturur (yoksa), mevcut tabloları değiştirmez
+            // NOT: alter:true her restart'ta duplicate index oluşturuyordu (max 64 key hatası)
+            // Yeni sütun eklerken migration veya tek seferlik alter kullanın
+            sequelize.sync()
                 .then(() => {
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar (Seller belgeleri) SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
