@@ -7,87 +7,6 @@ const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, Cour
 const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 
-const courierPoolAnnounceLock = new Map();
-const COURIER_POOL_ANNOUNCE_COOLDOWN_MS = 60 * 1000;
-
-function isCourierPoolAnnounceLocked(orderId) {
-    const key = String(orderId);
-    const lastAnnouncedAt = courierPoolAnnounceLock.get(key);
-    if (!lastAnnouncedAt) return false;
-
-    if ((Date.now() - lastAnnouncedAt) > COURIER_POOL_ANNOUNCE_COOLDOWN_MS) {
-        courierPoolAnnounceLock.delete(key);
-        return false;
-    }
-
-    return true;
-}
-
-function lockCourierPoolAnnounce(orderId) {
-    courierPoolAnnounceLock.set(String(orderId), Date.now());
-}
-
-function unlockCourierPoolAnnounce(orderId) {
-    courierPoolAnnounceLock.delete(String(orderId));
-}
-
-async function emitSellerOrderStatusChanged(orderId) {
-    if (!global.io || !orderId) return;
-
-    try {
-        const order = await Order.findByPk(orderId, {
-            attributes: ['id', 'status', 'courier_id', 'seller_id', 'updated_at']
-        });
-
-        if (!order || !order.seller_id) return;
-
-        const seller = await Seller.findByPk(order.seller_id, {
-            attributes: ['user_id']
-        });
-
-        if (!seller || !seller.user_id) return;
-
-        global.io.to(`seller-${seller.user_id}`).emit('seller_order_status_changed', {
-            orderId: order.id,
-            status: order.status,
-            courierId: order.courier_id || null,
-            updatedAt: order.updated_at || new Date().toISOString()
-        });
-    } catch (error) {
-        console.error('Seller sipariş durumu emit hatası:', error);
-    }
-}
-
-function emitCourierPoolOrderAvailable(orderId, source = 'seller_notify') {
-    if (!global.io || !orderId) return;
-
-    global.io.to('couriers-available').emit('courier_order_available', {
-        orderId,
-        source,
-        announcedAt: new Date().toISOString()
-    });
-}
-
-function emitCourierPoolOrderTaken(orderId, courierId, source = 'courier_accept') {
-    if (!global.io || !orderId) return;
-
-    global.io.to('couriers-available').emit('courier_order_taken', {
-        orderId,
-        courierId: courierId || null,
-        source,
-        claimedAt: new Date().toISOString()
-    });
-
-    if (courierId) {
-        global.io.to(`courier-${courierId}`).emit('courier_active_task_updated', {
-            orderId,
-            courierId,
-            source,
-            updatedAt: new Date().toISOString()
-        });
-    }
-}
-
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
         const { cart, address, paymentMethod } = req.body;
@@ -708,7 +627,7 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
         
         const shopId = sellerRecord.id;
         
-        const orderCheck = await Order.findOne({ where: { id: orderId, seller_id: shopId }, attributes: ['id', 'courier_id', 'status'] });
+        const orderCheck = await Order.findOne({ where: { id: orderId, seller_id: shopId }, attributes: ['id'] });
         
         if (!orderCheck) {
             return res.status(404).json({
@@ -717,32 +636,95 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
             });
         }
         
-        await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
-
-        let courierPoolNotified = false;
         if (status === 'ready') {
-            const refreshedOrder = await Order.findByPk(orderId, { attributes: ['id', 'courier_id', 'status'] });
-            const canNotifyCourierPool = refreshedOrder &&
-                refreshedOrder.status === 'ready' &&
-                refreshedOrder.courier_id === null &&
-                !isCourierPoolAnnounceLocked(orderId);
+            try {
+                    const currentOrder = await Order.findByPk(orderId, { attributes: ['courier_id', 'status'] });
 
-            if (canNotifyCourierPool) {
-                emitCourierPoolOrderAvailable(orderId, 'seller_status_ready');
-                lockCourierPoolAnnounce(orderId);
-                courierPoolNotified = true;
-            }
-        }
+                    if (currentOrder && currentOrder.courier_id !== null) {
+                        await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
 
-        if (status !== 'ready') {
-            unlockCourierPoolAnnounce(orderId);
+                        res.json({
+                            success: true,
+                            message: "Sipariş durumu güncellendi."
+                        });
+                        return;
+                    }
+                
+                const activeCouriersQuery = `
+                    SELECT DISTINCT u.id, u.fullname, u.email
+                    FROM users u
+                    WHERE u.role = 'courier'
+                    AND u.is_active = TRUE
+                    AND u.id NOT IN (
+                        SELECT DISTINCT o.courier_id 
+                        FROM orders o 
+                        WHERE o.status = 'on_delivery' 
+                        AND o.courier_id IS NOT NULL
+                    )
+                    ORDER BY RAND()
+                    LIMIT 10
+                `;
+                
+                const activeCouriers = await sequelize.query(activeCouriersQuery, { type: QueryTypes.SELECT });
+                
+                if (activeCouriers && activeCouriers.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * activeCouriers.length);
+                    const selectedCourier = activeCouriers[randomIndex];
+                    const courierId = selectedCourier.id;
+                    
+                    const orderInfoRecord = await Order.findByPk(orderId, {
+                        attributes: ['delivery_fee'],
+                        include: [
+                            { model: Seller, as: 'seller', attributes: ['shop_name'] },
+                            { model: Address, as: 'address', attributes: ['district', 'city'] }
+                        ]
+                    });
+                    await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId, seller_id: shopId } });
+                    const existingTask = await CourierTask.findOne({ where: { order_id: orderId }, attributes: ['id'] });
+                    
+                    if (!existingTask && orderInfoRecord) {
+                        const deliveryLocation = orderInfoRecord.seller && orderInfoRecord.address ? `${orderInfoRecord.address.district || ''}, ${orderInfoRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : (orderInfoRecord.seller?.shop_name || 'Restoran');
+                        const newTask = await CourierTask.create({
+                            order_id: orderId,
+                            courier_id: courierId,
+                            pickup_location: orderInfoRecord.seller?.shop_name || 'Restoran',
+                            delivery_location: deliveryLocation,
+                            estimated_payout: parseFloat(orderInfoRecord.delivery_fee) || 25.00,
+                            status: 'assigned'
+                        });
+                        if (global.io) {
+                            global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
+                                orderId,
+                                courierId,
+                                taskId: newTask.id,
+                                source: 'seller_status_ready',
+                                assignedAt: new Date().toISOString()
+                            });
+                        }
+                    }
+
+                    
+                    if (order && order.user_id) {
+                        createNotification(order.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
+                    }
+                    res.json({
+                        success: true,
+                        message: "Sipariş durumu güncellendi ve kuryeye atandı.",
+                        courier: {
+                            id: courierId,
+                            name: selectedCourier.fullname
+                        }
+                    });
+                    return;
+                } else {}
+            } catch (courierError) {}
         }
+        await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
         const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id'] });
         const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
         if (updatedOrder && statusTitles[status]) {
             createNotification(updatedOrder.user_id, 'order', statusTitles[status], `Sipariş #${orderId} durumu: ${statusTitles[status]}.`, orderId).catch(() => {});
         }
-        await emitSellerOrderStatusChanged(orderId);
         // Socket.IO ile iptal bildirimini gönder
         if (status === 'cancelled' && global.io) {
             try {
@@ -771,13 +753,6 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
             }
         }
         
-        if (status === 'ready' && courierPoolNotified) {
-            return res.json({
-                success: true,
-                message: "Sipariş hazırlandı ve kuryelere anlık bildirildi."
-            });
-        }
-
         res.json({
             success: true,
             message: "Sipariş durumu güncellendi."
@@ -827,21 +802,80 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
                 message: "Bu sipariş zaten bir kuryeye atanmış."
             });
         }
-
-        if (isCourierPoolAnnounceLocked(orderId)) {
-            return res.status(409).json({
+        
+        const activeCouriersQuery = `
+            SELECT DISTINCT u.id, u.fullname, u.email
+            FROM users u
+            WHERE u.role = 'courier'
+            AND u.is_active = TRUE
+            AND u.id NOT IN (
+                SELECT DISTINCT o.courier_id 
+                FROM orders o 
+                WHERE o.status = 'on_delivery' 
+                AND o.courier_id IS NOT NULL
+            )
+            ORDER BY RAND()
+            LIMIT 10
+        `;
+        
+        const activeCouriers = await sequelize.query(activeCouriersQuery, { type: QueryTypes.SELECT });
+        
+        if (!activeCouriers || activeCouriers.length === 0) {
+            return res.status(404).json({
                 success: false,
-                message: "Bu sipariş zaten kuryelere bildirildi. Lütfen kurye kabulünü bekleyin."
+                message: "Aktif ve boşta olan kurye bulunamadı. Lütfen daha sonra tekrar deneyin."
             });
         }
         
-        emitCourierPoolOrderAvailable(orderId, 'seller_notify');
-        lockCourierPoolAnnounce(orderId);
-        await emitSellerOrderStatusChanged(orderId);
+        const randomIndex = Math.floor(Math.random() * activeCouriers.length);
+        const selectedCourier = activeCouriers[randomIndex];
+        const courierId = selectedCourier.id;
+        const orderInfoRecord = await Order.findByPk(orderId, {
+            attributes: ['delivery_fee', 'user_id'],
+            include: [
+                { model: Seller, as: 'seller', attributes: ['shop_name'] },
+                { model: Address, as: 'address', attributes: ['district', 'city'] }
+            ]
+        });
+        
+        await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId, seller_id: shopId } });
+        
+        if (orderInfoRecord && orderInfoRecord.user_id) {
+            createNotification(orderInfoRecord.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
+        }
+        
+        const existingTask = await CourierTask.findOne({ where: { order_id: orderId }, attributes: ['id'] });
+        
+        let task = existingTask;
+        if (!task && orderInfoRecord) {
+            const deliveryLocation = orderInfoRecord.seller && orderInfoRecord.address ? `${orderInfoRecord.address.district || ''}, ${orderInfoRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : (orderInfoRecord.seller?.shop_name || 'Restoran');
+            task = await CourierTask.create({
+                order_id: orderId,
+                courier_id: courierId,
+                pickup_location: orderInfoRecord.seller?.shop_name || 'Restoran',
+                delivery_location: deliveryLocation,
+                estimated_payout: parseFloat(orderInfoRecord.delivery_fee) || 25.00,
+                status: 'assigned'
+            });
+        }
+
+        if (global.io && task) {
+            global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
+                orderId,
+                courierId,
+                taskId: task.id,
+                source: 'manual_assign',
+                assignedAt: new Date().toISOString()
+            });
+        }
         
         res.json({
             success: true,
-            message: "Sipariş kurye havuzuna bildirildi. Uygun kuryelerin ekranına anlık olarak düşürüldü."
+            message: `Sipariş ${selectedCourier.fullname} kuryesine atandı.`,
+            courier: {
+                id: courierId,
+                name: selectedCourier.fullname
+            }
         });
     } catch (error) {
         res.status(500).json({

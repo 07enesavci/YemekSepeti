@@ -200,7 +200,8 @@ router.post("/verify-email", async (req, res) => {
 });
 
 // BELGE YÜKLE (Satıcı/Kurye — 3. adım, giriş yapmış kullanıcı)
-const docsUploadDir = 'public/uploads/merchants';
+// Prod ortamda çalışma dizini farklı olabildiği için absolute path kullan.
+const docsUploadDir = path.resolve(__dirname, '..', '..', 'public', 'uploads', 'merchants');
 if (!fs.existsSync(docsUploadDir)) fs.mkdirSync(docsUploadDir, { recursive: true });
 const documentStorage = multer.diskStorage({
     destination: function (req, file, cb) { cb(null, docsUploadDir); },
@@ -208,15 +209,39 @@ const documentStorage = multer.diskStorage({
         cb(null, file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname || ''));
     }
 });
-router.post("/submit-documents", multer({ storage: documentStorage }).fields([
+
+const documentsUpload = multer({
+    storage: documentStorage,
+    limits: {
+        // 5MB/dosya: IIS/Cloudflare timeout ve 520 riskini azaltır
+        fileSize: 5 * 1024 * 1024
+    }
+}).fields([
     { name: 'taxPlate', maxCount: 1 },
     { name: 'idCard', maxCount: 1 },
     { name: 'activityCert', maxCount: 1 },
     { name: 'businessLicense', maxCount: 1 },
     { name: 'driverLicense', maxCount: 1 }
-]), async (req, res) => {
+]);
+
+router.post("/submit-documents", (req, res, next) => {
+    console.log("[submit-documents] İstek alındı, body yükleniyor (multer)...");
+    documentsUpload(req, res, (err) => {
+        if (!err) {
+            console.log("[submit-documents] Dosyalar alındı, işleniyor.");
+            return next();
+        }
+        console.error("[submit-documents] Multer hatası:", err.code || err.message, err);
+        const msg =
+            err.code === 'LIMIT_FILE_SIZE'
+                ? 'Dosya boyutu çok büyük. Lütfen daha küçük dosya yükleyin.'
+                : (err.message || 'Dosya yükleme hatası.');
+        return res.status(400).json({ success: false, message: msg });
+    });
+}, async (req, res) => {
     try {
         if (!req.session || !req.session.user || !req.session.isAuthenticated) {
+            console.warn("[submit-documents] 401: Oturum yok.");
             return res.status(401).json({ success: false, message: "Oturum bulunamadı. Lütfen giriş yapın." });
         }
         const { role } = req.session.user;
@@ -248,6 +273,7 @@ router.post("/submit-documents", multer({ storage: documentStorage }).fields([
             });
             req.session.user.sellerId = seller.id;
             req.session.user.sellerApproved = false;
+            console.log("[submit-documents] Satıcı belgeleri kaydedildi, userId:", req.session.user.id);
             return res.status(201).json({ success: true, redirectUrl: '/seller/pending-approval' });
         }
 
@@ -267,12 +293,96 @@ router.post("/submit-documents", multer({ storage: documentStorage }).fields([
             });
             req.session.user.courierId = courier.id;
             req.session.user.courierApproved = false;
+            console.log("[submit-documents] Kurye belgeleri kaydedildi, userId:", req.session.user.id);
             return res.status(201).json({ success: true, redirectUrl: '/courier/pending-approval' });
         }
 
         return res.status(403).json({ success: false, message: "Bu işlem sadece satıcı veya kurye için geçerlidir." });
     } catch (error) {
-        console.error("Belge yükleme hatası:", error);
+        console.error("[submit-documents] Hata:", error.message, error.stack);
+        res.status(500).json({ success: false, message: "Belgeler yüklenemedi." });
+    }
+});
+
+// Yöntem 2: JSON ile base64 belge yükleme (multipart 520 alıyorsa kullanılır)
+function base64ToExt(dataUrlOrBase64) {
+    if (typeof dataUrlOrBase64 !== 'string') return '.png';
+    const m = dataUrlOrBase64.match(/^data:([^;]+);base64,/);
+    if (m) {
+        const mime = (m[1] || '').toLowerCase();
+        if (mime.includes('pdf')) return '.pdf';
+        if (mime.includes('jpeg') || mime.includes('jpg')) return '.jpg';
+        if (mime.includes('png')) return '.png';
+    }
+    return '.png';
+}
+function saveBase64ToFile(fieldName, dataUrlOrBase64, destDir) {
+    if (!dataUrlOrBase64 || typeof dataUrlOrBase64 !== 'string') return null;
+    const base64 = dataUrlOrBase64.replace(/^data:[^;]+;base64,/, '');
+    const buf = Buffer.from(base64, 'base64');
+    if (buf.length > 5 * 1024 * 1024) return null;
+    const ext = base64ToExt(dataUrlOrBase64);
+    const filename = fieldName + '-' + Date.now() + '-' + Math.round(Math.random() * 1E9) + ext;
+    const fullPath = path.join(destDir, filename);
+    fs.writeFileSync(fullPath, buf);
+    return '/uploads/merchants/' + filename;
+}
+
+router.post("/submit-documents-json", async (req, res) => {
+    try {
+        if (!req.session || !req.session.user || !req.session.isAuthenticated) {
+            return res.status(401).json({ success: false, message: "Oturum bulunamadı. Lütfen giriş yapın." });
+        }
+        const role = req.session.user.role;
+        const userId = req.session.user.id;
+        const docs = (req.body && req.body.documents) || {};
+        const saved = {};
+        const fieldNames = role === 'seller'
+            ? ['taxPlate', 'idCard', 'activityCert', 'businessLicense']
+            : ['idCard', 'driverLicense'];
+        for (const name of fieldNames) {
+            const webPath = saveBase64ToFile(name, docs[name], docsUploadDir);
+            if (webPath) saved[name] = webPath;
+        }
+        const missing = fieldNames.filter(function(n) { return !saved[n]; });
+        if (missing.length > 0) {
+            return res.status(400).json({ success: false, message: "Eksik belge: " + missing.join(', ') });
+        }
+        if (role === 'seller') {
+            const existing = await Seller.findOne({ where: { user_id: userId } });
+            if (existing) return res.status(400).json({ success: false, message: "Belgeler zaten gönderildi." });
+            const user = await User.findByPk(userId);
+            if (!user) return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+            const seller = await Seller.create({
+                user_id: userId,
+                shop_name: user.fullname + "'nın Mutfağı",
+                location: 'Belirtilmedi',
+                is_active: false,
+                tax_plate: saved.taxPlate,
+                id_card: saved.idCard,
+                activity_cert: saved.activityCert,
+                business_license: saved.businessLicense
+            });
+            req.session.user.sellerId = seller.id;
+            req.session.user.sellerApproved = false;
+            return res.status(201).json({ success: true, redirectUrl: '/seller/pending-approval' });
+        }
+        if (role === 'courier') {
+            const existing = await Courier.findOne({ where: { user_id: userId } });
+            if (existing) return res.status(400).json({ success: false, message: "Belgeler zaten gönderildi." });
+            const courier = await Courier.create({
+                user_id: userId,
+                id_card: saved.idCard,
+                driver_license: saved.driverLicense,
+                is_active: false
+            });
+            req.session.user.courierId = courier.id;
+            req.session.user.courierApproved = false;
+            return res.status(201).json({ success: true, redirectUrl: '/courier/pending-approval' });
+        }
+        return res.status(403).json({ success: false, message: "Bu işlem sadece satıcı veya kurye için geçerlidir." });
+    } catch (error) {
+        console.error("[submit-documents-json] Hata:", error.message, error.stack);
         res.status(500).json({ success: false, message: "Belgeler yüklenemedi." });
     }
 });

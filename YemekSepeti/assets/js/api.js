@@ -129,20 +129,65 @@ async function verifyEmail(email, code, userData, formData)
 
 async function submitDocuments(formData) 
 {
+    const timeoutMs = 60000; // 60 saniye - takılı kalmayı önler
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try 
     {
         const response = await fetch(`${API_BASE_URL}/api/auth/submit-documents`, {
             method: 'POST',
             credentials: 'include',
-            body: formData
+            body: formData,
+            signal: controller.signal
         });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) return { success: false, message: data.message || 'Belgeler yüklenemedi.' };
+        clearTimeout(timeoutId);
+        var data = {};
+        try {
+            var text = await response.text();
+            if (text && text.trim()) data = JSON.parse(text);
+        } catch (_) {}
+        if (!response.ok) {
+            var msg = data.message || ('Sunucu hata döndü (' + response.status + '). Dosyalar çok büyük olabilir.');
+            if (response.status === 520) msg = 'Bağlantı koptu (520). Dosyalarınızı küçültün (her biri 2 MB altı) veya sunucu limitlerini kontrol edin.';
+            return { success: false, message: msg };
+        }
         return data;
     } 
     catch (error) 
     {
-        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            return { success: false, message: 'Yükleme zaman aşımına uğradı (60 sn). Dosyalarınızı küçültüp tekrar deneyin.' };
+        }
+        return { success: false, message: 'Bağlantı koptu. Dosyalar çok büyük olabilir veya sunucu yanıt vermiyor.' };
+    }
+}
+
+// Alternatif: Base64 JSON ile gönder (520 / multipart sorununda)
+async function submitDocumentsJson(documents) {
+    const timeoutMs = 60000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/submit-documents-json`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documents }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        var data = {};
+        try {
+            var text = await response.text();
+            if (text && text.trim()) data = JSON.parse(text);
+        } catch (_) {}
+        if (!response.ok) return { success: false, message: data.message || 'Belgeler yüklenemedi.' };
+        return data;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') return { success: false, message: 'Yükleme zaman aşımına uğradı.' };
+        return { success: false, message: 'Bağlantı hatası.' };
     }
 }
 
@@ -685,6 +730,7 @@ window.registerUser=registerUser;
 window.forgotPassword=forgotPassword;
 window.verifyEmail=verifyEmail;
 window.submitDocuments=submitDocuments;
+window.submitDocumentsJson=submitDocumentsJson;
 window.verify2FA=verify2FA;
 window.searchSellers=searchSellers;
 window.getSellerDetails=getSellerDetails;

@@ -10,6 +10,9 @@ try {
     const app = express();
     require("dotenv").config();
 
+    // IIS / Cloudflare proxy arkasında req.ip ve X-Forwarded-For doğru çalışsın (rate-limit 520 hatasını önler)
+    app.set("trust proxy", 1);
+
     // Global io objesi - routes dosyalarından erişilebilir
     global.io = null;
 
@@ -82,15 +85,22 @@ try {
         const sequelize = models.sequelize; 
 
         if (sequelize) {
-            // sync() -> Tabloları oluşturur (yoksa), mevcut tabloları değiştirmez
-            // NOT: alter:true her restart'ta duplicate index oluşturuyordu (max 64 key hatası)
-            // Yeni sütun eklerken migration veya tek seferlik alter kullanın
-            sequelize.sync()
+            // alter: true -> Modellerdeki yeni sütunları SQL'e otomatik ekler.
+            // "Too many keys" hatası: unique alanlar artık indexes içinde tanımlı; hâlâ oluşursa alter olmadan sync yapılır.
+            sequelize.sync({ alter: true })
                 .then(() => {
-                    writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar (Seller belgeleri) SQL tarafında güncellendi ✅');
+                    writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
                 })
                 .catch((err) => {
+                    const isTooManyKeys = err.message && err.message.includes('Too many keys');
+                    if (isTooManyKeys) {
+                        writeLog('WARN', 'Sequelize alter atlandı (çok fazla indeks). Tablolar mevcut haliyle kullanılıyor.', { error: err.message });
+                        console.warn("⚠️ SQL alter atlandı (çok fazla indeks). Tablolar mevcut haliyle kullanılıyor. Veritabanında gereksiz indeksleri temizleyebilirsiniz.");
+                        return sequelize.sync({ alter: false }).then(() => {
+                            console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
+                        });
+                    }
                     writeLog('ERROR', 'Sequelize Sync Hatası', { error: err.message });
                     console.error("❌ SQL Güncelleme Hatası:", err.message);
                 });
@@ -291,7 +301,7 @@ try {
         const p = req.path;
         const isDocumentsPage = p === '/register/documents';
         const isLogout = p === '/api/auth/logout';
-        const isSubmitDocs = p === '/api/auth/submit-documents';
+        const isSubmitDocs = p === '/api/auth/submit-documents' || p === '/api/auth/submit-documents-json';
         const isStatic = p.startsWith('/assets') || p.startsWith('/public') || p.startsWith('/uploads') || p.startsWith('/socket.io');
 
         if (isDocumentsPage || isLogout || isSubmitDocs || isStatic) return next();
@@ -545,8 +555,6 @@ try {
                 const courierRoom = `courier-${userId}`;
                 socket.join(courierRoom);
                 console.log(`   ✅ Room'a katıldı: ${courierRoom}`);
-                socket.join('couriers-available');
-                console.log('   ✅ Room\'a katıldı: couriers-available');
             }
             if (userRole === 'buyer') {
                 const buyerRoom = `buyer-${userId}`;

@@ -7,8 +7,7 @@ module.exports = (sequelize, DataTypes) => {
         },
         user_id: {
             type: DataTypes.INTEGER,
-            allowNull: false,
-            unique: true
+            allowNull: false
         },
         shop_name: {
             type: DataTypes.STRING(255),
@@ -82,6 +81,7 @@ module.exports = (sequelize, DataTypes) => {
         createdAt: 'created_at',
         updatedAt: 'updated_at',
         indexes: [
+            { unique: true, fields: ['user_id'] },
             { fields: ['location'] },
             { fields: ['rating'] },
             { fields: ['is_active'] }

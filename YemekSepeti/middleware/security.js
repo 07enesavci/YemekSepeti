@@ -13,13 +13,17 @@ function requireEnv(req, res, next) {
     next();
 }
 
+// trust proxy server.js'te açık; validate: { ip: false } proxy/upload sırasında undefined ip hatasını önler
+// (Özel keyGenerator kullanmıyoruz; kütüphanenin varsayılan IPv6-uyumlu key'i kullanılıyor.)
+
 // Genel API rate limit (dakikada 200 istek)
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 200,
     message: { success: false, message: 'Çok fazla istek. Lütfen biraz bekleyin.' },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    validate: { ip: false }
 });
 
 // Auth endpoint'leri için daha sıkı (brute-force önleme)
@@ -28,7 +32,8 @@ const authLimiter = rateLimit({
     max: 30,
     message: { success: false, message: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    validate: { ip: false }
 });
 
 // Helmet güvenlik başlıkları (CSP'yi EJS için gevşek tutuyoruz)
@@ -37,7 +42,7 @@ function helmetMiddleware() {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://static.cloudflareinsights.com"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
                 imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],

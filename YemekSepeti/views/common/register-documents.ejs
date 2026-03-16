@@ -4,6 +4,7 @@
             <div class="card-content">
                 <h1 class="card-title text-center">Belgeleri Yükleyin</h1>
                 <p class="text-center auth-subtext">Hesap türünüze göre aşağıdaki belgeleri yükleyin. Tüm alanlar zorunludur.</p>
+                <p class="text-center" style="font-size: 0.85rem; color: #666; margin-top: -0.5rem;">Yükleme JSON ile yapılır (her dosya max 5 MB).</p>
 
                 <form id="documents-form" enctype="multipart/form-data">
                     <div id="seller-docs" style="display: none;">
@@ -52,37 +53,74 @@
         document.getElementById('courier-docs').style.display = 'block';
         document.querySelectorAll('#seller-docs input').forEach(function(i) { i.removeAttribute('required'); });
     }
+    var MAX_FILE_MB = 5;
+    var MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+    function readFileAsDataURL(file) {
+        return new Promise(function(resolve, reject) {
+            var r = new FileReader();
+            r.onload = function() { resolve(r.result); };
+            r.onerror = reject;
+            r.readAsDataURL(file);
+        });
+    }
+    function submitDocumentsJson(documents) {
+        var base = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '');
+        return fetch(base + '/api/auth/submit-documents-json', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ documents: documents })
+        }).then(function(res) {
+            return res.text().then(function(text) {
+                var data = {};
+                if (text && text.trim()) try { data = JSON.parse(text); } catch (_) {}
+                if (!res.ok) return { success: false, message: data.message || 'Belgeler yüklenemedi.' };
+                return data;
+            });
+        }).catch(function() {
+            return { success: false, message: 'Bağlantı hatası.' };
+        });
+    }
     document.getElementById('documents-form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        var formData = new FormData();
-        if (role === 'seller') {
-            var s = document.getElementById('seller-docs');
-            ['taxPlate','idCard','activityCert','businessLicense'].forEach(function(name) {
-                var input = s.querySelector('input[name="' + name + '"]');
-                if (input && input.files[0]) formData.append(name, input.files[0]);
-            });
-        } else if (role === 'courier') {
-            var c = document.getElementById('courier-docs');
-            ['idCard','driverLicense'].forEach(function(name) {
-                var input = c.querySelector('input[name="' + name + '"]');
-                if (input && input.files[0]) formData.append(name, input.files[0]);
-            });
+        var names = role === 'seller' ? ['taxPlate','idCard','activityCert','businessLicense'] : ['idCard','driverLicense'];
+        var container = role === 'seller' ? document.getElementById('seller-docs') : document.getElementById('courier-docs');
+        var documents = {};
+        var files = [];
+        for (var i = 0; i < names.length; i++) {
+            var input = container.querySelector('input[name="' + names[i] + '"]');
+            if (input && input.files[0]) {
+                files.push({ name: names[i], file: input.files[0] });
+            }
+        }
+        for (var j = 0; j < files.length; j++) {
+            if (files[j].file.size > MAX_FILE_BYTES) {
+                alert('Bir dosya ' + MAX_FILE_MB + ' MB sınırını aşıyor. Küçültüp tekrar deneyin.');
+                return;
+            }
         }
         var btn = this.querySelector('button[type=submit]');
         var oldText = btn.textContent;
         btn.disabled = true;
         btn.textContent = 'Gönderiliyor...';
         try {
-            var result = await window.submitDocuments(formData);
-            if (result && result.success && result.redirectUrl) {
-                window.location.href = (window.getBaseUrl ? window.getBaseUrl() : '') + result.redirectUrl;
-            } else {
-                alert(result && result.message ? result.message : 'Belgeler yüklenemedi.');
-                btn.disabled = false;
-                btn.textContent = oldText;
+            for (var k = 0; k < files.length; k++) {
+                documents[files[k].name] = await readFileAsDataURL(files[k].file);
             }
+            if (Object.keys(documents).length !== names.length) {
+                alert('Tüm belgeleri seçin.');
+                return;
+            }
+            var result = await submitDocumentsJson(documents);
+            if (result && result.success && result.redirectUrl) {
+                window.location.href = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '') + result.redirectUrl;
+                return;
+            }
+            alert(result && result.message ? result.message : 'Belgeler yüklenemedi.');
         } catch (err) {
-            alert('Hata: ' + (err.message || 'Belgeler yüklenemedi.'));
+            console.error('Belge gönderme hatası:', err);
+            alert('Yükleme hatası. Tekrar deneyin.');
+        } finally {
             btn.disabled = false;
             btn.textContent = oldText;
         }

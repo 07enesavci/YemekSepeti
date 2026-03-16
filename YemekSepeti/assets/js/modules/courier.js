@@ -611,21 +611,6 @@ let courierSocket = null;
 let lastRenderedActiveTaskKey = null;
 let lastRenderedDashboardMode = null;
 
-function isCourierAvailablePath(pathname) {
-    const p = pathname || window.location.pathname || '';
-    return /\/courier(?:\/\d+)?\/available(?:\/)?$/.test(p) || p.includes('/courier/available') || p.includes('available.html');
-}
-
-function isCourierDashboardPath(pathname) {
-    const p = pathname || window.location.pathname || '';
-    return /\/courier(?:\/\d+)?\/dashboard(?:\/)?$/.test(p) || p.includes('/courier/dashboard') || p.includes('dashboard.html');
-}
-
-function isCourierHistoryPath(pathname) {
-    const p = pathname || window.location.pathname || '';
-    return /\/courier(?:\/\d+)?\/history(?:\/)?$/.test(p) || p.includes('/courier/history') || p.includes('history.html');
-}
-
 async function resolveCourierSocketUserId() {
     try {
         const localUserRaw = localStorage.getItem('user');
@@ -675,10 +660,7 @@ async function connectCourierSocket() {
     }
 
     const userId = await resolveCourierSocketUserId();
-    if (!userId) {
-        setTimeout(() => connectCourierSocketWhenReady(), 1200);
-        return;
-    }
+    if (!userId) return;
 
     try {
         courierSocket = io({
@@ -693,10 +675,10 @@ async function connectCourierSocket() {
             lastRenderedActiveTaskKey = null;
             lastRenderedDashboardMode = null;
             const path = window.location.pathname || '';
-            if (isCourierAvailablePath(path)) {
+            if (path.includes('/courier/available')) {
                 loadAvailableOrders();
             }
-            if (isCourierDashboardPath(path)) {
+            if (path.includes('/courier/dashboard')) {
                 loadActiveTasks();
                 loadCourierStatusIndicator();
             }
@@ -711,49 +693,6 @@ async function connectCourierSocket() {
             }
         });
 
-        courierSocket.on('courier_order_available', () => {
-            const path = window.location.pathname || '';
-            if (isCourierAvailablePath(path)) {
-                loadAvailableOrders();
-            }
-        });
-
-        courierSocket.on('courier_order_taken', (payload) => {
-            const path = window.location.pathname || '';
-            const orderId = payload && payload.orderId ? String(payload.orderId) : null;
-
-            if (isCourierAvailablePath(path) && orderId) {
-                const orderCard = document.querySelector(`.available-order-card[data-order-id="${orderId}"]`);
-                if (orderCard) {
-                    orderCard.remove();
-                } else {
-                    loadAvailableOrders();
-                }
-
-                if (!document.querySelector('.available-order-card')) {
-                    loadAvailableOrders();
-                }
-            }
-
-            if (isCourierDashboardPath(path) && payload && String(payload.courierId || '') === String(userId)) {
-                loadActiveTasks();
-                loadCourierStatusIndicator();
-            }
-        });
-
-        courierSocket.on('courier_active_task_updated', (payload) => {
-            const path = window.location.pathname || '';
-            if (String(payload?.courierId || '') !== String(userId)) return;
-
-            lastRenderedActiveTaskKey = null;
-            lastRenderedDashboardMode = null;
-
-            if (isCourierDashboardPath(path)) {
-                loadActiveTasks();
-                loadCourierStatusIndicator();
-            }
-        });
-
         courierSocket.on('disconnect', () => {
             courierSocket = null;
             setTimeout(() => connectCourierSocket(), 1500);
@@ -761,11 +700,9 @@ async function connectCourierSocket() {
 
         courierSocket.on('connect_error', () => {
             courierSocket = null;
-            setTimeout(() => connectCourierSocketWhenReady(), 1500);
         });
     } catch (e) {
         courierSocket = null;
-        setTimeout(() => connectCourierSocketWhenReady(), 1500);
     }
 }
 
@@ -1510,11 +1447,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
 
-        if (isCourierAvailablePath(path)) {
+        if (path.includes('/courier/available') || path.includes('available.html')) {
             loadAvailableOrders();
         }
 
-        if (isCourierDashboardPath(path)) {
+        if (path.includes('/courier/dashboard') || path.includes('dashboard.html')) {
             loadActiveTasks();
             loadCourierStatusIndicator();
         }
@@ -1523,11 +1460,11 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         if (path.includes('/courier/') && path.includes('/profile')) {
             initializeProfilePage();
-        } else if (isCourierAvailablePath(path)) {
+        } else if (path.includes('/courier/available')) {
             initializeAvailablePage();
-        } else if (isCourierDashboardPath(path)) {
+        } else if (path.includes('/courier/dashboard')) {
             initializeDashboardPage();
-        } else if (isCourierHistoryPath(path)) {
+        } else if (path.includes('/courier/history')) {
             initializeHistoryPage();
         } else {
             if (path.includes('profile.html')) {

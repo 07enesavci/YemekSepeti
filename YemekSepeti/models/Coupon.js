@@ -8,8 +8,7 @@ module.exports=(sequelize, DataTypes)=>{
         },
         code: {
             type: DataTypes.STRING(50),
-            allowNull: false,
-            unique: true
+            allowNull: false
         },
         description: {
             type: DataTypes.TEXT,
@@ -66,7 +65,7 @@ module.exports=(sequelize, DataTypes)=>{
         createdAt: 'created_at',
         updatedAt: 'updated_at',
         indexes: [
-            { fields: ['code'] },
+            { unique: true, fields: ['code'] },
             { fields: ['is_active'] },
             { fields: ['valid_from', 'valid_until'] }
         ]
