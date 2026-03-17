@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="/assets/css/components.css">
     <link rel="stylesheet" href="/assets/css/responsive.css">
     <link rel="stylesheet" href="/assets/css/pages/floating-cart.css">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json" id="app-manifest">
     
     <% if (typeof pageCss !== 'undefined' && pageCss) { %>
         <link rel="stylesheet" href="/assets/css/pages/<%= pageCss %>">
@@ -64,6 +64,7 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(function() {});
         }
+        (function(){ var m=document.getElementById('app-manifest'); if(m){ m.onerror=function(){ m.remove(); }; } })();
         window.addEventListener('online', function() {
             var el = document.getElementById('offline-banner');
             if (el) el.style.display = 'none';

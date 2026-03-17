@@ -18,7 +18,14 @@ async function loadRestaurants(append) {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const apiUrl = baseUrl + '/api/sellers?limit=' + HOME_PAGE_SIZE + '&offset=' + (append ? homePageOffset : 0);
         const response = await fetch(apiUrl);
-        if (!response.ok) throw new Error('Restoranlar yüklenemedi');
+        if (!response.ok) {
+            let msg = 'Restoranlar yüklenemedi (HTTP ' + response.status + ').';
+            try {
+                const errBody = await response.json();
+                if (errBody && errBody.message) msg = errBody.message;
+            } catch (e) {}
+            throw new Error(msg);
+        }
         const data = await response.json();
         let sellers = (data && data.sellers && Array.isArray(data.sellers)) ? data.sellers : (Array.isArray(data) ? data : (data && data.data && Array.isArray(data.data) ? data.data : []));
         homePageHasMore = !!(data && data.hasMore);
@@ -44,7 +51,12 @@ async function loadRestaurants(append) {
         }
         setupLazyLoadSentinel();
     } catch (error) {
-        if (!append) featuredGrid.innerHTML = '<p style="text-align: center; padding: 2rem; color: red;">Restoranlar yüklenirken bir hata oluştu.</p>';
+        if (!append) {
+            var errMsg = (error && error.message) ? error.message : 'Restoranlar yüklenirken bir hata oluştu.';
+            featuredGrid.innerHTML = '<div style="text-align: center; padding: 2rem;"><p style="color: #c0392b; margin-bottom: 1rem;">' + errMsg + '</p><button type="button" class="btn-retry-restaurants" style="padding: 0.5rem 1rem; cursor: pointer;">Tekrar Dene</button></div>';
+            var btn = featuredGrid.querySelector('.btn-retry-restaurants');
+            if (btn) btn.addEventListener('click', function() { loadRestaurants(false); });
+        }
     }
     homePageLoading = false;
 }
@@ -264,7 +276,8 @@ function initFilters() {
     }
 }
 
-function filterAndDisplayRestaurants() {
+function filterAndDisplayRestaurants(append) {
+    append = !!append;
     if (allRestaurants.length === 0) {
         return;
     }

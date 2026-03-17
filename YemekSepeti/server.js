@@ -148,6 +148,28 @@ try {
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+    // --- PWA: manifest.json ve sw.js EN BAŞTA (session/DB'den önce; production 404 önleme) ---
+    const manifestPath = path.resolve(__dirname, 'public', 'manifest.json');
+    const swPath = path.resolve(__dirname, 'public', 'sw.js');
+    app.get('/manifest.json', (req, res) => {
+        res.set('Cache-Control', 'public, max-age=0');
+        res.type('application/manifest+json');
+        if (fs.existsSync(manifestPath)) {
+            res.sendFile(manifestPath);
+        } else {
+            res.json({ name: 'Ev Lezzetleri', short_name: 'Ev Lezzetleri', start_url: '/', display: 'standalone', icons: [] });
+        }
+    });
+    app.get('/sw.js', (req, res) => {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.type('application/javascript');
+        if (fs.existsSync(swPath)) {
+            res.sendFile(swPath);
+        } else {
+            res.send('self.addEventListener("install",function(e){self.skipWaiting();});self.addEventListener("activate",function(e){e.waitUntil(self.clients.claim());});');
+        }
+    });
+
     // --- SESSION YAPILANDIRMASI ---
     let sessionStore = null;
     if (process.env.NODE_ENV === 'production' || process.env.USE_MYSQL_SESSION === 'true') {
@@ -277,7 +299,7 @@ try {
         const isDocumentsPage = p === '/register/documents';
         const isLogout = p === '/api/auth/logout';
         const isSubmitDocs = p === '/api/auth/submit-documents' || p === '/api/auth/submit-documents-json';
-        const isStatic = p.startsWith('/assets') || p.startsWith('/public') || p.startsWith('/uploads') || p.startsWith('/socket.io');
+        const isStatic = p.startsWith('/assets') || p.startsWith('/public') || p.startsWith('/uploads') || p.startsWith('/socket.io') || p === '/manifest.json' || p === '/sw.js';
 
         if (isDocumentsPage || isLogout || isSubmitDocs || isStatic) return next();
 
@@ -285,37 +307,6 @@ try {
             return res.status(403).json({ redirect: '/register/documents' });
         }
         return res.redirect(302, '/register/documents');
-    });
-
-    // --- STATİK DOSYALAR ---
-    const assetsPath = path.resolve(__dirname, 'assets');
-    if (fs.existsSync(assetsPath)) app.use('/assets', express.static(assetsPath));
-
-    const publicPath = path.resolve(__dirname, 'public');
-    if (fs.existsSync(publicPath)) app.use('/public', express.static(publicPath));
-
-    const uploadsPath = path.resolve(__dirname, 'public', 'uploads');
-    if (fs.existsSync(uploadsPath)) {
-        app.use('/uploads', express.static(uploadsPath));
-    } else {
-        try {
-            fs.mkdirSync(uploadsPath, { recursive: true });
-            app.use('/uploads', express.static(uploadsPath));
-        } catch (err) {}
-    }
-
-    // Socket.IO client library manual serve (npm paketinden)
-    app.get('/socket.io/socket.io.js', (req, res) => {
-        try {
-            const socketIOClientPath = path.resolve(__dirname, 'node_modules/socket.io-client/dist/socket.io.min.js');
-            if (fs.existsSync(socketIOClientPath)) {
-                res.sendFile(socketIOClientPath);
-            } else {
-                res.status(404).send('Socket.IO client library not found');
-            }
-        } catch (err) {
-            res.status(500).send('Error loading Socket.IO client library');
-        }
     });
 
     const { requireRole, requireSellerApproved, requireCourierApproved } = require('./middleware/auth');
@@ -333,7 +324,7 @@ try {
         res.status(200).json({ ok: true, timestamp: new Date().toISOString(), service: 'ev-lezzetleri' });
     });
 
-    // --- ROUTE YÖNETİMİ ---
+    // --- API ROUTE'LARI (statik dosyalardan önce; böylece /api/sellers vb. kesin eşleşir) ---
     app.use('/api/auth', require('./routes/api/auth'));
     const routeFiles = [
         "/api/sellers", "/api/seller", "/api/orders",
@@ -361,6 +352,37 @@ try {
                 stack: error.stack,
                 path: path.resolve(__dirname, `routes${route}.js`)
             });
+        }
+    });
+
+    // --- STATİK DOSYALAR (API route'larından sonra) ---
+    const assetsPath = path.resolve(__dirname, 'assets');
+    if (fs.existsSync(assetsPath)) app.use('/assets', express.static(assetsPath));
+
+    const publicPath = path.resolve(__dirname, 'public');
+    if (fs.existsSync(publicPath)) app.use('/public', express.static(publicPath));
+
+    const uploadsPath = path.resolve(__dirname, 'public', 'uploads');
+    if (fs.existsSync(uploadsPath)) {
+        app.use('/uploads', express.static(uploadsPath));
+    } else {
+        try {
+            fs.mkdirSync(uploadsPath, { recursive: true });
+            app.use('/uploads', express.static(uploadsPath));
+        } catch (err) {}
+    }
+
+    // Socket.IO client library manual serve (npm paketinden)
+    app.get('/socket.io/socket.io.js', (req, res) => {
+        try {
+            const socketIOClientPath = path.resolve(__dirname, 'node_modules/socket.io-client/dist/socket.io.min.js');
+            if (fs.existsSync(socketIOClientPath)) {
+                res.sendFile(socketIOClientPath);
+            } else {
+                res.status(404).send('Socket.IO client library not found');
+            }
+        } catch (err) {
+            res.status(500).send('Error loading Socket.IO client library');
         }
     });
 
@@ -499,6 +521,9 @@ try {
     // --- 404 VE GENEL HATA YAKALAMA ---
     app.use((req, res) => {
         if (!req.path.includes('.well-known')) writeLog('WARN', `404: ${req.url}`);
+        if (req.path.startsWith('/api/')) {
+            return res.status(404).json({ success: false, message: 'Kaynak bulunamadı.', code: 404 });
+        }
         res.status(404).send(`<h1>404 - Sayfa Bulunamadı</h1><a href="/">Ana Sayfaya Dön</a>`);
     });
 
