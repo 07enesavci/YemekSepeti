@@ -43,7 +43,7 @@
                     <li><a href="/courier/pending-approval" class="btn btn-primary">Başvurunuz Değerlendiriliyor</a></li>
                     <% } %>
                     <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
-                <% } else if (user && user.role === 'admin') { %>
+                <% } else if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
                     <!-- Admin için panel ve çıkış butonu -->
                     <li><a href="/admin/users" class="btn btn-primary">Admin Paneli</a></li>
                     <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
@@ -53,6 +53,7 @@
                     
                     <% if (user) { %>
                         <% if(user.role === 'buyer') { %>
+                            <li id="header-active-order-wrap" style="display: none;"><a href="#" id="header-active-order-link" class="btn btn-primary" style="position: relative;"><span aria-hidden="true">📦</span> Aktif siparişiniz var</a></li>
                             <li><a href="/buyer/favorites" class="btn btn-secondary">Favorilerim</a></li>
                             <li><a href="/buyer/profile" class="btn btn-secondary">Profilim</a></li>
                         <% } %>

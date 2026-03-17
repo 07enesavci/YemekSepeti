@@ -3,15 +3,16 @@ const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
 const { Notification } = require('../../models');
 const { Op } = require('sequelize');
+const { idParam, optionalLimit, optionalOffset, handleValidationErrors } = require('../../middleware/validate');
 
 router.use(requireAuth);
 
 // Listele (okunmamış önce, sonra tarih)
-router.get('/', async (req, res) => {
+router.get('/', optionalLimit, optionalOffset, handleValidationErrors, async (req, res) => {
     try {
         const userId = req.user.id;
-        const limit = Math.min(parseInt(req.query.limit) || 50, 100);
-        const offset = parseInt(req.query.offset) || 0;
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+        const offset = parseInt(req.query.offset, 10) || 0;
         const unreadOnly = req.query.unread === 'true';
 
         const where = { user_id: userId };
@@ -47,9 +48,9 @@ router.get('/', async (req, res) => {
 });
 
 // Tekil okundu işaretle
-router.put('/:id/read', async (req, res) => {
+router.put('/:id/read', idParam, handleValidationErrors, async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
+        const id = parseInt(req.params.id, 10);
         const userId = req.user.id;
         const notif = await Notification.findOne({ where: { id, user_id: userId } });
         if (!notif) return res.status(404).json({ success: false, message: 'Bildirim bulunamadı.' });

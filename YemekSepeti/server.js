@@ -16,33 +16,8 @@ try {
     // Global io objesi - routes dosyalarından erişilebilir
     global.io = null;
 
-    // --- LOGLAMA YAPILANDIRMASI ---
-    const logsDir = path.resolve(__dirname, 'logs');
-    if (!fs.existsSync(logsDir)) {
-        try {
-            fs.mkdirSync(logsDir, { recursive: true });
-        } catch (err) {}
-    }
-
-    function getLogFilePath() {
-        const today = new Date();
-        const dateStr = today.toISOString().split('T')[0];
-        return path.resolve(logsDir, `app-${dateStr}.log`);
-    }
-
-    function writeLog(level, message, data = null) {
-        try {
-            const timestamp = new Date().toISOString();
-            const logFile = getLogFilePath();
-            const logLine = `[${timestamp}] [${level}] ${message}${data ? ' ' + JSON.stringify(data) : ''}\n`;
-            fs.appendFile(logFile, logLine, (err) => {});
-            if (level === 'ERROR') {
-                console.error(`[${timestamp}] ${message}`, data || '');
-            } else if (level === 'WARN') {
-                console.warn(`[${timestamp}] ${message}`, data || '');
-            }
-        } catch (err) {}
-    }
+    // --- LOGLAMA (rotasyon: 14 gün, günlük dosya) ---
+    const { writeLog } = require('./config/logger');
 
     // --- HATA VE UYARI YÖNETİMİ ---
     const originalEmitWarning = process.emitWarning;
@@ -350,6 +325,14 @@ try {
     app.use(helmetMiddleware());
     app.use('/api', apiLimiter);
 
+    // --- HEALTH CHECK (yük dengeleyici / izleme) ---
+    app.get('/health', (req, res) => {
+        res.status(200).json({ ok: true, timestamp: new Date().toISOString(), service: 'ev-lezzetleri' });
+    });
+    app.get('/api/health', (req, res) => {
+        res.status(200).json({ ok: true, timestamp: new Date().toISOString(), service: 'ev-lezzetleri' });
+    });
+
     // --- ROUTE YÖNETİMİ ---
     app.use('/api/auth', require('./routes/api/auth'));
     const routeFiles = [
@@ -501,11 +484,11 @@ try {
     });
 
     // --- ADMIN ROUTE'LARI ---
-    app.get("/admin/users", requireRole('admin'), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
-    app.get("/admin/coupons", requireRole('admin'), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
-    app.get("/admin/sellers", requireRole('admin'), (req, res) => res.render("admin/sellers", { title: "Satıcı Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
-    app.get("/admin/couriers", requireRole('admin'), (req, res) => res.render("admin/couriers", { title: "Kurye Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
-    app.get("/admin/reports", requireRole('admin'), (req, res) => res.render("admin/reports", { title: "Raporlar", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/users", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/coupons", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/sellers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/sellers", { title: "Satıcı Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/couriers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/couriers", { title: "Kurye Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/reports", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/reports", { title: "Raporlar", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---
     function renderError(res, error, pageName) {

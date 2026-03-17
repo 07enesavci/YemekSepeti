@@ -2,8 +2,9 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { Seller } = require("../../models");
+const { idParam, optionalLimit, handleValidationErrors } = require("../../middleware/validate");
 
-router.get("/", async (req, res) => {
+router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
     try {
         const { location, rating, q, min_order } = req.query;
         const dbSellers = await Seller.findAll({
@@ -67,16 +68,21 @@ router.get("/", async (req, res) => {
             }
         }
 
-        if (req.query.limit) {
-            const limit = parseInt(req.query.limit);
-            if (!isNaN(limit) && limit > 0) {
-                filteredSellers = filteredSellers.slice(0, limit);
-            }
+        const totalCount = filteredSellers.length;
+        const limit = req.query.limit != null ? Number(req.query.limit) : null;
+        const offset = req.query.offset != null ? Math.max(0, Number(req.query.offset)) : 0;
+        if (limit != null && !isNaN(limit) && limit > 0) {
+            const max = Math.min(limit, 100);
+            filteredSellers = filteredSellers.slice(offset, offset + max);
+        } else if (offset > 0) {
+            filteredSellers = filteredSellers.slice(offset, offset + 50);
         }
         
         res.json({
             success: true,
-            sellers: filteredSellers
+            sellers: filteredSellers,
+            totalCount: totalCount,
+            hasMore: (offset + filteredSellers.length) < totalCount
         });
     } catch (error) {
         res.status(500).json({
@@ -87,9 +93,9 @@ router.get("/", async (req, res) => {
     }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
     try {
-        const sellerId = parseInt(req.params.id);
+        const sellerId = parseInt(req.params.id, 10);
         const seller = await Seller.findOne({
             where: { id: sellerId, is_active: true },
             attributes: [
@@ -136,9 +142,9 @@ router.get("/:id", async (req, res) => {
     }
 });
 
-router.get("/:id/menu", async (req, res) => {
+router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
     try {
-        const sellerId = parseInt(req.params.id);
+        const sellerId = parseInt(req.params.id, 10);
         const { Meal } = require("../../models");
 
         const meals = await Meal.findAll({

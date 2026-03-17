@@ -98,6 +98,18 @@ async function fetchHistoryTasks(page = 1, limit = 20) {
     }
 }
 
+async function fetchTaskDetail(orderId) {
+    try {
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        const response = await fetch(`${baseUrl}/api/courier/tasks/${orderId}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Detay yüklenemedi');
+        const data = await response.json();
+        return data.success ? data.task : null;
+    } catch (error) {
+        return null;
+    }
+}
+
 async function fetchCourierProfile() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -610,6 +622,7 @@ const COURIER_AUTO_REFRESH_MS = 3000;
 let courierSocket = null;
 let lastRenderedActiveTaskKey = null;
 let lastRenderedDashboardMode = null;
+let courierLocationInterval = null;
 
 async function resolveCourierSocketUserId() {
     try {
@@ -715,6 +728,10 @@ function clearCourierAutoRefresh() {
         clearInterval(courierAvailableRefreshInterval);
         courierAvailableRefreshInterval = null;
     }
+    if (courierLocationInterval) {
+        clearInterval(courierLocationInterval);
+        courierLocationInterval = null;
+    }
 }
 
 function setupCourierAutoRefresh(mode) {
@@ -806,6 +823,21 @@ async function geocodeAddress(address) {
     } catch (error) {
         console.error("Geocoding hatası:", error);
         return null;
+    }
+}
+
+async function sendCourierLocation(orderId, latitude, longitude) {
+    try {
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        const response = await fetch(`${baseUrl}/api/courier/tasks/${orderId}/location`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude, longitude })
+        });
+        return response.ok;
+    } catch (e) {
+        return false;
     }
 }
 
@@ -1188,6 +1220,13 @@ async function loadActiveTasks() {
             lastRenderedActiveTaskKey = activeTaskKey;
             lastRenderedDashboardMode = 'active';
 
+            if (courierLocationInterval) clearInterval(courierLocationInterval);
+            courierLocationInterval = setInterval(async () => {
+                if (document.hidden) return;
+                const pos = await getCourierCurrentPosition();
+                if (pos && pos[0] != null && pos[1] != null) await sendCourierLocation(activeTask.id, pos[0], pos[1]);
+            }, 15000);
+
             const pickupBtn = taskContainer.querySelector('.pickup-task-btn');
             if (pickupBtn) {
                 pickupBtn.addEventListener('click', handleTaskPickup);
@@ -1236,6 +1275,7 @@ async function loadActiveTasks() {
 
             lastRenderedActiveTaskKey = null;
             lastRenderedDashboardMode = 'idle';
+            if (courierLocationInterval) { clearInterval(courierLocationInterval); courierLocationInterval = null; }
 
             setTimeout(() => {
                 initIdleCourierMap();
@@ -1314,14 +1354,20 @@ function createTransactionItemHTML(transaction) {
         amount = 0;
     }
 
+    const orderId = transaction.id || transaction.orderId;
+    const detailBtn = orderId
+        ? `<button type="button" class="btn btn-secondary btn-sm courier-history-detail-btn" data-order-id="${orderId}" style="margin-left: 0.5rem;">Detay</button>`
+        : '';
+
     return `
-        <div class="transaction-item">
+        <div class="transaction-item" data-order-id="${orderId || ''}">
             <div class="transaction-icon ${typeClass}">
                 <span>${sign}</span>
             </div>
             <div class="transaction-details">
                 <strong>${transaction.description}</strong>
                 <span>${formattedDate}</span>
+                ${detailBtn}
             </div>
             <div class="transaction-amount ${typeClass}">
                 ${sign}${amount.toFixed(2)} TL
@@ -1420,6 +1466,7 @@ async function loadHistoryData() {
             transactions.forEach(t => {
                 transactionListContainer.insertAdjacentHTML('beforeend', createTransactionItemHTML(t));
             });
+            attachCourierHistoryDetailButtons();
         } else {
             transactionListContainer.innerHTML = `
                 <div class="empty-state" style="text-align: center; padding: 4rem 2rem;">
@@ -1431,6 +1478,55 @@ async function loadHistoryData() {
         }
     } catch (error) {
         transactionListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Geçmiş görevler yüklenirken hata oluştu.</p>';
+    }
+}
+
+function attachCourierHistoryDetailButtons() {
+    document.querySelectorAll('.courier-history-detail-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const orderId = this.getAttribute('data-order-id');
+            if (!orderId) return;
+            const modal = document.getElementById('courier-order-detail-modal');
+            const body = document.getElementById('courier-detail-modal-body');
+            const title = document.getElementById('courier-detail-modal-title');
+            if (!modal || !body) return;
+            modal.style.display = 'flex';
+            body.innerHTML = '<p class="text-muted">Yükleniyor...</p>';
+            title.textContent = 'Sipariş #' + orderId + ' Detayı';
+            const task = await fetchTaskDetail(orderId);
+            if (!task) {
+                body.innerHTML = '<p style="color: #E74C3C;">Detay yüklenemedi.</p>';
+                return;
+            }
+            const itemsHtml = (task.items || []).map(i => `
+                <tr><td>${(i.meal_name || '').replace(/</g, '&lt;')}</td><td>${i.quantity}</td><td>${(i.meal_price || 0).toFixed(2)} TL</td><td>${(i.subtotal || 0).toFixed(2)} TL</td></tr>
+            `).join('');
+            const dropoff = task.dropoff && task.dropoff.fullAddress ? task.dropoff.fullAddress : (task.dropoff ? [task.dropoff.district, task.dropoff.city].filter(Boolean).join(', ') : '—');
+            const customer = task.customer ? (task.customer.fullname || 'Müşteri') + ' — ' + (task.customer.phone || '***') : '—';
+            body.innerHTML = `
+                <p><strong>Sipariş No:</strong> ${(task.orderNumber || task.id).toString().replace(/</g, '&lt;')}</p>
+                <p><strong>Durum:</strong> ${(task.status || 'delivered').toString().replace(/</g, '&lt;')}</p>
+                <p><strong>Restoran:</strong> ${task.pickup && task.pickup.name ? (task.pickup.name + (task.pickup.address ? ', ' + task.pickup.address : '')).replace(/</g, '&lt;') : '—'}</p>
+                <p><strong>Teslimat adresi:</strong> ${dropoff.replace(/</g, '&lt;')}</p>
+                <p><strong>Müşteri:</strong> ${customer.replace(/</g, '&lt;')}</p>
+                <table class="form-input" style="width:100%; margin: 0.5rem 0; border-collapse: collapse;">
+                    <thead><tr><th>Ürün</th><th>Adet</th><th>Birim</th><th>Toplam</th></tr></thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+                <p><strong>Ara Toplam:</strong> ${(task.subtotal || 0).toFixed(2)} TL &nbsp;|&nbsp; <strong>Kargo:</strong> ${(task.deliveryFee || 0).toFixed(2)} TL &nbsp;|&nbsp; <strong>Toplam:</strong> ${(task.totalAmount || 0).toFixed(2)} TL</p>
+                <p><strong>Bu teslimat kazancınız:</strong> ${(task.payout || 0).toFixed(2)} TL</p>
+                ${task.deliveredAt ? '<p><strong>Teslim tarihi:</strong> ' + new Date(task.deliveredAt).toLocaleString('tr-TR') + '</p>' : ''}
+            `;
+        });
+    });
+
+    const closeBtn = document.getElementById('courier-detail-modal-close');
+    const modal = document.getElementById('courier-order-detail-modal');
+    if (closeBtn && modal) {
+        closeBtn.onclick = () => { modal.style.display = 'none'; };
+    }
+    if (modal) {
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
     }
 }
 

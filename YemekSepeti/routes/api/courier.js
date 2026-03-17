@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireCourierApproved } = require("../../middleware/auth");
-const { User, Order, Seller, Address, CourierTask } = require("../../models");
+const { User, Order, Seller, Address, CourierTask, OrderItem } = require("../../models");
 
 router.use(requireRole('courier'), requireCourierApproved);
 const { Op, Sequelize, QueryTypes } = require("sequelize");
@@ -215,6 +215,40 @@ router.get("/tasks/active", async (req, res) => {
     }
 });
 
+// Kurye anlık konum güncelleme (alıcı tarafında haritada gösterilir)
+router.patch("/tasks/:id/location", async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const courierId = req.session.user.id || req.session.user.courierId;
+        const { latitude, longitude } = req.body || {};
+        if (!courierId || isNaN(orderId)) return res.status(400).json({ success: false, message: "Geçersiz istek." });
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
+        if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            return res.status(400).json({ success: false, message: "Geçerli enlem/boylam girin." });
+        }
+        const [updated] = await sequelize.query(
+            "UPDATE courier_tasks SET courier_latitude = ?, courier_longitude = ?, updated_at = NOW() WHERE order_id = ? AND courier_id = ?",
+            { replacements: [lat, lng, orderId, courierId] }
+        );
+        const affected = (updated && updated.affectedRows) ? updated.affectedRows : 0;
+        if (affected === 0) {
+            const hasCol = await sequelize.query(
+                "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'courier_tasks' AND COLUMN_NAME = 'courier_latitude'",
+                { type: require('sequelize').QueryTypes.SELECT }
+            ).catch(() => []);
+            if (!hasCol || hasCol.length === 0) {
+                return res.status(501).json({ success: false, message: "Konum güncellemesi desteklenmiyor (veritabanı güncellemesi gerekebilir)." });
+            }
+            return res.status(404).json({ success: false, message: "Görev bulunamadı veya size ait değil." });
+        }
+        res.json({ success: true, message: "Konum güncellendi." });
+    } catch (error) {
+        console.error('LOCATION UPDATE HATA:', error);
+        res.status(500).json({ success: false, message: "Konum güncellenirken hata oluştu." });
+    }
+});
+
 router.put("/tasks/:id/pickup", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
@@ -410,6 +444,66 @@ router.put("/tasks/:id/reject-assigned", async (req, res) => {
     } catch (error) {
         console.error('REJECT-ASSIGNED HATA:', error);
         return res.status(500).json({ success: false, message: "Görev reddedilirken hata oluştu." });
+    }
+});
+
+// Geçmiş veya aktif bir siparişin detayı (sadece bu kuryeye ait)
+router.get("/tasks/:id", async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const courierId = req.session.user.id || req.session.user.courierId;
+        if (!courierId || isNaN(orderId)) return res.status(400).json({ success: false, message: "Geçersiz istek." });
+
+        const order = await Order.findOne({
+            where: { id: orderId, courier_id: courierId },
+            include: [
+                { model: Seller, as: 'seller', attributes: ['id', 'shop_name', 'location'], required: false },
+                { model: Address, as: 'address', attributes: ['district', 'city', 'full_address', 'latitude', 'longitude'], required: false },
+                { model: User, as: 'buyer', attributes: ['fullname', 'phone'], required: false },
+                { model: CourierTask, as: 'courierTask', attributes: ['delivered_at', 'actual_payout', 'picked_up_at'], required: false },
+                { model: OrderItem, as: 'items', attributes: ['meal_name', 'quantity', 'meal_price', 'subtotal'], required: false }
+            ],
+            attributes: ['id', 'order_number', 'status', 'subtotal', 'delivery_fee', 'discount_amount', 'total_amount', 'created_at', 'payment_method']
+        });
+
+        if (!order) return res.status(404).json({ success: false, message: "Sipariş bulunamadı veya bu size ait değil." });
+
+        const phoneStr = order.buyer?.phone || '';
+        const customerPhone = phoneStr.length >= 3 ? phoneStr.substring(0, 3) + '***' + phoneStr.slice(-2) : '***';
+        const detail = {
+            id: order.id,
+            orderNumber: order.order_number || `SIP-${order.id}`,
+            status: order.status,
+            createdAt: order.created_at,
+            pickup: order.seller ? { name: order.seller.shop_name, address: order.seller.location } : null,
+            dropoff: order.address ? {
+                district: order.address.district,
+                city: order.address.city,
+                fullAddress: order.address.full_address,
+                latitude: order.address.latitude,
+                longitude: order.address.longitude
+            } : null,
+            customer: order.buyer ? { fullname: order.buyer.fullname, phone: customerPhone } : null,
+            items: (order.items || []).map(i => ({
+                meal_name: i.meal_name,
+                quantity: i.quantity,
+                meal_price: parseFloat(i.meal_price) || 0,
+                subtotal: parseFloat(i.subtotal) || 0
+            })),
+            subtotal: parseFloat(order.subtotal) || 0,
+            deliveryFee: parseFloat(order.delivery_fee) || 0,
+            discountAmount: parseFloat(order.discount_amount) || 0,
+            totalAmount: parseFloat(order.total_amount) || 0,
+            paymentMethod: order.payment_method,
+            deliveredAt: order.courierTask?.delivered_at || null,
+            pickedUpAt: order.courierTask?.picked_up_at || null,
+            payout: parseFloat(order.courierTask?.actual_payout || order.delivery_fee) || 0
+        };
+
+        res.json({ success: true, task: detail });
+    } catch (error) {
+        console.error('TASK DETAIL HATA:', error);
+        res.status(500).json({ success: false, message: "Detay yüklenirken hata oluştu.", error: error.message });
     }
 });
 

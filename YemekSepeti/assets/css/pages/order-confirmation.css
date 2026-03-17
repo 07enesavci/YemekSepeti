@@ -210,3 +210,42 @@
     }
 }
 
+/* Sipariş takibi - durum adımları */
+.order-status-steps .status-steps-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+.order-status-steps .status-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-color-light, #666);
+}
+.order-status-steps .status-step .step-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    margin-bottom: 0.35rem;
+    transition: background 0.2s;
+}
+.order-status-steps .status-step.done .step-dot {
+    background: var(--primary-color);
+}
+.order-status-steps .status-step.active .step-dot {
+    background: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3);
+}
+.order-status-steps .status-step.active {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+.order-status-steps .status-step.done {
+    color: var(--text-color);
+}
+

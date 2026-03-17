@@ -7,10 +7,11 @@ const { User, Seller, Courier, Order }=require("../../models");
 const { Op }=require("sequelize");
 const { Sequelize }=require("sequelize");
 const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
+const { createCouponValidation, idParam, handleValidationErrors }=require("../../middleware/validate");
 
 router.use((req,res,next)=>{ requireAuth(req,res,next); });
 
-router.use((req,res,next)=>{ requireRole('admin')(req,res,next); });
+router.use((req,res,next)=>{ requireRole(['admin','super_admin','support'])(req,res,next); });
 
 router.get("/users", async (req, res) => {
     try 
@@ -261,21 +262,11 @@ router.get("/coupons", async (req, res) => {
     }
 });
 
-router.post("/coupons", async (req, res) => {
+router.post("/coupons", createCouponValidation, handleValidationErrors, async (req, res) => {
     try 
     {
         const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, sellerIds, validDays } = req.body;
-        
-        if (!code || (discountValue === undefined && req.body.amount === undefined)) 
-        {
-            return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gereklidir." });
-        }
-        
         const amount = parseFloat(discountValue ?? req.body.amount);
-        if (isNaN(amount) || amount <= 0) 
-        {
-            return res.status(400).json({ success: false, message: "Geçerli bir indirim değeri girin." });
-        }
         
         const type = (discountType === 'percentage' || discountType === 'fixed') ? discountType : 'fixed';
         const validDaysNum = Math.max(1, parseInt(validDays, 10) || 30);
@@ -327,10 +318,44 @@ router.post("/coupons", async (req, res) => {
     }
 });
 
-router.delete("/coupons/:id", async (req, res) => {
+router.put("/coupons/:id", idParam, handleValidationErrors, async (req, res) => {
     try 
     {
-        const couponId = req.params.id;
+        const couponId = parseInt(req.params.id, 10);
+        const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, sellerIds } = req.body;
+        if (!code || !(discountValue != null || req.body.amount != null)) {
+            return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gerekli." });
+        }
+        const amount = parseFloat(discountValue ?? req.body.amount);
+        if (isNaN(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: "Geçerli indirim değeri girin." });
+        }
+        const type = (discountType === 'percentage' || discountType === 'fixed') ? discountType : 'fixed';
+        const sellerIdsArray = Array.isArray(sellerIds) ? sellerIds : (Array.isArray(req.body.sellerIds) ? req.body.sellerIds : []);
+        const sellerIdsJson = sellerIdsArray.length === 0 ? null : JSON.stringify(sellerIdsArray);
+        const minOrder = (minOrderAmount != null && minOrderAmount !== '') ? parseFloat(minOrderAmount) : 0;
+        const maxDiscount = (maxDiscountAmount != null && maxDiscountAmount !== '') ? parseFloat(maxDiscountAmount) : null;
+        const existingRows = await db.query("SELECT id FROM coupons WHERE id = ?", [couponId]);
+        if (!existingRows || existingRows.length === 0) return res.status(404).json({ success: false, message: "Kupon bulunamadı." });
+        const duplicateRows = await db.query("SELECT id FROM coupons WHERE code = ? AND id != ?", [String(code).trim(), couponId]);
+        if (duplicateRows && duplicateRows.length > 0) return res.status(400).json({ success: false, message: "Bu kupon kodu başka bir kuponda kullanılıyor." });
+        await db.execute(
+            "UPDATE coupons SET code = ?, description = ?, discount_type = ?, discount_value = ?, min_order_amount = ?, max_discount_amount = ?, applicable_seller_ids = ?, updated_at = NOW() WHERE id = ?",
+            [String(code).trim(), description ? String(description).trim() : null, type, amount, isNaN(minOrder) ? 0 : minOrder, (maxDiscount != null && !isNaN(maxDiscount)) ? maxDiscount : null, sellerIdsJson, couponId]
+        );
+        res.json({ success: true, message: "Kupon güncellendi." });
+    } 
+    catch (error) 
+    {
+        console.error("Kupon güncelleme hatası:", error);
+        res.status(500).json({ success: false, message: "Kupon güncellenemedi." });
+    }
+});
+
+router.delete("/coupons/:id", idParam, handleValidationErrors, async (req, res) => {
+    try 
+    {
+        const couponId = parseInt(req.params.id, 10);
         const sql = "DELETE FROM coupons WHERE id = ?";
         const result = await db.execute(sql, [couponId]);
         if (result.affectedRows === 0) return res.status(404).json({ success: false, message: "Kupon bulunamadı." });
@@ -344,7 +369,7 @@ router.delete("/coupons/:id", async (req, res) => {
 /// --- SATICI ONAY SİSTEMİ BAŞLANGIÇ ---
 
 // 1. Onay Bekleyen Satıcıları Listele (GET)
-router.get("/pending-sellers", requireRole('admin'), async (req, res) => {
+router.get("/pending-sellers", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const pending = await Seller.findAll({ 
             where: { is_active: false }, 
@@ -363,7 +388,7 @@ router.get("/pending-sellers", requireRole('admin'), async (req, res) => {
 });
 
 // 2. Satıcıyı Onayla (POST)
-router.post("/approve-seller/:id", requireRole('admin'), async (req, res) => {
+router.post("/approve-seller/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const seller = await Seller.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['email'] }] });
         if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
@@ -380,7 +405,7 @@ router.post("/approve-seller/:id", requireRole('admin'), async (req, res) => {
 });
 
 // 3. Satıcıyı Reddet ve Sil (POST) — Red e-postası gönderilir, sonra satıcı + kullanıcı silinir
-router.post("/reject-seller/:id", requireRole('admin'), async (req, res) => {
+router.post("/reject-seller/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const seller = await Seller.findByPk(req.params.id);
         if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
@@ -401,7 +426,7 @@ router.post("/reject-seller/:id", requireRole('admin'), async (req, res) => {
 // --- SATICI ONAY SİSTEMİ BİTİŞ ---
 
 // --- KURYE ONAY SİSTEMİ ---
-router.get("/pending-couriers", requireRole('admin'), async (req, res) => {
+router.get("/pending-couriers", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const pending = await Courier.findAll({
             where: { is_active: false },
@@ -413,7 +438,7 @@ router.get("/pending-couriers", requireRole('admin'), async (req, res) => {
         res.status(500).json({ success: false, message: "Liste çekilemedi." });
     }
 });
-router.post("/approve-courier/:id", requireRole('admin'), async (req, res) => {
+router.post("/approve-courier/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const courier = await Courier.findByPk(req.params.id, { include: [{ model: User, as: 'user', attributes: ['email'] }] });
         if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı." });
@@ -425,7 +450,7 @@ router.post("/approve-courier/:id", requireRole('admin'), async (req, res) => {
         res.status(500).json({ success: false, message: "Onaylama işlemi sırasında hata oluştu." });
     }
 });
-router.post("/reject-courier/:id", requireRole('admin'), async (req, res) => {
+router.post("/reject-courier/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const courier = await Courier.findByPk(req.params.id);
         if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı." });
@@ -462,6 +487,7 @@ router.get("/reports/summary", async (req, res) => {
         const totalRevenue = revenueResult && revenueResult.total != null ? parseFloat(revenueResult.total) : 0;
         const activeSellers = await Seller.count({ where: { is_active: true } });
         const activeCouriers = await Courier.count({ where: { is_active: true } });
+        const totalUsers = await User.count();
 
         res.json({
             success: true,
@@ -472,12 +498,47 @@ router.get("/reports/summary", async (req, res) => {
                 deliveredOrders,
                 totalRevenue: Math.round(totalRevenue * 100) / 100,
                 activeSellers,
-                activeCouriers
+                activeCouriers,
+                totalUsers
             }
         });
     } catch (err) {
         console.error("Admin reports error:", err);
         res.status(500).json({ success: false, message: "Rapor yüklenemedi." });
+    }
+});
+
+// Son 7 gün sipariş ve ciro verisi (grafik için)
+router.get("/reports/chart", async (req, res) => {
+    try {
+        const days = 7;
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            d.setHours(0, 0, 0, 0);
+            const next = new Date(d);
+            next.setDate(next.getDate() + 1);
+            const orderCount = await Order.count({
+                where: { created_at: { [Op.gte]: d, [Op.lt]: next } }
+            });
+            const revRow = await Order.findOne({
+                where: { status: 'delivered', created_at: { [Op.gte]: d, [Op.lt]: next } },
+                attributes: [[Sequelize.fn('SUM', Sequelize.col('total_amount')), 'rev']],
+                raw: true
+            });
+            const rev = revRow && revRow.rev != null ? parseFloat(revRow.rev) : 0;
+            result.push({
+                date: d.toISOString().slice(0, 10),
+                label: d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }),
+                orders: orderCount,
+                revenue: Math.round(rev * 100) / 100
+            });
+        }
+        res.json({ success: true, chart: result });
+    } catch (err) {
+        console.error("Admin reports chart error:", err);
+        res.status(500).json({ success: false, message: "Grafik verisi yüklenemedi." });
     }
 });
 

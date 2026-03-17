@@ -1,91 +1,93 @@
-async function loadRestaurants() {
-    console.log('🚀🚀🚀 loadRestaurants VERSİYON 3.0 - Cache temizlendi! 🚀🚀🚀');
-    console.log('📅 Tarih:', new Date().toISOString());
-    
+var homePageOffset = 0;
+var homePageHasMore = true;
+var homePageLoading = false;
+var HOME_PAGE_SIZE = 24;
+
+async function loadRestaurants(append) {
     const featuredGrid = document.querySelector('#restaurants-container') || document.querySelector('.featured-grid');
-    if (!featuredGrid) {
-        console.warn('featured-grid bulunamadı');
-        return;
+    if (!featuredGrid) return;
+    if (!append) {
+        featuredGrid.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
+        allRestaurants = [];
+        homePageOffset = 0;
+        homePageHasMore = true;
     }
-
-    featuredGrid.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
-
+    if (homePageLoading) return;
+    homePageLoading = true;
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const apiUrl = `${baseUrl}/api/sellers`;
-        console.log('🔍 API çağrısı yapılıyor:', apiUrl);
-        
+        const apiUrl = baseUrl + '/api/sellers?limit=' + HOME_PAGE_SIZE + '&offset=' + (append ? homePageOffset : 0);
         const response = await fetch(apiUrl);
-        
-        console.log('📥 API yanıtı alındı:', response.status, response.statusText);
-        
-        if (!response.ok) {
-            console.error('❌ API yanıt hatası:', response.status, response.statusText);
-            const errorText = await response.text();
-            console.error('❌ Hata detayı:', errorText);
-            throw new Error(`Restoranlar yüklenemedi: ${response.status} ${response.statusText}`);
-        }
-
+        if (!response.ok) throw new Error('Restoranlar yüklenemedi');
         const data = await response.json();
-        console.log('📦 API yanıtı alındı:', data);
-        
-        // API yanıtını işle - önce data.sellers kontrolü yap
-        let sellers = [];
-        
-        if (data && data.sellers && Array.isArray(data.sellers)) {
-            sellers = data.sellers;
-            console.log(`✅ ${sellers.length} restoran bulundu`);
-        } else if (Array.isArray(data)) {
-            sellers = data;
-            console.log(`✅ ${sellers.length} restoran bulundu (direkt array)`);
-        } else if (data && data.data && Array.isArray(data.data)) {
-            sellers = data.data;
-            console.log(`✅ ${sellers.length} restoran bulundu (data.data)`);
-        } else {
-            console.warn('⚠️ Restoran bulunamadı, boş array kullanılıyor');
-            sellers = [];
-        }
-
-        console.log(`📦 Toplam ${sellers.length} restoran işlendi`);
-        
-        if (sellers.length === 0) {
-            console.log('⚠️ Restoran bulunamadı, boş mesaj gösteriliyor');
-            featuredGrid.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="font-size: 1.2rem; color: #666; margin-bottom: 1rem;">Henüz restoran bulunmamaktadır.</p><p style="color: #999;">Yakında lezzetli restoranlar eklenecek!</p></div>';
+        let sellers = (data && data.sellers && Array.isArray(data.sellers)) ? data.sellers : (Array.isArray(data) ? data : (data && data.data && Array.isArray(data.data) ? data.data : []));
+        homePageHasMore = !!(data && data.hasMore);
+        if (!append && sellers.length === 0) {
+            featuredGrid.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="font-size: 1.2rem; color: #666;">Henüz restoran bulunmamaktadır.</p></div>';
+            homePageLoading = false;
             return;
         }
-
-        console.log(`🎯 ${sellers.length} restoran saklanıyor...`);
-        allRestaurants = sellers;
-        
-        console.log('🎨 Restoranlar ekrana yazdırılıyor...');
-        try {
-            if (window.__userRole === 'buyer' && typeof window.getFavorites === 'function') {
-                window.getFavorites().then(function(favs) {
-                    favoriteSellerIds = (favs || []).map(function(f) { return f.id; });
-                    displayRestaurants(sellers);
-                }).catch(function() { displayRestaurants(sellers); });
-            } else {
-                displayRestaurants(sellers);
-            }
-            console.log('✅ Restoranlar başarıyla gösterildi');
-        } catch (displayError) {
-            console.error('❌ displayRestaurants hatası:', displayError);
-            featuredGrid.innerHTML = '<p style="text-align: center; padding: 2rem; color: red;">Restoranlar gösterilirken bir hata oluştu.</p>';
+        if (append) {
+            allRestaurants = allRestaurants.concat(sellers);
+        } else {
+            allRestaurants = sellers;
+            loadCouponSellerIds().then(function() { applyQuickFilterButtons(); });
         }
+        homePageOffset = allRestaurants.length;
+        if (window.__userRole === 'buyer' && typeof window.getFavorites === 'function') {
+            window.getFavorites().then(function(favs) {
+                favoriteSellerIds = (favs || []).map(function(f) { return f.id; });
+                filterAndDisplayRestaurants(append);
+            }).catch(function() { filterAndDisplayRestaurants(append); });
+        } else {
+            filterAndDisplayRestaurants(append);
+        }
+        setupLazyLoadSentinel();
     } catch (error) {
-        console.error('Restoranlar yüklenirken hata:', error);
-        featuredGrid.innerHTML = '<p style="text-align: center; padding: 2rem; color: red;">Restoranlar yüklenirken bir hata oluştu.</p>';
+        if (!append) featuredGrid.innerHTML = '<p style="text-align: center; padding: 2rem; color: red;">Restoranlar yüklenirken bir hata oluştu.</p>';
     }
+    homePageLoading = false;
+}
+
+function setupLazyLoadSentinel() {
+    var sentinel = document.getElementById('home-lazy-sentinel');
+    if (!sentinel && homePageHasMore) {
+        var grid = document.querySelector('#restaurants-container') || document.querySelector('.featured-grid');
+        if (!grid) return;
+        sentinel = document.createElement('div');
+        sentinel.id = 'home-lazy-sentinel';
+        sentinel.style.cssText = 'height: 40px; display: flex; align-items: center; justify-content: center;';
+        sentinel.innerHTML = '<span style="color: #999;">Yükleniyor...</span>';
+        grid.parentElement && grid.parentElement.appendChild(sentinel);
+    }
+    if (!sentinel) return;
+    if (!homePageHasMore) {
+        sentinel.innerHTML = '';
+        sentinel.style.display = 'none';
+        return;
+    }
+    sentinel.style.display = 'flex';
+    sentinel.innerHTML = '<span style="color: #999;">Daha fazla yükleniyor...</span>';
+    var io = window._homeLazyIO;
+    if (io) io.disconnect();
+    io = new IntersectionObserver(function(entries) {
+        if (!entries[0] || !entries[0].isIntersecting || homePageLoading || !homePageHasMore) return;
+        loadRestaurants(true);
+    }, { rootMargin: '200px', threshold: 0 });
+    io.observe(sentinel);
+    window._homeLazyIO = io;
 }
 
 let allRestaurants = [];
 let favoriteSellerIds = [];
+let sellerIdsWithCoupons = new Set();
 let currentFilters = {
     searchTerm: '',
     minRating: 0,
     cuisines: [],
     minOrderAmount: null,
-    location: ''
+    location: '',
+    quickFilter: 'all'
 };
 
 function handleHeroSearch() {
@@ -96,30 +98,106 @@ function handleHeroSearch() {
         return;
     }
     
-    const performSearch = () => {
+    const SEARCH_HISTORY_KEY = 'ys-search-history';
+    const SEARCH_HISTORY_MAX = 8;
+
+    function getSearchHistory() {
+        try {
+            const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) { return []; }
+    }
+    function saveSearchToHistory(term) {
+        if (!term || term.length < 2) return;
+        let arr = getSearchHistory();
+        arr = arr.filter(function (t) { return t !== term; });
+        arr.unshift(term);
+        arr = arr.slice(0, SEARCH_HISTORY_MAX);
+        try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(arr)); } catch (e) {}
+    }
+    function renderSearchHistory() {
+        const dropdown = document.getElementById('search-history-dropdown');
+        if (!dropdown) return;
+        const list = getSearchHistory();
+        if (list.length === 0) {
+            dropdown.style.display = 'none';
+            return;
+        }
+        dropdown.innerHTML = list.map(function (term) {
+            return '<button type="button" role="option" class="search-history-item" data-term="' + term.replace(/"/g, '&quot;') + '">' + term.replace(/</g, '&lt;') + '</button>';
+        }).join('');
+        dropdown.style.display = 'block';
+        dropdown.querySelectorAll('.search-history-item').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                searchInput.value = this.getAttribute('data-term') || '';
+                currentFilters.searchTerm = searchInput.value;
+                filterAndDisplayRestaurants();
+                dropdown.style.display = 'none';
+            });
+        });
+    }
+
+    const performSearch = function () {
         const searchTerm = searchInput.value.trim();
         currentFilters.searchTerm = searchTerm;
+        if (searchTerm) saveSearchToHistory(searchTerm);
         filterAndDisplayRestaurants();
+        document.getElementById('search-history-dropdown') && (document.getElementById('search-history-dropdown').style.display = 'none');
     };
-    
+
     searchButton.addEventListener('click', (e) => {
         e.preventDefault();
         performSearch();
     });
-    
     searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             performSearch();
         }
     });
-    
+    searchInput.addEventListener('focus', function () {
+        renderSearchHistory();
+    });
+    searchInput.addEventListener('blur', function () {
+        setTimeout(function () {
+            var d = document.getElementById('search-history-dropdown');
+            if (d) d.style.display = 'none';
+        }, 200);
+    });
     let searchTimeout;
     searchInput.addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             performSearch();
         }, 300);
+    });
+}
+
+function loadCouponSellerIds() {
+    var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+    return fetch(baseUrl + '/api/buyer/coupons/active', { credentials: 'include' })
+        .then(function(r) { return r.ok ? r.json() : { success: false }; })
+        .then(function(data) {
+            sellerIdsWithCoupons = new Set();
+            var list = (data && data.coupons) ? data.coupons : [];
+            list.forEach(function(c) {
+                var ids = c.applicableSellerIds || c.applicable_seller_ids || c.sellerIds;
+                if (Array.isArray(ids) && ids.length > 0) ids.forEach(function(id) { sellerIdsWithCoupons.add(parseInt(id, 10)); });
+                else allRestaurants.forEach(function(r) { sellerIdsWithCoupons.add(parseInt(r.id, 10)); });
+            });
+        })
+        .catch(function() {});
+}
+
+function applyQuickFilterButtons() {
+    document.querySelectorAll('.quick-filter-btn').forEach(function(btn) {
+        btn.classList.toggle('active', (btn.getAttribute('data-filter') || '') === currentFilters.quickFilter);
+        btn.onclick = function() {
+            currentFilters.quickFilter = btn.getAttribute('data-filter') || 'all';
+            document.querySelectorAll('.quick-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            filterAndDisplayRestaurants();
+        };
     });
 }
 
@@ -175,9 +253,12 @@ function initFilters() {
                 minRating: 0,
                 cuisines: [],
                 minOrderAmount: null,
-                location: ''
+                location: '',
+                quickFilter: 'all'
             };
-            
+            document.querySelectorAll('.quick-filter-btn').forEach(function(b) {
+                b.classList.toggle('active', (b.getAttribute('data-filter') || '') === 'all');
+            });
             filterAndDisplayRestaurants();
         });
     }
@@ -187,8 +268,32 @@ function filterAndDisplayRestaurants() {
     if (allRestaurants.length === 0) {
         return;
     }
+
+    let list = allRestaurants.slice();
+    var q = currentFilters.quickFilter || 'all';
+    if (q === 'discount' && sellerIdsWithCoupons.size > 0) {
+        list = list.filter(function(r) { return sellerIdsWithCoupons.has(parseInt(r.id, 10)); });
+    } else if (q === 'new') {
+        list.sort(function(a, b) {
+            var da = (a.created_at || a.createdAt) ? new Date(a.created_at || a.createdAt).getTime() : 0;
+            var db = (b.created_at || b.createdAt) ? new Date(b.created_at || b.createdAt).getTime() : 0;
+            return db - da;
+        });
+    } else if (q === 'top_rated') {
+        list.sort(function(a, b) {
+            var ra = parseFloat(a.rating) || 0;
+            var rb = parseFloat(b.rating) || 0;
+            if (rb !== ra) return rb - ra;
+            var ca = parseInt(a.review_count || a.reviewCount, 10) || 0;
+            var cb = parseInt(b.review_count || b.reviewCount, 10) || 0;
+            return cb - ca;
+        });
+    } else if (q === 'deals') {
+        list = list.filter(function(r) { return sellerIdsWithCoupons.has(parseInt(r.id, 10)); });
+        if (list.length === 0) list = allRestaurants.slice();
+    }
     
-    let filtered = allRestaurants.filter(restaurant => {
+    let filtered = list.filter(restaurant => {
         if (currentFilters.searchTerm) {
             const searchLower = currentFilters.searchTerm.toLowerCase();
             const nameMatch = (restaurant.name || '').toLowerCase().includes(searchLower);
@@ -242,13 +347,16 @@ function filterAndDisplayRestaurants() {
         return true;
     });
     
-    displayRestaurants(filtered);
+    var grid = document.querySelector('#restaurants-container') || document.querySelector('.featured-grid');
+    var prevCount = grid ? grid.querySelectorAll('.restaurant-card').length : 0;
+    var toShow = append && prevCount > 0 ? filtered.slice(prevCount) : filtered;
+    displayRestaurants(toShow, append);
     
     const resultsHeader = document.getElementById('results-header');
     const resultsCount = document.getElementById('results-count');
     if (resultsHeader && resultsCount) {
         if (currentFilters.searchTerm || currentFilters.minRating > 0 || currentFilters.cuisines.length > 0 || 
-            currentFilters.minOrderAmount !== null || currentFilters.location) {
+            currentFilters.minOrderAmount !== null || currentFilters.location || (currentFilters.quickFilter && currentFilters.quickFilter !== 'all')) {
             resultsHeader.style.display = 'flex';
             resultsCount.textContent = filtered.length;
         } else {
@@ -257,19 +365,16 @@ function filterAndDisplayRestaurants() {
     }
 }
 
-function displayRestaurants(sellers) {
+function displayRestaurants(sellers, append) {
     const featuredGrid = document.querySelector('#restaurants-container') || document.querySelector('.featured-grid');
-    if (!featuredGrid) {
-        console.warn('featured-grid bulunamadı');
+    if (!featuredGrid) return;
+    var sentinel = document.getElementById('home-lazy-sentinel');
+    if (sentinel && sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+    if (sellers.length === 0 && !append) {
+        featuredGrid.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="font-size: 1.2rem; color: #666;">Aradığınız kriterlere uygun restoran bulunamadı.</p></div>';
         return;
     }
-    
-    if (sellers.length === 0) {
-        featuredGrid.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="font-size: 1.2rem; color: #666; margin-bottom: 1rem;">Aradığınız kriterlere uygun restoran bulunamadı.</p><p style="color: #999;">Filtreleri değiştirerek tekrar deneyin.</p></div>';
-        return;
-    }
-    
-    featuredGrid.innerHTML = sellers.map(seller => {
+    var html = sellers.map(seller => {
         const safeName = (seller.name || 'Restoran')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -332,7 +437,7 @@ function displayRestaurants(sellers) {
         ` : '';
         
         return `
-            <div class="restaurant-card" data-seller-id="${seller.id}" style="cursor: pointer;">
+            <div class="restaurant-card" data-seller-id="${seller.id}" style="cursor: pointer;" role="article">
                 <div class="card-image-wrapper" style="position: relative; width: 100%; height: 220px; overflow: hidden; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                     ${heartBtn}
                     ${usePlaceholder ? `
@@ -377,6 +482,7 @@ function displayRestaurants(sellers) {
             </div>
         `;
     }).join('');
+    if (append) featuredGrid.insertAdjacentHTML('beforeend', html); else featuredGrid.innerHTML = html;
     
     setTimeout(function() {
         document.querySelectorAll('.restaurant-card').forEach(function(card) {

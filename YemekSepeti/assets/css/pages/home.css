@@ -164,6 +164,40 @@
     border-left: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+/* Arama geçmişi dropdown */
+.hero-search-with-history {
+    position: relative;
+}
+.search-history-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 100;
+}
+.search-history-item {
+    display: block;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    text-align: left;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--text-color);
+    transition: background 0.15s;
+}
+.search-history-item:hover {
+    background: var(--primary-color-lighter);
+}
+
 @media (max-width: 768px) {
     .hero-search {
         max-width: 100%;
@@ -522,5 +556,11 @@
         radial-gradient(circle at 10% 20%, rgba(220, 38, 38, 0.1) 0%, transparent 50%),
         radial-gradient(circle at 90% 80%, rgba(239, 68, 68, 0.1) 0%, transparent 50%);
     pointer-events: none;
+}
+
+.quick-filter-btn.active {
+    background: var(--primary-color, #e74c3c);
+    color: #fff;
+    border-color: var(--primary-color, #e74c3c);
 }
 

@@ -11,6 +11,7 @@ const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
 const { body, validationResult } = require('express-validator');
 const { authLimiter } = require('../../middleware/security');
+const { submitDocumentsJsonValidation, handleValidationErrors: handleValidate } = require('../../middleware/validate');
 
 // --- MULTER YAPILANDIRMASI (DOSYA YÜKLEME) ---
 const uploadDir = path.resolve(__dirname, '..', '..', 'public', 'uploads', 'merchants');
@@ -135,6 +136,9 @@ router.post("/login", authLimiter, [
         }
         req.session.user = userData;
         req.session.isAuthenticated = true;
+        if (req.body.remember_me) {
+            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 gün
+        }
         res.json({ success: true, user: userData, token });
     } catch (error) {
         res.status(500).json({ success: false, message: "Giriş hatası." });
@@ -328,7 +332,7 @@ function saveBase64ToFile(fieldName, dataUrlOrBase64, destDir) {
     return '/uploads/merchants/' + filename;
 }
 
-router.post("/submit-documents-json", async (req, res) => {
+router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValidate, async (req, res) => {
     try {
         if (!req.session || !req.session.user || !req.session.isAuthenticated) {
             return res.status(401).json({ success: false, message: "Oturum bulunamadı. Lütfen giriş yapın." });
@@ -469,8 +473,8 @@ router.delete("/delete-account", async (req, res) => {
         if (!sessionUser) {
             return res.status(401).json({ success: false, message: "Oturum bulunamadı." });
         }
-        if (sessionUser.role === 'admin') {
-            return res.status(403).json({ success: false, message: "Admin hesabı bu uç nokta ile silinemez." });
+        if (sessionUser.role === 'admin' || sessionUser.role === 'super_admin' || sessionUser.role === 'support') {
+            return res.status(403).json({ success: false, message: "Admin/destek hesabı bu uç nokta ile silinemez." });
         }
 
         const user = await User.findByPk(sessionUser.id);

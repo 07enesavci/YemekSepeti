@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="/assets/css/components.css">
     <link rel="stylesheet" href="/assets/css/responsive.css">
     <link rel="stylesheet" href="/assets/css/pages/floating-cart.css">
+    <link rel="manifest" href="/manifest.json">
     
     <% if (typeof pageCss !== 'undefined' && pageCss) { %>
         <link rel="stylesheet" href="/assets/css/pages/<%= pageCss %>">
@@ -59,6 +60,36 @@
         <script src="/assets/js/modules/<%= pageJs %>"></script>
     <% } %>
 
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(function() {});
+        }
+        window.addEventListener('online', function() {
+            var el = document.getElementById('offline-banner');
+            if (el) el.style.display = 'none';
+        });
+        window.addEventListener('offline', function() {
+            var el = document.getElementById('offline-banner');
+            if (el) { el.style.display = 'block'; } else {
+                var b = document.createElement('div');
+                b.id = 'offline-banner';
+                b.setAttribute('role', 'alert');
+                b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#e74c3c;color:#fff;text-align:center;padding:8px;z-index:99999;font-size:0.9rem;';
+                b.textContent = 'Çevrimdışısınız. İnternet bağlantınızı kontrol edin.';
+                document.body.appendChild(b);
+            }
+        });
+        if (!navigator.onLine) {
+            window.addEventListener('DOMContentLoaded', function() {
+                var b = document.createElement('div');
+                b.id = 'offline-banner';
+                b.setAttribute('role', 'alert');
+                b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#e74c3c;color:#fff;text-align:center;padding:8px;z-index:99999;font-size:0.9rem;';
+                b.textContent = 'Çevrimdışısınız. İnternet bağlantınızı kontrol edin.';
+                document.body.appendChild(b);
+            });
+        }
+    </script>
     <!-- Socket.IO Client Library - Real-time Order Updates -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>

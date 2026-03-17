@@ -618,8 +618,10 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	        });
 
     	 	 	        console.log('Sipariş oluşturuluyor...', { cart: cartForAPI, addressId, paymentMethod });
-    	 	 	                tamamlaBtn.textContent = 'İşleniyor...';
-                                        tamamlaBtn.disabled = true;
+    	 	 	        var tamamlaOriginalHtml = tamamlaBtn.innerHTML;
+    	 	 	        tamamlaBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span> İşleniyor...';
+    	 	 	        tamamlaBtn.disabled = true;
+    	 	 	        tamamlaBtn.setAttribute('aria-busy', 'true');
     	 	 	
             	 	 	if (typeof window.createOrder === 'function')
                                         {
@@ -647,17 +649,20 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	 	 	}
             	 	 	    } catch (err) {
             	 	 	        console.error('❌ Sipariş hatası:', err);
-            	 	 	        console.error('❌ Hata detayı:', err.stack);
-            	 	 	        alert('Sipariş sırasında bir hata oluştu: ' + (err.message || String(err)));
-    	 	 	 	 	 	tamamlaBtn.textContent = 'Siparişi Tamamla'; 
-                                                tamamlaBtn.disabled = false;
+            	 	 	        var msg = err && err.message ? err.message : String(err);
+            	 	 	        if (!msg || msg === '[object Object]') msg = 'Sipariş oluşturulurken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.';
+            	 	 	        alert('Sipariş sırasında bir hata oluştu: ' + msg);
+    	 	 	 	 	 	tamamlaBtn.innerHTML = typeof tamamlaOriginalHtml !== 'undefined' ? tamamlaOriginalHtml : 'Siparişi Tamamla';
+    	 	 	 	 	 	tamamlaBtn.disabled = false;
+    	 	 	 	 	 	tamamlaBtn.removeAttribute('aria-busy');
             	 	 	    }
     	 	 	                }
                                         else
                                         {
-    	 	 	 	        alert('Hata: api.js bulunamadı veya global createOrder fonksiyonu eksik.');
- 	 	 	 	            tamamlaBtn.textContent = 'Siparişi Tamamla'; 
+    	 	 	        alert('Hata: api.js bulunamadı veya global createOrder fonksiyonu eksik. Sayfayı yenileyip tekrar deneyin.');
+ 	 	 	 	            tamamlaBtn.innerHTML = typeof tamamlaOriginalHtml !== 'undefined' ? tamamlaOriginalHtml : 'Siparişi Tamamla';
  	 	 	 	            tamamlaBtn.disabled = false;
+ 	 	 	 	            tamamlaBtn.removeAttribute('aria-busy');
     	 	 	                }
     	 	});
     	}

@@ -1009,12 +1009,17 @@ router.get("/:id", requireAuth, async (req, res) => {
                     a.district,
                     a.city,
                     a.full_address,
-                    a.postal_code
+                    a.postal_code,
+                    a.latitude as address_latitude,
+                    a.longitude as address_longitude,
+                    ct.courier_latitude,
+                    ct.courier_longitude
                 FROM orders o
                 LEFT JOIN sellers s ON o.seller_id = s.id
                 LEFT JOIN users u ON o.user_id = u.id
                 LEFT JOIN users u_seller ON s.user_id = u_seller.id
                 LEFT JOIN addresses a ON o.address_id = a.id
+                LEFT JOIN courier_tasks ct ON ct.order_id = o.id
                 WHERE o.id = ?
             `;
 
@@ -1092,8 +1097,12 @@ router.get("/:id", requireAuth, async (req, res) => {
                     postalCode: order.postal_code,
                     full: order.full_address || (order.district && order.city 
                         ? `${order.district}, ${order.city} ${order.postal_code ? `(${order.postal_code})` : ''}`
-                        : 'Adres bilgisi yok')
+                        : 'Adres bilgisi yok'),
+                    latitude: order.address_latitude != null ? parseFloat(order.address_latitude) : null,
+                    longitude: order.address_longitude != null ? parseFloat(order.address_longitude) : null
                 },
+                courierLatitude: order.courier_latitude != null ? parseFloat(order.courier_latitude) : null,
+                courierLongitude: order.courier_longitude != null ? parseFloat(order.courier_longitude) : null,
                 items: (itemsRows || []).map(item => ({
                     id: item.id,
                     mealId: item.meal_id,

@@ -8,10 +8,10 @@
         
         <div class="seller-card-header">
             <h3 class="card-title"><%= seller.name %></h3>
-            <span class="seller-rating">
-                <span class="icon">⭐</span> <%= seller.rating %> 
-                <a href="/buyer/seller-profile/<%= seller.id %>?tab=reviews" class="rating-count" title="Yorumları Görmek İçin Tıklayınız">
-                    (<%= seller.reviewCount %>)
+            <span class="seller-rating" aria-label="Puan: <%= seller.rating %> yıldız, <%= (seller.reviewCount != null ? seller.reviewCount : seller.totalReviews) || 0 %> değerlendirme (tüm zamanlar)">
+                <span class="icon" aria-hidden="true">⭐</span> <%= seller.rating %> 
+                <a href="/buyer/seller-profile/<%= seller.id %>?tab=reviews" class="rating-count" title="Yorumları görmek için tıklayın">
+                    (<%= (seller.reviewCount != null ? seller.reviewCount : seller.totalReviews) || 0 %> değerlendirme)
                 </a>
             </span>
         </div>

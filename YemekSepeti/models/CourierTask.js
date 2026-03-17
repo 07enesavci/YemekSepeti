@@ -41,6 +41,14 @@ module.exports=(sequelize, DataTypes)=>{
         actual_payout: {
             type: DataTypes.DECIMAL(10, 2),
             allowNull: true
+        },
+        courier_latitude: {
+            type: DataTypes.DECIMAL(10, 7),
+            allowNull: true
+        },
+        courier_longitude: {
+            type: DataTypes.DECIMAL(11, 7),
+            allowNull: true
         }
     }, {
         tableName: 'courier_tasks',

@@ -851,10 +851,13 @@ async function loadAvailableCoupons() {
         
         if (applicableCoupons.length === 0) {
             couponsSection.style.display = 'none';
+            var reminder = document.getElementById('cart-coupon-reminder');
+            if (reminder) reminder.style.display = 'none';
             return;
         }
-        
         couponsSection.style.display = 'block';
+        var reminderEl = document.getElementById('cart-coupon-reminder');
+        if (reminderEl) reminderEl.style.display = 'block';
         couponsList.innerHTML = '';
         
         applicableCoupons.forEach(function(coupon) {

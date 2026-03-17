@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", function ()
 
             var email=document.getElementById("email").value.trim();
             var password=document.getElementById("password").value;
+            var rememberMe=document.getElementById("remember-me")?document.getElementById("remember-me").checked:false;
 
             if (!email || !password) 
             {
@@ -23,7 +24,7 @@ document.addEventListener("DOMContentLoaded", function ()
 
             try 
             {
-                var result=await window.loginUser(email, password);
+                var result=await window.loginUser(email, password, rememberMe);
                 if (result && result.success) 
                 {
                     if (result.requires2FA) 
@@ -51,7 +52,7 @@ document.addEventListener("DOMContentLoaded", function ()
                     {
                         baseUrl='';
                     }
-                    if (role === "admin") 
+                    if (role === "admin" || role === "super_admin" || role === "support") 
                     {
                         window.location.href=`${baseUrl}/admin/users`;
                     } 
@@ -273,7 +274,7 @@ document.addEventListener("DOMContentLoaded", function ()
                         return;
                     }
                     var role=result.user.role;
-                    if (role === "admin") window.location.href=baseUrl + "/admin/users";
+                    if (role === "admin" || role === "super_admin" || role === "support") window.location.href=baseUrl + "/admin/users";
                     else if (role === "buyer") window.location.href=baseUrl + "/";
                     else window.location.href=baseUrl + "/";
                 } 
@@ -349,7 +350,7 @@ document.addEventListener("DOMContentLoaded", function ()
                         baseUrl='';
                     }
                     
-                    if (role === "admin") 
+                    if (role === "admin" || role === "super_admin" || role === "support") 
                     {
                         window.location.href=`${baseUrl}/admin/users`;
                     } 

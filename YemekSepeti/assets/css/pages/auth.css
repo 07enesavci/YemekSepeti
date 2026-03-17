@@ -374,3 +374,107 @@
     align-items: flex-start;
     gap: 10px;
 }
+
+/* ==================================== */
+/* BELGE YÜKLEME SAYFASI (register-documents) - 2026
+-------------------------------------- */
+.auth-page-documents .auth-container-documents {
+    max-width: 640px;
+}
+.auth-card-documents {
+    max-width: 100%;
+    padding: 2rem 2.5rem;
+}
+.documents-page-header {
+    margin-bottom: 2rem;
+}
+.documents-page-icon {
+    font-size: 3rem;
+    text-align: center;
+    margin-bottom: 0.75rem;
+    opacity: 0.9;
+}
+.documents-hint {
+    font-size: 0.85rem;
+    color: var(--text-color-light);
+    margin-top: 0.5rem;
+    text-align: center;
+}
+.documents-form {
+    margin-top: 0.5rem;
+}
+.documents-grid {
+    display: grid;
+    gap: 1.25rem;
+}
+.documents-grid-seller {
+    grid-template-columns: repeat(2, 1fr);
+}
+.documents-grid-courier {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 480px;
+    margin: 0 auto;
+}
+.doc-upload-item {
+    min-height: 0;
+}
+.doc-upload-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 1rem;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--border-radius-medium);
+    background: var(--bg-color);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    position: relative;
+    min-height: 120px;
+}
+.doc-upload-box:hover {
+    border-color: var(--primary-color-light);
+    background: var(--primary-color-lighter);
+}
+.doc-upload-box input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    font-size: 0;
+}
+.doc-upload-icon {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+.doc-upload-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-color);
+    text-align: center;
+}
+.doc-upload-hint {
+    font-size: 0.8rem;
+    color: var(--text-color-light);
+    margin-top: 0.25rem;
+}
+.documents-submit-wrap {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+.btn-documents-submit {
+    padding: 1rem 2rem;
+    font-size: 1.05rem;
+}
+@media (max-width: 768px) {
+    .documents-grid-seller,
+    .documents-grid-courier {
+        grid-template-columns: 1fr;
+    }
+    .auth-card-documents {
+        padding: 1.5rem 1.25rem;
+    }
+}

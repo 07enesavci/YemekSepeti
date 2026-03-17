@@ -25,14 +25,14 @@ window.formatTL=function(amount) {
 };
 
 // Auth functions
-async function loginUser(email, password) {
+async function loginUser(email, password, rememberMe) {
     try 
     {
         const response=await fetch(`${API_BASE_URL}/api/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password, remember_me: !!rememberMe })
         });
         
         if (!response.ok) 
@@ -705,6 +705,26 @@ async function getCoupons()
     }
 }
 
+async function adminUpdateCoupon(couponId, couponData) 
+{
+    try 
+    {
+        const response=await fetch(`${API_BASE_URL}/api/admin/coupons/${couponId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            credentials: 'include',
+            body: JSON.stringify(couponData)
+        });
+        const data=await response.json();
+        if (!response.ok) return { success: false, message: data.message || 'Kupon güncellenemedi.' };
+        return { success: true, message: data.message || 'Kupon güncellendi.' };
+    } 
+    catch (error) 
+    {
+        return { success: false, message: 'Kupon güncellenirken hata oluştu.' };
+    }
+}
+
 async function adminDeleteCoupon(couponId) 
 {
     try 
@@ -745,6 +765,7 @@ window.adminSuspendUser=adminSuspendUser;
 window.adminDeleteUser=adminDeleteUser;
 window.getAllSellers=getAllSellers;
 window.adminAddCoupon=adminAddCoupon;
+window.adminUpdateCoupon=adminUpdateCoupon;
 window.getCoupons=getCoupons;
 window.adminDeleteCoupon=adminDeleteCoupon;
 

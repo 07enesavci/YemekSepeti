@@ -4,6 +4,7 @@ var kullaniciDondur = window.adminSuspendUser;
 var kullaniciSil = window.adminDeleteUser;
 var saticilariGetir = window.getAllSellers;
 var kuponEkle = window.adminAddCoupon;
+var kuponGuncelle = window.adminUpdateCoupon;
 var kuponlariGetir = window.getCoupons;
 var kuponSil = window.adminDeleteCoupon;
 
@@ -221,6 +222,8 @@ function saticilariYukleVeListele()
             html += '</div>';
         }
         listeElementi.innerHTML = html;
+        var editList = document.getElementById("edit-coupon-seller-list");
+        if (editList) editList.innerHTML = html.replace(/id="seller-/g, 'id="edit-seller-').replace(/for="seller-/g, 'for="edit-seller-');
     }).catch(hata => listeElementi.innerHTML = "<p style='color:red;'>Satıcılar yüklenemedi.</p>");
 }
 
@@ -328,7 +331,8 @@ function kuponlariYukleVeListele()
                 html+='<span>•</span><span>Geçerli: ' + gecerlilikTarihi + '</span>';
             }
             html+=   '</div>';
-            html +=   '<div class="coupon-actions" style="display: flex; justify-content: flex-end;">';
+            html +=   '<div class="coupon-actions" style="display: flex; justify-content: flex-end; gap: 0.5rem;">';
+            html +=     '<button type="button" class="btn btn-secondary btn-sm btn-edit-coupon" data-id="' + k.id + '" data-code="' + (k.code || '').replace(/"/g, '&quot;') + '" data-description="' + (k.description || '').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '" data-discount-type="' + (k.discountType || k.discount_type || 'fixed') + '" data-discount-value="' + (k.discountValue != null ? k.discountValue : k.discount_value) + '" data-min-order="' + (k.minOrderAmount != null ? k.minOrderAmount : k.min_order_amount) + '" data-max-discount="' + (k.maxDiscountAmount != null ? k.maxDiscountAmount : k.max_discount_amount || '') + '" data-seller-ids="' + (Array.isArray(k.sellerIds) ? k.sellerIds.join(',') : (Array.isArray(k.applicable_seller_ids) ? k.applicable_seller_ids.join(',') : '')) + '">Düzenle</button>';
             html +=     '<button class="btn btn-danger btn-sm btn-delete-coupon" data-id="' + k.id + '">Sil</button>';
             html +=   '</div>';
             html += '</div>';
@@ -474,6 +478,7 @@ function kuponListesiTiklamaIslemi(e)
 {
     var hedef=e.target;
     var silButonu=hedef.closest('.btn-delete-coupon');
+    var duzenleButonu=hedef.closest('.btn-edit-coupon');
     
     if (silButonu) 
     {
@@ -485,7 +490,64 @@ function kuponListesiTiklamaIslemi(e)
                 kuponlariYukleVeListele();
             });
         }
+        return;
     }
+    if (duzenleButonu) 
+    {
+        var id=duzenleButonu.getAttribute("data-id");
+        var code=duzenleButonu.getAttribute("data-code") || '';
+        var description=duzenleButonu.getAttribute("data-description") || '';
+        var discountType=duzenleButonu.getAttribute("data-discount-type") || 'fixed';
+        var discountValue=duzenleButonu.getAttribute("data-discount-value") || '0';
+        var minOrder=duzenleButonu.getAttribute("data-min-order") || '0';
+        var maxDiscount=duzenleButonu.getAttribute("data-max-discount") || '';
+        var sellerIdsStr=duzenleButonu.getAttribute("data-seller-ids") || '';
+        openCouponEditModal(id, { code: code, description: description, discountType: discountType, discountValue: discountValue, minOrderAmount: minOrder, maxDiscountAmount: maxDiscount, sellerIds: sellerIdsStr ? sellerIdsStr.split(',').map(function(x){ return parseInt(x,10); }).filter(function(x){ return !isNaN(x); }) : [] });
+    }
+}
+
+function openCouponEditModal(couponId, data) 
+{
+    var modal=document.getElementById("coupon-edit-modal");
+    if (!modal) return;
+    document.getElementById("edit-coupon-id").value=couponId;
+    document.getElementById("edit-coupon-code").value=data.code||'';
+    document.getElementById("edit-coupon-description").value=data.description||'';
+    document.getElementById("edit-coupon-discount-type").value=data.discountType||'fixed';
+    document.getElementById("edit-coupon-amount").value=data.discountValue||'';
+    document.getElementById("edit-coupon-min-order").value=data.minOrderAmount||'0';
+    document.getElementById("edit-coupon-max-discount").value=data.maxDiscountAmount||'';
+    var checkboxes=document.querySelectorAll("#coupon-edit-modal .seller-checkbox");
+    var ids=(data.sellerIds||[]).map(Number);
+    if (checkboxes.length) checkboxes.forEach(function(cb){ cb.checked=ids.indexOf(parseInt(cb.value,10))!==-1; });
+    modal.style.display="block";
+}
+
+function closeCouponEditModal() 
+{
+    var modal=document.getElementById("coupon-edit-modal");
+    if (modal) modal.style.display="none";
+}
+
+function kuponDuzenleIslemi(e) 
+{
+    e.preventDefault();
+    var id=document.getElementById("edit-coupon-id").value;
+    if (!id) return;
+    var code=document.getElementById("edit-coupon-code").value.trim();
+    var description=document.getElementById("edit-coupon-description").value.trim();
+    var discountType=document.getElementById("edit-coupon-discount-type").value;
+    var amount=parseFloat(document.getElementById("edit-coupon-amount").value);
+    var minOrder=parseFloat(document.getElementById("edit-coupon-min-order").value)||0;
+    var maxDiscountEl=document.getElementById("edit-coupon-max-discount");
+    var maxDiscount=maxDiscountEl&&maxDiscountEl.value?parseFloat(maxDiscountEl.value):null;
+    var sellerIds=[];
+    document.querySelectorAll("#coupon-edit-modal .seller-checkbox:checked").forEach(function(cb){ sellerIds.push(parseInt(cb.value,10)); });
+    if (!code||isNaN(amount)||amount<=0) { alert("Kupon kodu ve geçerli indirim değeri girin."); return; }
+    kuponGuncelle(id, { code: code, description: description||null, discountType: discountType, discountValue: amount, minOrderAmount: minOrder, maxDiscountAmount: maxDiscount, sellerIds: sellerIds }).then(function(res){
+        if (res.success) { alert(res.message); closeCouponEditModal(); kuponlariYukleVeListele(); }
+        else { alert(res.message||"Güncelleme başarısız."); }
+    });
 }
 
 document.addEventListener("DOMContentLoaded", function() 
@@ -519,6 +581,12 @@ document.addEventListener("DOMContentLoaded", function()
         { 
             kuponListesiKonteyneri.addEventListener("click", kuponListesiTiklamaIslemi);
         }
+        var couponEditForm = document.getElementById("coupon-edit-form");
+        var couponEditCancel = document.getElementById("coupon-edit-cancel");
+        var couponEditModal = document.getElementById("coupon-edit-modal");
+        if (couponEditForm) couponEditForm.addEventListener("submit", kuponDuzenleIslemi);
+        if (couponEditCancel) couponEditCancel.addEventListener("click", closeCouponEditModal);
+        if (couponEditModal) couponEditModal.addEventListener("click", function(e) { if (e.target === couponEditModal) closeCouponEditModal(); });
         if (discountTypeSelect && maxDiscountGroup) 
         {
             discountTypeSelect.addEventListener("change", function(e) 

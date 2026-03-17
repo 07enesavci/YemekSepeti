@@ -5,9 +5,10 @@
     <div class="hero-content container">
         <h1>Mahallenizdeki En Lezzetli Ev Yemekleri</h1>
         <p>Güvenilir aşçılardan, taze ve sağlıklı ev yemeklerini keşfedin.</p>
-        <div class="hero-search">
-            <input type="text" id="hero-search-input" class="form-input" placeholder="Yemek veya mutfak arayın...">
-            <button type="button" id="hero-search-button" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center;">Bul</button>
+        <div class="hero-search hero-search-with-history">
+            <input type="text" id="hero-search-input" class="form-input" placeholder="Yemek veya mutfak arayın..." autocomplete="off" aria-label="Yemek veya mutfak ara">
+            <button type="button" id="hero-search-button" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center;" aria-label="Ara">Bul</button>
+            <div id="search-history-dropdown" class="search-history-dropdown" role="listbox" aria-label="Son aramalar" style="display: none;"></div>
         </div>
     </div>
 </section>
@@ -54,9 +55,18 @@
         </div>
     </div>
     
-    <div style="text-align: center; margin-bottom: 3rem; color: var(--text-color);">
+    <div style="text-align: center; margin-bottom: 1rem; color: var(--text-color);">
         <h2 class="section-title">Tüm Restoranlar</h2>
         <p style="color: var(--text-color-light); font-size: 1rem;">Mahallenizdeki en lezzetli ev yemeklerini keşfedin</p>
+    </div>
+    
+    <!-- Hızlı Filtreler -->
+    <div class="quick-filters" style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 1.5rem;">
+        <button type="button" class="btn btn-secondary quick-filter-btn active" data-filter="all">Tümü</button>
+        <button type="button" class="btn btn-secondary quick-filter-btn" data-filter="deals">Fırsatlar</button>
+        <button type="button" class="btn btn-secondary quick-filter-btn" data-filter="new">Yeni restoranlar</button>
+        <button type="button" class="btn btn-secondary quick-filter-btn" data-filter="top_rated">En çok değerlendirilen</button>
+        <button type="button" class="btn btn-secondary quick-filter-btn" data-filter="discount">İndirimli restoranlar</button>
     </div>
     
     <!-- Filtreleme ve Restoranlar Layout -->

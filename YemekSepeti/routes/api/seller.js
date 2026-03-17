@@ -2,7 +2,10 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireSellerApproved } = require("../../middleware/auth");
-const { Seller, Meal } = require("../../models");
+const { Seller, Meal, UserFavoriteSeller, Order, sequelize } = require("../../models");
+const { Op } = require("sequelize");
+const Sequelize = require("sequelize");
+const { createNotification } = require("../../lib/notificationHelper");
 
 router.use(requireRole('seller'), requireSellerApproved);
 
@@ -108,6 +111,27 @@ router.post("/menu", async (req, res) => {
         );
 
         const insertId = (result && result.insertId != null) ? Number(result.insertId) : 0;
+
+        // Favori restoran bildirimi: Bu satıcıyı favorileyen kullanıcılara "yeni ürün" bildirimi gönder
+        try {
+            const favs = await UserFavoriteSeller.findAll({ where: { seller_id: shopId }, attributes: ['user_id'] });
+            const shop = await Seller.findByPk(shopId, { attributes: ['shop_name'] });
+            const shopName = (shop && shop.shop_name) ? shop.shop_name : 'Restoran';
+            const mealName = String(name).trim() || 'Yeni ürün';
+            for (const fav of favs) {
+                if (fav.user_id) {
+                    await createNotification(
+                        fav.user_id,
+                        'info',
+                        'Favori restoranınız yeni ürün ekledi',
+                        shopName + ' "' + mealName + '" ürününü menüsüne ekledi. Menüyü inceleyebilirsiniz.',
+                        shopId
+                    );
+                }
+            }
+        } catch (notifErr) {
+            console.error('Favori bildirimi hatası:', notifErr);
+        }
 
         res.status(201).json({
             success: true,
@@ -827,6 +851,73 @@ router.options("/profile", (req, res) => {
     res.header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.sendStatus(200);
+});
+
+// --- Raporlar: Günlük/haftalık satış özeti ---
+router.get("/reports/summary", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        const period = (req.query.period || '7').toLowerCase();
+        const days = period === '30' ? 30 : 7;
+        const since = new Date();
+        since.setDate(since.getDate() - days);
+        const orders = await Order.findAll({
+            where: { seller_id: seller.id, created_at: { [Op.gte]: since }, status: { [Op.not]: 'cancelled' } },
+            attributes: ['id', 'total_amount', 'created_at']
+        });
+        const totalAmount = orders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+        res.json({
+            success: true,
+            summary: { orderCount: orders.length, totalAmount: Math.round(totalAmount * 100) / 100, days }
+        });
+    } catch (e) {
+        console.error('Reports summary error:', e);
+        res.status(500).json({ success: false, message: "Rapor yüklenemedi." });
+    }
+});
+
+// --- Stok uyarısı: Düşük stoklu ürünler (stock_quantity >= 0 ve < eşik) ---
+router.get("/reports/low-stock", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        const threshold = Math.max(0, parseInt(req.query.threshold, 10) || 5);
+        const meals = await Meal.findAll({
+            where: {
+                seller_id: seller.id,
+                stock_quantity: { [Op.gte]: 0, [Op.lt]: threshold }
+            },
+            attributes: ['id', 'name', 'stock_quantity', 'price']
+        });
+        res.json({ success: true, meals: meals.map(m => ({ id: m.id, name: m.name, stockQuantity: m.stock_quantity, price: m.price })) });
+    } catch (e) {
+        res.status(500).json({ success: false, message: "Stok listesi alınamadı." });
+    }
+});
+
+// --- Toplu fiyat güncelleme: Tüm menüye yüzde artış/indirim ---
+router.post("/menu/bulk-price", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        const percent = parseFloat(req.body.percent);
+        if (typeof percent !== 'number' || isNaN(percent) || percent < -50 || percent > 100) {
+            return res.status(400).json({ success: false, message: "Yüzde -50 ile 100 arasında olmalı (örn: 10 = %%10 artış)." });
+        }
+        const multiplier = 1 + percent / 100;
+        const [updatedCount] = await Meal.update(
+            { price: Sequelize.literal('price * ' + multiplier) },
+            { where: { seller_id: seller.id } }
+        );
+        res.json({ success: true, message: "Fiyatlar güncellendi.", percent, updatedCount });
+    } catch (e) {
+        console.error('Bulk price error:', e);
+        res.status(500).json({ success: false, message: "Toplu fiyat güncellenemedi." });
+    }
 });
 
 module.exports = router;

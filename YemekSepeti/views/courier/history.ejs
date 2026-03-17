@@ -34,3 +34,24 @@
 
     </main>
 </div>
+
+<!-- Sipariş detay modal -->
+<div id="courier-order-detail-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 520px;">
+        <div class="card">
+            <div class="card-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 class="checkout-card-title" id="courier-detail-modal-title">Sipariş Detayı</h3>
+                    <button type="button" class="btn btn-secondary btn-sm" id="courier-detail-modal-close">Kapat</button>
+                </div>
+                <div id="courier-detail-modal-body">
+                    <p class="text-muted">Yükleniyor...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.modal-overlay .modal-content { width: 100%; max-height: 90vh; overflow-y: auto; }
+</style>

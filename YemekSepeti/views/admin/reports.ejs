@@ -39,12 +39,25 @@
                         <span class="reports-stat-label">Aktif Kurye</span>
                         <span id="stat-couriers" class="reports-stat-value">0</span>
                     </div>
+                    <div class="reports-stat-card">
+                        <span class="reports-stat-label">Toplam Kullanıcı</span>
+                        <span id="stat-users" class="reports-stat-value">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card reports-card" style="margin-top: 1.5rem;">
+            <div class="card-content">
+                <h3 class="checkout-card-title">Son 7 Gün – Sipariş & Ciro</h3>
+                <div style="position: relative; height: 280px;">
+                    <canvas id="reports-chart"></canvas>
                 </div>
             </div>
         </div>
     </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 (function() {
     const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
@@ -74,6 +87,7 @@
                 set('stat-revenue', s.totalRevenue != null ? Number(s.totalRevenue).toFixed(2) : '0');
                 set('stat-sellers', s.activeSellers != null ? s.activeSellers : 0);
                 set('stat-couriers', s.activeCouriers != null ? s.activeCouriers : 0);
+                set('stat-users', s.totalUsers != null ? s.totalUsers : 0);
             } else {
                 errorEl.style.display = 'block';
                 errorEl.textContent = data.message || 'Rapor yüklenemedi.';
@@ -85,7 +99,41 @@
             errorEl.textContent = 'Rapor yüklenirken bağlantı hatası oluştu.';
         }
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load);
-    else load();
+    async function loadChart() {
+        const canvas = document.getElementById('reports-chart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        try {
+            const res = await fetch(baseUrl + '/api/admin/reports/chart', { credentials: 'include', headers: authHeaders() });
+            const data = await res.json();
+            if (!data.success || !data.chart || !data.chart.length) return;
+            const labels = data.chart.map(function(d) { return d.label; });
+            const ordersData = data.chart.map(function(d) { return d.orders; });
+            const revenueData = data.chart.map(function(d) { return d.revenue; });
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Sipariş sayısı', data: ordersData, backgroundColor: 'rgba(231, 76, 60, 0.7)', yAxisID: 'y' },
+                        { label: 'Ciro (TL)', data: revenueData, backgroundColor: 'rgba(46, 204, 113, 0.7)', yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', position: 'left', beginAtZero: true },
+                        y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        } catch (e) {}
+    }
+    function loadAll() {
+        load();
+        loadChart();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadAll);
+    else loadAll();
 })();
 </script>

@@ -1,6 +1,13 @@
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 
+/**
+ * SQL injection önlemi: Uygulama Sequelize ORM kullanıyor; ham SQL yazılacaksa
+ * mutlaka parametre binding kullanın: sequelize.query(sql, { replacements: { id: req.params.id } })
+ * veya Model.findByPk(id) / Model.findOne({ where: { id } }) kullanın.
+ * Kullanıcı girişi (req.body, req.query, req.params) doğrulama için express-validator kullanılıyor.
+ */
+
 // Production'da kritik env değişkenlerini kontrol et
 function requireEnv(req, res, next) {
     if (process.env.NODE_ENV !== 'production') return next();

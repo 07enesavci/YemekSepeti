@@ -1,4 +1,6 @@
 <link rel="stylesheet" href="/assets/css/pages/order-confirmation.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <div class="container section-padding">
     <div class="order-confirmation-wrapper">
@@ -54,6 +56,19 @@
                             <span>Sipariş Tarihi</span>
                         </div>
                         <div class="info-value" id="order-date">-</div>
+                    </div>
+
+                    <div class="order-status-steps" id="order-status-steps" style="display: none; margin-top: 1.5rem; padding: 1rem; background: var(--bg-accent, #f8f9fa); border-radius: 8px;">
+                        <h3 class="section-title" style="font-size: 1rem; margin-bottom: 0.75rem;">Sipariş Takibi</h3>
+                        <p class="status-current-text" id="status-current-text" style="font-weight: 600; margin-bottom: 0.75rem; color: var(--primary, #e74c3c);"></p>
+                        <div class="status-steps-bar" role="status" aria-live="polite">
+                            <div class="status-step" id="step-received"><span class="step-dot"></span><span>Sipariş alındı</span></div>
+                            <div class="status-step" id="step-preparing"><span class="step-dot"></span><span>Hazırlanıyor</span></div>
+                            <div class="status-step" id="step-ondelivery"><span class="step-dot"></span><span>Yolda</span></div>
+                            <div class="status-step" id="step-delivered"><span class="step-dot"></span><span>Teslim edildi</span></div>
+                        </div>
+                        <p class="status-cancelled-msg" id="status-cancelled-msg" style="display: none; color: #dc3545; margin-top: 0.5rem;">Sipariş iptal edildi.</p>
+                        <div id="order-tracking-map" style="display: none; margin-top: 1rem; height: 260px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color, #eee);"></div>
                     </div>
                     </div>
                 </div>
@@ -155,6 +170,79 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         if (dateEl) {
             dateEl.textContent = order.date || new Date().toLocaleString('tr-TR');
+        }
+
+        // Sipariş takibi: durum adımlarını vurgula ve "Şu an" metni
+        var statusStepsEl = document.getElementById('order-status-steps');
+        var statusCurrentText = document.getElementById('status-current-text');
+        var statusLabels = { pending: 'Sipariş alındı', confirmed: 'Hazırlanıyor', preparing: 'Hazırlanıyor', ready: 'Hazırlanıyor', on_delivery: 'Yolda', delivered: 'Teslim edildi', cancelled: 'İptal edildi' };
+        if (statusStepsEl && order.status) {
+            statusStepsEl.style.display = 'block';
+            var status = (order.status || '').toLowerCase();
+            if (statusCurrentText) statusCurrentText.textContent = 'Şu an: ' + (statusLabels[status] || order.status || 'Bekleniyor');
+            var cancelledMsg = document.getElementById('status-cancelled-msg');
+            if (status === 'cancelled') {
+                if (cancelledMsg) cancelledMsg.style.display = 'block';
+            } else {
+                if (cancelledMsg) cancelledMsg.style.display = 'none';
+                var stepIds = ['step-received', 'step-preparing', 'step-ondelivery', 'step-delivered'];
+                var idx = 0;
+                if (status === 'confirmed' || status === 'preparing' || status === 'ready') idx = 1;
+                else if (status === 'on_delivery') idx = 2;
+                else if (status === 'delivered') idx = 3;
+                for (var s = 0; s < stepIds.length; s++) {
+                    var stepEl = document.getElementById(stepIds[s]);
+                    if (stepEl) {
+                        stepEl.classList.remove('active', 'done');
+                        if (s < idx) stepEl.classList.add('done');
+                        else if (s === idx) stepEl.classList.add('active');
+                    }
+                }
+            }
+        }
+
+        // Harita: teslimat adresi ve varsa kurye anlık konumu
+        var mapDiv = document.getElementById('order-tracking-map');
+        var addressLat = order.address && order.address.latitude != null ? parseFloat(order.address.latitude) : null;
+        var addressLng = order.address && order.address.longitude != null ? parseFloat(order.address.longitude) : null;
+        var courierLat = order.courierLatitude != null ? parseFloat(order.courierLatitude) : null;
+        var courierLng = order.courierLongitude != null ? parseFloat(order.courierLongitude) : null;
+        var showMap = (addressLat != null && addressLng != null) || (courierLat != null && courierLng != null);
+        if (mapDiv && showMap && typeof L !== 'undefined') {
+            mapDiv.style.display = 'block';
+            var center = [addressLat || courierLat, addressLng || courierLng].filter(function(x) { return x != null; });
+            if (center.length >= 2) {
+                var map = L.map('order-tracking-map').setView(center, 14);
+                window._orderTrackingMap = map;
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM', maxZoom: 19 }).addTo(map);
+                if (addressLat != null && addressLng != null) L.marker([addressLat, addressLng]).addTo(map).bindPopup('Teslimat adresi');
+                if (courierLat != null && courierLng != null) {
+                    window._orderTrackingMarker = L.marker([courierLat, courierLng], { icon: L.divIcon({ className: 'courier-live-marker', html: '<div style="background:#2563EB;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;">🛵</div>', iconSize: [28,28], iconAnchor: [14,14] }) }).addTo(map).bindPopup('Kurye konumu');
+                }
+                setTimeout(function() { map.invalidateSize(); }, 300);
+            }
+        }
+        if (order.status === 'on_delivery' && orderId) {
+            window._orderTrackingOrderId = orderId;
+            window._orderTrackingPoll = setInterval(async function() {
+                if (!window._orderTrackingOrderId) return;
+                try {
+                    var r = await fetch((window.getBaseUrl ? window.getBaseUrl() : '') + '/api/orders/' + window._orderTrackingOrderId, { credentials: 'include' });
+                    if (!r.ok) return;
+                    var d = await r.json();
+                    if (!d.success || !d.data) return;
+                    var o = d.data;
+                    if (o.status !== 'on_delivery' && o.status !== 'delivered') return;
+                    var clat = o.courierLatitude != null ? parseFloat(o.courierLatitude) : null;
+                    var clng = o.courierLongitude != null ? parseFloat(o.courierLongitude) : null;
+                    if (clat != null && clng != null && window._orderTrackingMap) {
+                        if (window._orderTrackingMarker) window._orderTrackingMarker.setLatLng([clat, clng]);
+                        else {
+                            window._orderTrackingMarker = L.marker([clat, clng], { icon: L.divIcon({ className: 'courier-live-marker', html: '<div style="background:#2563EB;color:#fff;border-radius:50%;width:28px;height:28px;">🛵</div>', iconSize: [28,28], iconAnchor: [14,14] }) }).addTo(window._orderTrackingMap).bindPopup('Kurye konumu');
+                        }
+                    }
+                } catch (e) {}
+            }, 15000);
         }
         
     } catch (error) {

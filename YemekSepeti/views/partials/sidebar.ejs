@@ -1,7 +1,7 @@
 <div class="panel-sidebar">
     
     <div class="panel-logo">
-        <% if (user && user.role === 'admin') { %>
+        <% if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
             <a href="/admin/users">Admin Paneli</a>
         <% } else if (user && user.role === 'courier') { %>
             <% const courierId = user.courierId || user.id; %>
@@ -77,7 +77,7 @@
                     </a>
                 </li>
 
-            <% } else if (user && user.role === 'admin') { %>
+            <% } else if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
                 <li>
                     <a href="/admin/users" class="<%= title === 'Kullanıcı Yönetimi' ? 'active' : '' %>">
                         <span>👥</span> Kullanıcı Yönetimi

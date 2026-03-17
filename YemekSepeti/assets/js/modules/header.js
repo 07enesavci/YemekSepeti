@@ -219,10 +219,32 @@ async function updateHeader() {
         if (logoutBtnParent) {
             logoutBtnParent.style.display = '';
         }
+        if (user.role === 'buyer' && user.id) {
+            const wrap = document.getElementById('header-active-order-wrap');
+            const link = document.getElementById('header-active-order-link');
+            if (wrap && link) {
+                try {
+                    const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                    const res = await fetch(`${baseUrl}/api/orders/active/${user.id}`, { credentials: 'include' });
+                    const data = await res.json().catch(() => ({}));
+                    if (data.success && data.data && data.data.length > 0) {
+                        const first = data.data[0];
+                        link.href = baseUrl + '/buyer/order-confirmation/' + first.id;
+                        wrap.style.display = '';
+                    } else {
+                        wrap.style.display = 'none';
+                    }
+                } catch (e) {
+                    wrap.style.display = 'none';
+                }
+            }
+        }
     } else {
         if (logoutBtnParent) {
             logoutBtnParent.style.display = 'none';
         }
+        const wrap = document.getElementById('header-active-order-wrap');
+        if (wrap) wrap.style.display = 'none';
     }
 }
 
