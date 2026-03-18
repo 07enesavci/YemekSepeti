@@ -684,7 +684,7 @@ async function connectCourierSocket() {
             reconnectionAttempts: 5
         });
 
-        courierSocket.on('courier_task_assigned', (payload) => {
+        courierSocket.on('courier_task_assigned', async (payload) => {
             lastRenderedActiveTaskKey = null;
             lastRenderedDashboardMode = null;
             const path = window.location.pathname || '';
@@ -697,7 +697,9 @@ async function connectCourierSocket() {
             }
             playCourierTaskSound();
             const taskId = payload && payload.taskId ? payload.taskId : null;
-            if (taskId && window.confirm('Yeni bir teslimat görevi atandı. Bu görevi kabul etmek istiyor musunuz?')) {
+            
+            const isConfirmed = taskId && await window.showConfirm('Yeni bir teslimat görevi atandı. Bu görevi kabul etmek istiyor musunuz?');
+            if (isConfirmed) {
                 acceptAssignedTask(taskId);
             } else if (taskId) {
                 rejectAssignedTask(taskId);

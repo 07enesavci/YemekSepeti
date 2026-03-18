@@ -136,7 +136,8 @@
     }
 
     async function approve(id) {
-        if(!confirm('Bu mağazayı onaylayarak satış yapmasına izin vermek istiyor musunuz?')) return;
+        var confirmed = await window.showConfirm('Bu mağazayı onaylayarak satış yapmasına izin vermek istiyor musunuz?');
+        if(!confirmed) return;
 
         try {
             const res = await fetch(baseUrl + '/api/admin/approve-seller/' + id, { method: 'POST', credentials: 'include' });
@@ -154,7 +155,8 @@
     }
 
     async function reject(id) {
-        if(!confirm('Bu satıcı başvurusunu reddetmek ve kaydı silmek istediğinize emin misiniz?')) return;
+        var confirmed = await window.showConfirm('Bu satıcı başvurusunu reddetmek ve kaydı silmek istediğinize emin misiniz?');
+        if(!confirmed) return;
 
         try {
             const res = await fetch(baseUrl + '/api/admin/reject-seller/' + id, { method: 'POST', credentials: 'include' });

@@ -86,7 +86,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? 'İki faktörlü kimlik doğrulamayı açmak istediğinize emin misiniz? Giriş yaparken email adresinize kod gönderilecektir.'
                 : 'İki faktörlü kimlik doğrulamayı kapatmak istediğinize emin misiniz?';
             
-            if (!confirm(confirmMessage)) {
+            const isConfirmed = await window.showConfirm(confirmMessage);
+            if (!isConfirmed) {
                 e.target.checked = originalChecked;
                 return;
             }
@@ -95,14 +96,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const response = await BUYER_API.toggle2FA(enabled);
                 if (response.success) {
                     twoFactorStatusText.textContent = enabled ? '✅ Açık' : '❌ Kapalı';
-                    alert(response.message || `2FA ${enabled ? 'açıldı' : 'kapatıldı'}.`);
+                    window.showAlert(response.message || `2FA ${enabled ? 'açıldı' : 'kapatıldı'}.`);
                 } else {
                     e.target.checked = originalChecked;
-                    alert(response.message || '2FA ayarı değiştirilemedi.');
+                    window.showAlert(response.message || '2FA ayarı değiştirilemedi.');
                 }
             } catch (error) {
                 e.target.checked = originalChecked;
-                alert('2FA ayarı değiştirilemedi: ' + error.message);
+                window.showAlert('2FA ayarı değiştirilemedi: ' + error.message);
             }
         });
     }

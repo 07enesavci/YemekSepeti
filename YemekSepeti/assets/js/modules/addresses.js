@@ -437,7 +437,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            if (!confirm('Bu adresi silmek istediğinizden emin misiniz?')) {
+            const isConfirmed = await window.showConfirm('Bu adresi silmek istediğinizden emin misiniz?');
+            if (!isConfirmed) {
                 return;
             }
 

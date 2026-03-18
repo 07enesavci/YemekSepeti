@@ -113,7 +113,8 @@ function openDocModalById(id) {
     openDocModal(id);
 }
 async function doApprove(id) {
-    if (!confirm('Bu kuryeyi onaylamak istiyor musunuz?')) return;
+    var confirmed = await window.showConfirm('Bu kuryeyi onaylamak istiyor musunuz?');
+    if (!confirmed) return;
     try {
         var res = await fetch(baseUrl + '/api/admin/approve-courier/' + id, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
         var data = await res.json().catch(function() { return { success: false, message: 'Yanıt okunamadı.' }; });
@@ -121,7 +122,8 @@ async function doApprove(id) {
     } catch (e) { alert('Sunucu hatası: ' + (e.message || '')); }
 }
 async function doReject(id) {
-    if (!confirm('Bu kurye başvurusunu reddetmek istediğinize emin misiniz?')) return;
+    var confirmed = await window.showConfirm('Bu kurye başvurusunu reddetmek istediğinize emin misiniz?');
+    if (!confirmed) return;
     try {
         var res = await fetch(baseUrl + '/api/admin/reject-courier/' + id, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
         var data = await res.json().catch(function() { return { success: false, message: 'Yanıt okunamadı.' }; });

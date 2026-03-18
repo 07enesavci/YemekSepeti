@@ -177,7 +177,8 @@ async function logout() {
 }
 
 async function deleteMyAccount() {
-    if (!window.confirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+    const isConfirmed = await window.showConfirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.');
+    if (!isConfirmed) {
         return;
     }
     try {

@@ -338,7 +338,8 @@ async function handleOrderAction(e, orderId, actionType) {
 
     switch (actionType) {
         case 'iptal':
-            if (confirm(`Sipariş #${orderId} iptal edilsin mi?`)) {
+            const isConfirmed = await window.showConfirm(`Sipariş #${orderId} iptal edilsin mi?`);
+            if (isConfirmed) {
                 // Butonu devre dışı bırak
                 const cancelBtn = e.target;
                 if (cancelBtn) {

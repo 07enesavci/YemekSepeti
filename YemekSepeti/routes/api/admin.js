@@ -38,7 +38,7 @@ router.get("/users", async (req, res) => {
 
         const users = await User.findAll({
             where: {
-                role: { [Op.in]: ['seller', 'courier'] }
+                role: { [Op.in]: ['seller', 'courier', 'user', 'buyer'] }
             },
             attributes: ['id', 'fullname', 'email', 'role', 'is_active', 'created_at'],
             order: [['created_at', 'DESC']]
@@ -111,6 +111,15 @@ router.post("/users", async (req, res) => {
                 user_id: newUserId,
                 shop_name: `${fullname}'nın Mutfağı`,
                 location: 'İstanbul',
+                is_active: true
+            });
+        }
+        else if (role === 'courier')
+        {
+            await Courier.create({
+                user_id: newUserId,
+                vehicle_type: 'Motosiklet',
+                plate_number: '34 XYZ 123',
                 is_active: true
             });
         }

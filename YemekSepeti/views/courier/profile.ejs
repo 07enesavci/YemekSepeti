@@ -71,8 +71,9 @@
 </div>
 <script>
 (function() {
-    function doDeleteAccount() {
-        if (!window.confirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
+    async function doDeleteAccount() {
+        var confirmed = await window.showConfirm('Hesabınızı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.');
+        if (!confirmed) return;
         var baseUrl = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '') || '';
         fetch(baseUrl + '/api/auth/delete-account', { method: 'DELETE', credentials: 'include' })
             .then(function(r) { return r.json().catch(function() { return {}; }).then(function(data) {

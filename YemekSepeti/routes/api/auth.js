@@ -482,13 +482,8 @@ router.delete("/delete-account", async (req, res) => {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
 
-        const timestamp = Date.now();
-        const deletedEmail = `deleted+${user.id}+${timestamp}@example.local`;
-
-        await user.update({
-            is_active: false,
-            email: deletedEmail
-        });
+        // Kullanıcıyı tamamen sil
+        await user.destroy();
 
         req.session.destroy(() => {});
         res.clearCookie('connect.sid');
@@ -496,7 +491,7 @@ router.delete("/delete-account", async (req, res) => {
 
         return res.json({
             success: true,
-            message: "Hesabınız silindi ve oturumunuz kapatıldı."
+            message: "Hesabınız tamamen silindi ve oturumunuz kapatıldı."
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: "Hesap silinirken bir hata oluştu." });

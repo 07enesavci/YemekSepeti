@@ -11,7 +11,7 @@
 
         <div class="card" style="margin-bottom: 2rem;">
             <div class="card-content">
-                <h3 class="checkout-card-title">Yeni Kullanıcı Ekle (Satıcı/Kurye)</h3>
+                <h3 class="checkout-card-title">Yeni Kullanıcı Ekle</h3>
                 <form id="add-user-form" class="admin-form">
                     <div class="form-group">
                         <label for="new-fullname" class="form-label">Ad Soyad</label>
@@ -28,6 +28,7 @@
                     <div class="form-group">
                         <label for="new-role" class="form-label">Rol</label>
                         <select id="new-role" class="form-input">
+                            <option value="buyer">Müşteri</option>
                             <option value="seller">Satıcı</option>
                             <option value="courier">Kurye</option>
                         </select>
@@ -39,7 +40,12 @@
 
         <div class="card">
             <div class="card-content">
-                <h3 class="checkout-card-title">Mevcut Satıcı ve Kuryeler</h3>
+                <h3 class="checkout-card-title">Kullanıcı Listesi</h3>
+                <div class="admin-tabs" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color, #e0e0e0); padding-bottom: 1rem;">
+                    <button class="btn btn-primary tab-btn" data-role="buyer" style="padding: 0.5rem 1.5rem;">Müşteriler</button>
+                    <button class="btn btn-secondary tab-btn" data-role="seller" style="padding: 0.5rem 1.5rem;">Satıcılar</button>
+                    <button class="btn btn-secondary tab-btn" data-role="courier" style="padding: 0.5rem 1.5rem;">Kuryeler</button>
+                </div>
                 <div id="user-list" class="admin-list">
                     </div>
             </div>

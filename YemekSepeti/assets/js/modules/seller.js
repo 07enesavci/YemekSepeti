@@ -179,7 +179,8 @@ function attachMenuEventListeners() {
         document.querySelectorAll('.delete-meal-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const mealId = parseInt(e.target.getAttribute('data-meal-id'));
-            if (!confirm('Bu yemeği silmek istediğinize emin misiniz?')) return;
+            const isConfirmed = await window.showConfirm('Bu yemeği silmek istediğinize emin misiniz?');
+            if (!isConfirmed) return;
 
             try {
                 await deleteMeal(mealId);
@@ -536,7 +537,8 @@ function attachOrderEventListeners() {
     document.querySelectorAll('.reject-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
-            if (!confirm('Bu siparişi reddetmek istediğinize emin misiniz?')) return;
+            const isConfirmed = await window.showConfirm('Bu siparişi reddetmek istediğinize emin misiniz?');
+            if (!isConfirmed) return;
             
             try {
                 await updateOrderStatus(orderId, 'cancelled');
@@ -1021,7 +1023,8 @@ async function loadProfilePage() {
         
         if (removeLogoBtn) {
             removeLogoBtn.addEventListener('click', async () => {
-                if (!confirm('Logoyu kaldırmak istediğinize emin misiniz?')) {
+                const isConfirmed = await window.showConfirm('Logoyu kaldırmak istediğinize emin misiniz?');
+                if (!isConfirmed) {
                     return;
                 }
                 
@@ -1050,7 +1053,8 @@ async function loadProfilePage() {
         // Banner kaldırma butonu
         if (removeBannerBtn) {
             removeBannerBtn.addEventListener('click', async () => {
-                if (!confirm('Banner\'ı kaldırmak istediğinize emin misiniz?')) {
+                const isConfirmed = await window.showConfirm('Banner\'ı kaldırmak istediğinize emin misiniz?');
+                if (!isConfirmed) {
                     return;
                 }
                 
@@ -1227,7 +1231,8 @@ function initializeCouponsPage() {
         container.addEventListener('click', async (e) => {
             if (e.target.classList.contains('delete-coupon-btn')) {
                 const couponId = e.target.getAttribute('data-id');
-                if (confirm('Bu kuponu silmek istediğinize emin misiniz?')) {
+                const isConfirmed = await window.showConfirm('Bu kuponu silmek istediğinize emin misiniz?');
+                if (isConfirmed) {
                     const btn = e.target;
                     try {
                         btn.disabled = true;

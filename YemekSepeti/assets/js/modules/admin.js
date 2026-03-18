@@ -8,6 +8,9 @@ var kuponGuncelle = window.adminUpdateCoupon;
 var kuponlariGetir = window.getCoupons;
 var kuponSil = window.adminDeleteCoupon;
 
+var currentRoleFilter = 'buyer';
+var tumKullanicilar = [];
+
 function yeniId() 
 {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -27,22 +30,26 @@ function kullanicilariYukleVeListele()
     console.log('API çağrısı yapılıyor...');
     kullanicilariGetir()
         .then(kullanicilar => {
-            var uzunluk;
-            if (kullanicilar && kullanicilar.length) 
-            {
-                uzunluk=kullanicilar.length;
-            } 
-            else 
-            {
-                uzunluk=0;
-            }
-            console.log('API çağrısı başarılı, kullanıcı sayısı:', uzunluk);
-            kullaniciListesiniCiz(kullanicilar);
+            tumKullanicilar = kullanicilar || [];
+            console.log('API çağrısı başarılı, toplam kullanıcı sayısı:', tumKullanicilar.length);
+            listeyiFiltreleVeCiz();
         })
         .catch(hata => {
             console.error("Kullanıcılar yüklenemedi:", hata);
             console.error("Hata detayı:", hata.message, hata.stack);
         });
+}
+
+function listeyiFiltreleVeCiz() 
+{
+    var filtrelenmis = tumKullanicilar.filter(function(k) {
+        if (currentRoleFilter === 'buyer') {
+            return k.role === 'user' || k.role === 'buyer' || !k.role;
+        }
+        return k.role === currentRoleFilter;
+    });
+
+    kullaniciListesiniCiz(filtrelenmis);
 }
 
 function kullaniciListesiniCiz(kullanicilar) 
@@ -119,10 +126,10 @@ function kullaniciSatiriOlustur(kullanici)
         durumSinifi='active';
     }
     
-    var rolYazi = (kullanici.role === 'seller') ? 'Satıcı' : (kullanici.role === 'courier') ? 'Kurye' : (kullanici.role || '');
+    var rolYazi = (kullanici.role === 'seller') ? 'Satıcı' : (kullanici.role === 'courier') ? 'Kurye' : 'Müşteri';
     itemDiv.innerHTML = `
         <div class="user-info">
-            <strong>${kullanici.fullname || '-'}</strong>
+            <strong>${kullanici.fullname || kullanici.name || '-'}</strong>
             <span>${kullanici.email || ''} – ${rolYazi}</span>
         </div>
         <div class="user-status">
@@ -161,18 +168,18 @@ function kullaniciEkleIslemi(e)
     {
         if(response.success === false) 
         {
-             alert("Hata: " + response.message);
+             window.showAlert("Hata: " + response.message);
         } 
         else 
         {
-             alert("Kullanıcı başarıyla eklendi!");
+             window.showAlert("Kullanıcı başarıyla eklendi!");
              kullanicilariYukleVeListele(); 
              document.getElementById("add-user-form")?.reset();
         }
-    }).catch(hata => alert("Bir hata oluştu: " + hata.message));
+    }).catch(hata => window.showAlert("Bir hata oluştu: " + hata.message));
 }
 
-function kullaniciListesiTiklamaIslemi(e) 
+async function kullaniciListesiTiklamaIslemi(e) 
 {
     var hedef=e.target;   
     if (hedef.classList.contains('btn-suspend')) 
@@ -182,8 +189,8 @@ function kullaniciListesiTiklamaIslemi(e)
     }
     if (hedef.classList.contains('btn-delete')) 
     {
-        if (confirm("Bu kullanıcıyı silmek istediğinizden emin misiniz?")) 
-        {
+        const result = await window.showConfirm("Bu kullanıcıyı silmek istediğinizden emin misiniz?");
+        if (result) {
             kullaniciSil(hedef.dataset.id).then(kullanicilariYukleVeListele);
         }
     }
@@ -354,7 +361,7 @@ function tumSaticilariSecIslemi(e)
     }
 }
 
-function kuponEkleIslemi(e) 
+async function kuponEkleIslemi(e) 
 {
     e.preventDefault();
     var kod=document.getElementById("coupon-code").value.trim();
@@ -417,7 +424,8 @@ function kuponEkleIslemi(e)
         }
         if (secilenIdler.length === 0) 
         {
-            if(!confirm("Hiçbir satıcı seçmediniz. Bu kupon TÜM satıcılarda geçerli olsun mu?")) 
+            const isConfirmed = await window.showConfirm("Hiçbir satıcı seçmediniz. Bu kupon TÜM satıcılarda geçerli olsun mu?");
+            if(!isConfirmed) 
             {
                  return;
             }
@@ -466,33 +474,33 @@ function kuponEkleIslemi(e)
                 kutular[k].checked=false;
             }
             kuponlariYukleVeListele();
-        } 
-        else 
+        }
+        else
         {
-            alert("Hata: " + res.message);
+            window.showAlert("Hata: " + res.message);
         }
     });
 }
 
-function kuponListesiTiklamaIslemi(e) 
+async function kuponListesiTiklamaIslemi(e)
 {
     var hedef=e.target;
     var silButonu=hedef.closest('.btn-delete-coupon');
     var duzenleButonu=hedef.closest('.btn-edit-coupon');
-    
-    if (silButonu) 
+
+    if (silButonu)
     {
         var id=silButonu.getAttribute("data-id");
-        if (confirm("Bu kuponu silmek istediğinizden emin misiniz?")) 
-        {
-            kuponSil(id).then(function() 
+        const isConfirmed = await window.showConfirm("Bu kuponu silmek istediğinizden emin misiniz?");
+        if (isConfirmed) {
+            kuponSil(id).then(function()
             {
                 kuponlariYukleVeListele();
             });
         }
         return;
     }
-    if (duzenleButonu) 
+    if (duzenleButonu)
     {
         var id=duzenleButonu.getAttribute("data-id");
         var code=duzenleButonu.getAttribute("data-code") || '';
@@ -506,7 +514,7 @@ function kuponListesiTiklamaIslemi(e)
     }
 }
 
-function openCouponEditModal(couponId, data) 
+function openCouponEditModal(couponId, data)
 {
     var modal=document.getElementById("coupon-edit-modal");
     if (!modal) return;
@@ -523,13 +531,13 @@ function openCouponEditModal(couponId, data)
     modal.style.display="block";
 }
 
-function closeCouponEditModal() 
+function closeCouponEditModal()
 {
     var modal=document.getElementById("coupon-edit-modal");
     if (modal) modal.style.display="none";
 }
 
-function kuponDuzenleIslemi(e) 
+function kuponDuzenleIslemi(e)
 {
     e.preventDefault();
     var id=document.getElementById("edit-coupon-id").value;
@@ -543,15 +551,15 @@ function kuponDuzenleIslemi(e)
     var maxDiscount=maxDiscountEl&&maxDiscountEl.value?parseFloat(maxDiscountEl.value):null;
     var sellerIds=[];
     document.querySelectorAll("#coupon-edit-modal .seller-checkbox:checked").forEach(function(cb){ sellerIds.push(parseInt(cb.value,10)); });
-    if (!code||isNaN(amount)||amount<=0) { alert("Kupon kodu ve geçerli indirim değeri girin."); return; }
+    if (!code||isNaN(amount)||amount<=0) { window.showAlert("Kupon kodu ve geçerli indirim değeri girin."); return; }
     kuponGuncelle(id, { code: code, description: description||null, discountType: discountType, discountValue: amount, minOrderAmount: minOrder, maxDiscountAmount: maxDiscount, sellerIds: sellerIds }).then(function(res){
-        if (res.success) { alert(res.message); closeCouponEditModal(); kuponlariYukleVeListele(); }
-        else { alert(res.message||"Güncelleme başarısız."); }
+        if (res.success) { window.showAlert(res.message); closeCouponEditModal(); kuponlariYukleVeListele(); }
+        else { window.showAlert(res.message||"Güncelleme başarısız."); }
     });
 }
 
-document.addEventListener("DOMContentLoaded", function() 
-{      
+document.addEventListener("DOMContentLoaded", function()
+{
     var kullaniciListesiSayfasi=document.getElementById("user-list");
     var kullaniciEkleFormu=document.getElementById("add-user-form");
     var kuponFormuSayfasi=document.getElementById("coupon-form");
@@ -565,6 +573,25 @@ document.addEventListener("DOMContentLoaded", function()
         kullanicilariYukleVeListele();
         if(kullaniciEkleFormu) kullaniciEkleFormu.addEventListener("submit", kullaniciEkleIslemi);
         kullaniciListesiSayfasi.addEventListener("click", kullaniciListesiTiklamaIslemi);
+        
+        var tabler = document.querySelectorAll(".admin-tabs .tab-btn");
+        if (tabler && tabler.length > 0) {
+            tabler.forEach(function(tabBtn) {
+                tabBtn.addEventListener("click", function(e) {
+                    var hedefRole = e.target.getAttribute("data-role");
+                    if(hedefRole) {
+                        currentRoleFilter = hedefRole;
+                        tabler.forEach(function(btn) {
+                            btn.classList.remove("btn-primary");
+                            btn.classList.add("btn-secondary");
+                        });
+                        e.target.classList.remove("btn-secondary");
+                        e.target.classList.add("btn-primary");
+                        listeyiFiltreleVeCiz();
+                    }
+                });
+            });
+        }
     }
     
     if (kuponFormuSayfasi) 
