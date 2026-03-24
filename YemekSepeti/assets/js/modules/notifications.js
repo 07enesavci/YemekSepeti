@@ -138,7 +138,10 @@
         });
         document.addEventListener('click', closeDropdown);
         if (typeof io !== 'undefined') {
-            const socket = io(window.location.origin, { query: { userId: window.__userId || '', role: window.__userRole || '' } });
+            const socket = (typeof window.createAppSocket === 'function'
+                ? window.createAppSocket({ query: { userId: window.__userId || '', role: window.__userRole || '' } })
+                : io(window.location.origin, { query: { userId: window.__userId || '', role: window.__userRole || '' } }));
+            if (!socket) return;
             socket.on('notification', function() {
                 updateUnreadBadge();
             });

@@ -12,6 +12,26 @@ window.getApiBaseUrl=function() {
     return window.getBaseUrl();
 };
 
+window.getSocketBaseUrl=function() {
+    const apiBase = window.getApiBaseUrl ? window.getApiBaseUrl() : '';
+    if (apiBase && String(apiBase).trim() !== '') return apiBase;
+    return window.location.origin || '';
+};
+
+window.createAppSocket=function(socketOptions) {
+    if (typeof io === 'undefined') return null;
+    const defaults = {
+        path: '/socket.io',
+        withCredentials: true,
+        transports: ['polling'],
+        upgrade: false,
+        reconnection: true
+    };
+    const mergedOptions = Object.assign({}, defaults, socketOptions || {});
+    const socketBaseUrl = window.getSocketBaseUrl ? window.getSocketBaseUrl() : '';
+    return io(socketBaseUrl, mergedOptions);
+};
+
 const API_BASE_URL=window.getApiBaseUrl();
 
 // Utılıty function

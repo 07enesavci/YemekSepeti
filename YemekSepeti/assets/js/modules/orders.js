@@ -705,12 +705,20 @@ function initializeBuyerOrderUpdates() {
             .then(function(data) {
                 if (!data.success || !data.user || !data.user.id) return;
                 var userId = data.user.id;
-                window.buyerOrderSocket = io({
+                window.buyerOrderSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
                     query: { userId: String(userId), role: 'buyer' },
                     reconnection: true,
                     reconnectionDelay: 1000,
-                    transports: ['websocket', 'polling']
-                });
+                    transports: ['polling'],
+                    upgrade: false
+                }) : io({
+                    query: { userId: String(userId), role: 'buyer' },
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    transports: ['polling'],
+                    upgrade: false
+                }));
+                if (!window.buyerOrderSocket) return;
                 window.buyerOrderSocket.on('connect', function() {
                     console.log('Alıcı Socket.IO bağlandı - sipariş güncellemeleri açık.');
                 });

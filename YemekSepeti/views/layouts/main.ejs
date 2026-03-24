@@ -48,6 +48,7 @@
 
     <%- include('../partials/footer') %>
 
+<<<<<<< Updated upstream
     <script src="/assets/js/modules/modal-utils.js"></script>
     <script src="/assets/js/api.js"></script>
     <script src="/assets/js/main.js"></script>
@@ -56,14 +57,26 @@
     <script src="/assets/js/modules/cart.js"></script>
     <script src="/assets/js/modules/floating-cart.js"></script>
     <script src="/assets/js/modules/scroll-to-top.js"></script>
+=======
+    <script src="/assets/js/modules/modal-utils.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/api.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/main.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/modules/header.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/modules/notifications.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/modules/cart.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/modules/floating-cart.js?v=20260324-rtfix3"></script>
+    <script src="/assets/js/modules/scroll-to-top.js?v=20260324-rtfix3"></script>
+>>>>>>> Stashed changes
 
     <% if (typeof pageJs !== 'undefined' && pageJs) { %>
-        <script src="/assets/js/modules/<%= pageJs %>"></script>
+        <script src="/assets/js/modules/<%= pageJs %>?v=20260324-rtfix3"></script>
     <% } %>
 
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(function() {});
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                registrations.forEach(function(reg) { reg.unregister(); });
+            }).catch(function() {});
         }
         (function(){ var m=document.getElementById('app-manifest'); if(m){ m.onerror=function(){ m.remove(); }; } })();
         window.addEventListener('online', function() {
@@ -94,6 +107,15 @@
     </script>
     <!-- Socket.IO Client Library - Real-time Order Updates -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        (function ensureSocketIoClientLoaded() {
+            if (typeof window.io !== 'undefined') return;
+            var script = document.createElement('script');
+            script.src = '/socket.io/socket.io.js';
+            script.async = true;
+            document.head.appendChild(script);
+        })();
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (window.location.pathname.includes('/seller') && typeof initializeSellerRealTimeUpdates === 'function') {

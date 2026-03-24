@@ -676,14 +676,27 @@ async function connectCourierSocket() {
     if (!userId) return;
 
     try {
-        courierSocket = io({
+        courierSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
             query: { userId, role: 'courier' },
-            transports: ['websocket', 'polling'],
+            transports: ['polling'],
+            upgrade: false,
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5
-        });
+        }) : io({
+            query: { userId, role: 'courier' },
+            transports: ['polling'],
+            upgrade: false,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionAttempts: 5
+        }));
 
+<<<<<<< Updated upstream
+=======
+        if (!courierSocket) return;
+
+>>>>>>> Stashed changes
         courierSocket.on('courier_task_assigned', async (payload) => {
             lastRenderedActiveTaskKey = null;
             lastRenderedDashboardMode = null;
@@ -697,6 +710,7 @@ async function connectCourierSocket() {
             }
             playCourierTaskSound();
             const taskId = payload && payload.taskId ? payload.taskId : null;
+<<<<<<< Updated upstream
             
             const isConfirmed = taskId && await window.showConfirm('Yeni bir teslimat görevi atandı. Bu görevi kabul etmek istiyor musunuz?');
             if (isConfirmed) {
@@ -704,7 +718,19 @@ async function connectCourierSocket() {
             } else if (taskId) {
                 rejectAssignedTask(taskId);
             } else {
+=======
+
+            if (!taskId) {
+>>>>>>> Stashed changes
                 displayMessage('🆕 Yeni görev atandı! Panel güncellendi.', 'success');
+                return;
+            }
+
+            const confirmed = await askCourierTaskApproval(taskId);
+            if (confirmed === true) {
+                await acceptAssignedTask(taskId);
+            } else if (confirmed === false) {
+                await rejectAssignedTask(taskId);
             }
         });
 
@@ -718,6 +744,21 @@ async function connectCourierSocket() {
         });
     } catch (e) {
         courierSocket = null;
+    }
+}
+
+async function askCourierTaskApproval(taskId) {
+    const question = `Yeni bir teslimat görevi atandı (#${taskId}). Bu görevi kabul etmek istiyor musunuz?`;
+    try {
+        if (typeof window.showConfirm === 'function') {
+            return await window.showConfirm(question);
+        }
+    } catch (e) {}
+
+    try {
+        return window.confirm(question);
+    } catch (e) {
+        return null;
     }
 }
 
@@ -739,25 +780,23 @@ function clearCourierAutoRefresh() {
 function setupCourierAutoRefresh(mode) {
     clearCourierAutoRefresh();
 
-    // POLiNG (Sürekli yenileme) KALDIRILDI
-    // Sayfa zaten Socket.IO ('courier_task_assigned' vs.) eventlerine bağlı olduğu için, 
-    // her 3 saniyede birDOM'u tamamen silip yeniden oluşturmak kullanıcı etkileşimini (harita açma, butona basma) bozuyordu.
-    
-    /*
+    // Socket koparsa F5 gerekmesin diye düşük frekanslı fallback senkronizasyon.
+    const refreshMs = Math.max(COURIER_AUTO_REFRESH_MS, 10000);
+
     if (mode === 'dashboard') {
         courierDashboardRefreshInterval = setInterval(() => {
             if (document.hidden) return;
             loadActiveTasks();
-        }, COURIER_AUTO_REFRESH_MS);
+            loadCourierStatusIndicator();
+        }, refreshMs);
     }
 
     if (mode === 'available') {
         courierAvailableRefreshInterval = setInterval(() => {
             if (document.hidden) return;
             loadAvailableOrders();
-        }, COURIER_AUTO_REFRESH_MS);
+        }, refreshMs);
     }
-    */
 }
 
 function playCourierTaskSound() {
@@ -787,6 +826,7 @@ async function acceptAssignedTask(taskId) {
         }
         displayMessage('✅ Görev kabul edildi.', 'success');
         loadActiveTasks();
+        loadAvailableOrders();
     } catch (error) {
         displayMessage('❌ Görev kabul edilirken hata oluştu.', 'error');
     }
@@ -807,6 +847,7 @@ async function rejectAssignedTask(taskId) {
         }
         displayMessage(data.message || 'Görev reddedildi.', 'success');
         loadActiveTasks();
+        loadAvailableOrders();
     } catch (error) {
         displayMessage('❌ Görev reddedilirken hata oluştu.', 'error');
     }

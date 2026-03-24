@@ -531,11 +531,11 @@ function attachOrderEventListeners() {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
             try {
                 await updateOrderStatus(orderId, 'preparing');
-                alert('Sipariş onaylandı ve hazırlamaya başlandı.');
+                showSellerActionNotification('success', 'Sipariş Onaylandı', '#' + orderId + ' hazırlanmaya alındı.');
                 await loadOrdersForTab('new');
                 await loadOrdersForTab('preparing');
             } catch (error) {
-                alert('Hata: ' + error.message);
+                showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Sipariş güncellenemedi.');
             }
         });
     });
@@ -548,10 +548,10 @@ function attachOrderEventListeners() {
             
             try {
                 await updateOrderStatus(orderId, 'cancelled');
-                alert('Sipariş reddedildi.');
+                showSellerActionNotification('error', 'Sipariş Reddedildi', '#' + orderId + ' numaralı sipariş reddedildi.');
                 await loadOrdersForTab('new');
             } catch (error) {
-                alert('Hata: ' + error.message);
+                showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Sipariş reddedilemedi.');
             }
         });
     });
@@ -561,10 +561,10 @@ function attachOrderEventListeners() {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
             try {
                 await updateOrderStatus(orderId, 'ready');
-                alert('Kuryeye hazır olduğu bildirildi.');
+                showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
                 await loadOrdersForTab('preparing');
             } catch (error) {
-                alert('Hata: ' + error.message);
+                showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
         });
     });
@@ -590,17 +590,54 @@ function attachOrderEventListeners() {
                 }
                 
                 const data = await response.json();
-                alert(data.message || 'Sipariş kuryeye atandı.');
+                showSellerActionNotification('success', 'Kurye Atandı', data.message || ('#' + orderId + ' kuryeye atandı.'));
                 
                 // Siparişleri yenile
                 await loadOrdersForTab('preparing');
             } catch (error) {
-                alert('Hata: ' + error.message);
+                showSellerActionNotification('error', 'Kurye Atama Hatası', error.message || 'Kurye atanamadı.');
                 button.disabled = false;
                 button.textContent = 'Kuryeye Bildir';
             }
         });
     });
+}
+
+function showSellerActionNotification(type, title, message) {
+    const isError = type === 'error';
+    const bg = isError ? '#E53935' : '#2E7D32';
+    const icon = isError ? '⚠️' : '✅';
+    const toast = document.createElement('div');
+    toast.className = 'seller-action-toast';
+    toast.style.cssText = [
+        'position:fixed',
+        'top:20px',
+        'right:20px',
+        'z-index:10001',
+        'background:' + bg,
+        'color:#fff',
+        'padding:14px 18px',
+        'border-radius:10px',
+        'box-shadow:0 8px 24px rgba(0,0,0,0.24)',
+        'min-width:300px',
+        'max-width:420px',
+        'font-weight:500',
+        'animation:slideIn 0.25s ease-out'
+    ].join(';');
+    toast.innerHTML = '<div style="display:flex; gap:10px; align-items:flex-start;">' +
+        '<span style="font-size:18px; line-height:1;">' + icon + '</span>' +
+        '<div><strong style="display:block; margin-bottom:2px;">' + (title || 'Bildirim') + '</strong>' +
+        '<span style="font-size:13px;">' + (message || '') + '</span></div>' +
+        '</div>';
+    document.body.appendChild(toast);
+
+    // Dikkat çekici ses: başarılı işlemde kısa zil, hata/rette alarm tonu
+    playOrderSound(isError ? 'cancel' : 'new');
+
+    setTimeout(function() {
+        toast.style.animation = 'slideOut 0.25s ease-in';
+        setTimeout(function() { toast.remove(); }, 250);
+    }, 4500);
 }
 
 function initializeOrdersPage() {
@@ -1356,6 +1393,9 @@ if (document.readyState === 'loading') {
 
 async function initializeSellerPages() {
     const path = window.location.pathname;
+    if (path.includes('/seller/')) {
+        startSellerAutoSyncFallback();
+    }
     
     let sellerId = getSellerIdFromUrl();
     
@@ -1435,6 +1475,11 @@ async function initializeSellerPages() {
 // ========== REAL-TIME SİPARİŞ TESLİMATI (SOCKET.IO) ==========
 function initializeSellerRealTimeUpdates() {
     if (!window.location.pathname.includes('/seller')) return;
+    startSellerAutoSyncFallback();
+    // Production proxy/WebSocket sorunlarında ana akış polling fallback ile ilerler.
+    // Socket bağlantısı opsiyoneldir; gerektiğinde tekrar açılabilir.
+    const ENABLE_SELLER_SOCKET = false;
+    if (!ENABLE_SELLER_SOCKET) return;
     
     // Socket.IO client library'yi bekle
     let retries = 0;
@@ -1453,19 +1498,81 @@ function initializeSellerRealTimeUpdates() {
     }, 100);
 }
 
+let sellerAutoSyncInterval = null;
+let sellerKnownPendingOrderIds = new Set();
+let sellerAutoSyncInitialized = false;
+
+function normalizeSellerOrderForNotification(order) {
+    if (!order) return null;
+    return {
+        id: order.id,
+        orderNumber: order.orderNumber || order.order_number || ('#' + (order.id || '')),
+        buyerName: order.customer || order.buyerName || 'Müşteri',
+        totalAmount: (order.total != null ? order.total : (order.totalAmount != null ? order.totalAmount : 0))
+    };
+}
+
+async function runSellerAutoSync() {
+    if (!window.location.pathname.includes('/seller')) return;
+    if (document.hidden) return;
+
+    try {
+        const pendingOrders = await fetchSellerOrders('pending');
+        const latestIds = new Set((pendingOrders || []).map(function(order) { return Number(order.id); }).filter(Boolean));
+
+        if (!sellerAutoSyncInitialized) {
+            sellerKnownPendingOrderIds = latestIds;
+            sellerAutoSyncInitialized = true;
+        } else {
+            (pendingOrders || []).forEach(function(order) {
+                const id = Number(order.id);
+                if (!id) return;
+                if (!sellerKnownPendingOrderIds.has(id)) {
+                    const orderData = normalizeSellerOrderForNotification(order);
+                    if (orderData) showOrderNotification(orderData);
+                }
+            });
+            sellerKnownPendingOrderIds = latestIds;
+        }
+
+        const isOrdersPage = document.querySelector('.tabs') !== null;
+        const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
+        const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
+
+        if (isDashboardPage) {
+            await loadDashboardPage();
+        } else if (isEarningsPage) {
+            await loadRecentOrdersForPanel();
+        } else if (isOrdersPage) {
+            const tabContent = document.querySelector('.tab-content');
+            if (tabContent) {
+                tabContent.innerHTML = '';
+                if (pendingOrders.length > 0) {
+                    pendingOrders.forEach(function(order) {
+                        tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
+                    });
+                    attachOrderEventListeners();
+                } else {
+                    tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş yok</p>';
+                }
+            }
+        }
+    } catch (error) {}
+}
+
+function startSellerAutoSyncFallback() {
+    if (sellerAutoSyncInterval) return;
+    runSellerAutoSync().catch(function() {});
+    sellerAutoSyncInterval = setInterval(function() {
+        runSellerAutoSync().catch(function() {});
+    }, 3000);
+}
+
 async function resolveSellerUserId() {
-    const directUserId = window.currentUserId ||
-        (window.sessionStorage && window.sessionStorage.getItem('userId')) ||
-        document.querySelector('[data-user-id]')?.dataset.userId;
-
-    if (directUserId && directUserId !== 'unknown') {
-        return String(directUserId);
-    }
-
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
         const response = await fetch(`${baseUrl}/api/auth/me`, { credentials: 'include' });
-        if (!response.ok) return null;
+        if (!response.ok) throw new Error('auth me failed');
         const data = await response.json();
         const fallbackUserId = data?.user?.id;
         if (fallbackUserId) {
@@ -1476,6 +1583,14 @@ async function resolveSellerUserId() {
             return String(fallbackUserId);
         }
     } catch (error) {}
+
+    const directUserId = window.currentUserId ||
+        (window.sessionStorage && window.sessionStorage.getItem('userId')) ||
+        document.querySelector('[data-user-id]')?.dataset.userId;
+
+    if (directUserId && directUserId !== 'unknown') {
+        return String(directUserId);
+    }
 
     return null;
 }
@@ -1496,14 +1611,28 @@ async function connectSellerSocket() {
             return;
         }
         
-        window.sellerSocket = io({
+        window.sellerSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
             query: { userId },
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             reconnectionAttempts: 5,
-            transports: ['websocket', 'polling']
-        });
+            transports: ['polling'],
+            upgrade: false
+        }) : io({
+            query: { userId },
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5,
+            transports: ['polling'],
+            upgrade: false
+        }));
+
+        if (!window.sellerSocket) {
+            console.error('Socket.IO başlatılamadı (client hazır değil)');
+            return;
+        }
 
         window.sellerSocket.on('connect', () => {
             console.log('Socket.IO bağlantısı kuruldu');
@@ -1723,6 +1852,12 @@ function showCancelNotification(orderData, cancelledBy) {
 
 function playOrderSound(type) {
     try {
+        if (!notificationAudioUnlocked) {
+            pendingSoundType = type;
+            attachAudioUnlockListeners();
+            playSpeechFallback(type);
+            return;
+        }
         const context = getNotificationAudioContext();
         if (!context) {
             playSpeechFallback(type);

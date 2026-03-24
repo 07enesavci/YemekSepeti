@@ -246,9 +246,26 @@ try {
         }
     });
 
-    // Satıcı/Kurye onay durumunu her istekte güncelle (onaylandıktan/reddedildikten sonra header doğru görünsün)
+    // Satıcı/Kurye onay durumunu güncelle.
+    // Not: statik dosya ve socket isteklerinde DB sorgusu çalıştırma; aksi halde bağlantı havuzu dolup
+    // JS/CSS dosyaları 500 dönebilir ve panelde canlı güncelleme bozulur.
     app.use(async (req, res, next) => {
         try {
+            const p = req.path || '';
+            const isStaticOrSocketRequest =
+                p.startsWith('/assets') ||
+                p.startsWith('/public') ||
+                p.startsWith('/uploads') ||
+                p.startsWith('/socket.io') ||
+                p === '/manifest.json' ||
+                p === '/sw.js' ||
+                p === '/favicon.ico';
+            if (isStaticOrSocketRequest) return next();
+
+            const accept = (req.headers && req.headers.accept) ? String(req.headers.accept) : '';
+            const isLikelyHtmlPage = accept.includes('text/html');
+            if (!isLikelyHtmlPage && !p.startsWith('/api/')) return next();
+
             const user = res.locals.user;
             if (user && user.role === 'seller' && user.sellerId) {
                 const { Seller } = require('./models');
@@ -541,10 +558,11 @@ try {
     const server = http.createServer(app);
     global.io = new SocketIOServer(server, {
         cors: {
-            origin: "*",
+            origin: true,
+            credentials: true,
             methods: ["GET", "POST"]
         },
-        transports: ['websocket', 'polling']
+        transports: ['polling', 'websocket']
     });
 
     // Socket.IO connection handling
