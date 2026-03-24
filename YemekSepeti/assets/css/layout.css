@@ -393,6 +393,11 @@
     box-shadow: 0 16px 34px rgba(0,0,0,0.16);
     padding: 8px;
     z-index: 1200;
+    display: none !important;
+}
+
+.header-user-menu-wrap.open .header-user-menu-dropdown {
+    display: block !important;
 }
 
 .header-user-menu-item {

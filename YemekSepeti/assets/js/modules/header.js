@@ -302,22 +302,30 @@ function initMobileMenu() {
 function initUserMenuDropdown() {
     const toggleBtn = document.getElementById('header-user-menu-toggle');
     const dropdown = document.getElementById('header-user-menu-dropdown');
-    if (!toggleBtn || !dropdown) return;
+    const wrap = toggleBtn ? toggleBtn.closest('.header-user-menu-wrap') : null;
+    if (!toggleBtn || !dropdown || !wrap) return;
+    wrap.classList.remove('open');
+    toggleBtn.setAttribute('aria-expanded', 'false');
 
     toggleBtn.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        const isOpen = dropdown.style.display === 'block';
-        dropdown.style.display = isOpen ? 'none' : 'block';
+        const isOpen = wrap.classList.contains('open');
+        wrap.classList.toggle('open', !isOpen);
         toggleBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
     });
 
     document.addEventListener('click', function(e) {
         const insideMenu = e.target.closest('.header-user-menu-wrap');
         if (!insideMenu) {
-            dropdown.style.display = 'none';
+            wrap.classList.remove('open');
             toggleBtn.setAttribute('aria-expanded', 'false');
         }
+    });
+
+    window.addEventListener('pageshow', function() {
+        wrap.classList.remove('open');
+        toggleBtn.setAttribute('aria-expanded', 'false');
     });
 }
 

@@ -266,17 +266,6 @@ router.put("/tasks/:id/pickup", async (req, res) => {
             { where: { order_id: orderId, courier_id: courierId } }
         );
 
-        await Order.update(
-            { status: 'on_delivery' },
-            {
-                where: {
-                    id: orderId,
-                    courier_id: courierId,
-                    status: { [Op.notIn]: ['delivered', 'cancelled'] }
-                }
-            }
-        );
-
         res.json({ success: true, message: 'Sipariş başarıyla alındı olarak işaretlendi.' });
     } catch (error) {
         console.error('PICKUP HATA:', error);
@@ -328,7 +317,7 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
 
         const task = await CourierTask.findOne({
             where: { id: taskId, courier_id: courierId },
-            attributes: ['id', 'order_id', 'status']
+            attributes: ['id', 'status']
         });
         if (!task) return res.status(404).json({ success: false, message: "Görev bulunamadı." });
 
@@ -340,28 +329,6 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
             { status: 'on_way' },
             { where: { id: taskId, courier_id: courierId } }
         );
-
-        await Order.update(
-            { status: 'on_delivery', courier_id: courierId },
-            {
-                where: {
-                    id: task.order_id,
-                    courier_id: courierId,
-                    status: { [Op.notIn]: ['delivered', 'cancelled'] }
-                }
-            }
-        );
-
-        const orderInfo = await Order.findByPk(task.order_id, { attributes: ['id', 'user_id'] });
-        if (orderInfo && orderInfo.user_id) {
-            createNotification(
-                orderInfo.user_id,
-                'order',
-                'Sipariş yolda',
-                'Siparişiniz kurye tarafından teslim alınmak üzere yola çıktı.',
-                orderInfo.id
-            ).catch(() => {});
-        }
 
         return res.json({ success: true, message: "Görev kabul edildi." });
     } catch (error) {

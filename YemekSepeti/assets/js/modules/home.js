@@ -213,6 +213,17 @@ function applyQuickFilterButtons() {
     });
 }
 
+function applyQuickFilterFromUrl() {
+    try {
+        var params = new URLSearchParams(window.location.search || '');
+        var qf = (params.get('quickFilter') || '').trim();
+        if (!qf) return;
+        var allowed = ['all', 'discount', 'new', 'top_rated', 'deals'];
+        if (allowed.indexOf(qf) === -1) return;
+        currentFilters.quickFilter = qf;
+    } catch (e) {}
+}
+
 function initFilters() {
     document.querySelectorAll('.filter-rating').forEach(checkbox => {
         checkbox.addEventListener('change', () => {
@@ -592,19 +603,13 @@ async function loadPromotions() {
         }).join('');
         
         track.querySelectorAll('.promotion-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                const couponCode = item.getAttribute('data-coupon-code');
-                if (couponCode) {
-                    navigator.clipboard.writeText(couponCode).then(() => {
-                        alert(`Kupon kodu kopyalandı: ${couponCode}\nSepet sayfasında kullanabilirsiniz!`);
-                        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                        window.location.href = `${baseUrl}/buyer/cart`;
-                    }).catch(() => {
-                        alert(`Kupon kodu: ${couponCode}\nSepet sayfasında kullanabilirsiniz!`);
-                        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                        window.location.href = `${baseUrl}/buyer/cart`;
-                    });
-                }
+            item.style.cursor = 'pointer';
+            item.addEventListener('click', () => {
+                const couponCode = item.getAttribute('data-coupon-code') || '';
+                const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                var target = `${baseUrl}/?quickFilter=discount`;
+                if (couponCode) target += `&coupon=${encodeURIComponent(couponCode)}`;
+                window.location.href = target;
             });
         });
         
@@ -717,6 +722,7 @@ async function loadHeroSlider() {
 
 document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('.featured-grid')) {
+        applyQuickFilterFromUrl();
         loadRestaurants();
         loadHeroSlider();
         
