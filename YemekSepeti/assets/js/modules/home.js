@@ -224,7 +224,64 @@ function applyQuickFilterFromUrl() {
     } catch (e) {}
 }
 
+function initFilterAccordion() {
+    const accordion = document.getElementById('filters-accordion');
+    if (!accordion) return;
+
+    const items = Array.from(accordion.querySelectorAll('.filter-accordion-item'));
+
+    function setOpenItem(targetItem) {
+        items.forEach((item) => {
+            const trigger = item.querySelector('.filter-accordion-trigger');
+            const panel = item.querySelector('.filter-accordion-panel');
+            if (!trigger || !panel) return;
+
+            const isTarget = item === targetItem;
+            item.classList.toggle('is-open', isTarget);
+            trigger.setAttribute('aria-expanded', isTarget ? 'true' : 'false');
+            if (isTarget) {
+                panel.removeAttribute('hidden');
+            } else {
+                panel.setAttribute('hidden', 'hidden');
+            }
+        });
+    }
+
+    function closeAllItems() {
+        items.forEach((item) => {
+            const trigger = item.querySelector('.filter-accordion-trigger');
+            const panel = item.querySelector('.filter-accordion-panel');
+            if (!trigger || !panel) return;
+            item.classList.remove('is-open');
+            trigger.setAttribute('aria-expanded', 'false');
+            panel.setAttribute('hidden', 'hidden');
+        });
+    }
+
+    items.forEach((item) => {
+        const trigger = item.querySelector('.filter-accordion-trigger');
+        if (!trigger) return;
+        trigger.addEventListener('click', () => {
+            const isOpen = item.classList.contains('is-open');
+            if (isOpen) {
+                closeAllItems();
+            } else {
+                setOpenItem(item);
+            }
+        });
+    });
+
+    const initialOpen = items.find((item) => item.classList.contains('is-open'));
+    if (initialOpen) {
+        setOpenItem(initialOpen);
+    } else {
+        closeAllItems();
+    }
+}
+
 function initFilters() {
+    initFilterAccordion();
+
     document.querySelectorAll('.filter-rating').forEach(checkbox => {
         checkbox.addEventListener('change', () => {
             const checkedRatings = Array.from(document.querySelectorAll('.filter-rating:checked'))

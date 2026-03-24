@@ -3,7 +3,8 @@ const router = express.Router();
 const { Sequelize } = require('sequelize');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 const { handleValidationErrors, createReviewValidation } = require('../../middleware/validate');
-const { Review, Order, User, Seller } = require('../../models');
+const { Review, Order, User } = require('../../models');
+const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
 
 // Satıcıya ait yorumları listele (herkese açık)
 router.get('/seller/:sellerId', async (req, res) => {
@@ -56,17 +57,7 @@ router.post('/', requireAuth, requireRole('buyer'), createReviewValidation, hand
             comment: (comment || '').trim() || null,
             is_visible: true
         });
-        const seller = await Seller.findByPk(order.seller_id);
-        if (seller) {
-            const count = await Review.count({ where: { seller_id: seller.id, is_visible: true } });
-            const avgRow = await Review.findOne({
-                where: { seller_id: seller.id, is_visible: true },
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
-                raw: true
-            });
-            const newAvg = avgRow && avgRow.avg != null ? parseFloat(Number(avgRow.avg).toFixed(2)) : 0;
-            await seller.update({ rating: newAvg, total_reviews: count });
-        }
+        await recalculateSellerRatings([order.seller_id]);
         res.status(201).json({ success: true, review: { id: review.id, rating: review.rating, comment: review.comment } });
     } catch (err) {
         console.error('Review create error:', err);

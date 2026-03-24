@@ -75,55 +75,65 @@
         <aside class="filters-sidebar">
             <div class="card">
                 <div class="card-content">
-                    <h3 class="card-title">Filtrele</h3>
-                    
-                    <!-- Yıldız Filtresi -->
-                    <div class="form-group">
-                        <label class="form-label">Puana Göre</label>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-rating-5" class="filter-rating" value="5">
-                            <label for="filter-rating-5">⭐⭐⭐⭐⭐ 5 Yıldız</label>
+                    <h3 class="card-title filters-title">Filtrele</h3>
+
+                    <div class="filters-accordion" id="filters-accordion">
+                        <div class="filter-accordion-item">
+                            <button type="button" class="filter-accordion-trigger" aria-expanded="false" aria-controls="rating-filter-panel" id="rating-filter-trigger">
+                                <span>Puana Göre</span>
+                                <span class="filter-accordion-icon" aria-hidden="true"></span>
+                            </button>
+                            <div id="rating-filter-panel" class="filter-accordion-panel" role="region" aria-labelledby="rating-filter-trigger" hidden>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-rating-5" class="filter-rating" value="5">
+                                    <label for="filter-rating-5">⭐⭐⭐⭐⭐ 5 Yıldız</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-rating-4" class="filter-rating" value="4">
+                                    <label for="filter-rating-4">⭐⭐⭐⭐ 4 ve üzeri</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-rating-3" class="filter-rating" value="3">
+                                    <label for="filter-rating-3">⭐⭐⭐ 3 ve üzeri</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-rating-2" class="filter-rating" value="2">
+                                    <label for="filter-rating-2">⭐⭐ 2 ve üzeri</label>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-rating-4" class="filter-rating" value="4">
-                            <label for="filter-rating-4">⭐⭐⭐⭐ 4 ve üzeri</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-rating-3" class="filter-rating" value="3">
-                            <label for="filter-rating-3">⭐⭐⭐ 3 ve üzeri</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-rating-2" class="filter-rating" value="2">
-                            <label for="filter-rating-2">⭐⭐ 2 ve üzeri</label>
-                        </div>
-                    </div>
-                    
-                    <!-- Mutfak Türü Filtresi -->
-                    <div class="form-group">
-                        <label class="form-label">Mutfak Türü</label>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-cuisine-turkish" class="filter-cuisine" value="turkish">
-                            <label for="filter-cuisine-turkish">🍽️ Türk Mutfağı</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-cuisine-italian" class="filter-cuisine" value="italian">
-                            <label for="filter-cuisine-italian">🍝 İtalyan</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-cuisine-asian" class="filter-cuisine" value="asian">
-                            <label for="filter-cuisine-asian">🍜 Asya Mutfağı</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-cuisine-vegan" class="filter-cuisine" value="vegan">
-                            <label for="filter-cuisine-vegan">🌱 Vegan</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-cuisine-fastfood" class="filter-cuisine" value="fastfood">
-                            <label for="filter-cuisine-fastfood">🍔 Fast Food</label>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="filter-cuisine-seafood" class="filter-cuisine" value="seafood">
-                            <label for="filter-cuisine-seafood">🐟 Deniz Ürünleri</label>
+
+                        <div class="filter-accordion-item">
+                            <button type="button" class="filter-accordion-trigger" aria-expanded="false" aria-controls="cuisine-filter-panel" id="cuisine-filter-trigger">
+                                <span>Mutfak Türü</span>
+                                <span class="filter-accordion-icon" aria-hidden="true"></span>
+                            </button>
+                            <div id="cuisine-filter-panel" class="filter-accordion-panel" role="region" aria-labelledby="cuisine-filter-trigger" hidden>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-cuisine-turkish" class="filter-cuisine" value="turkish">
+                                    <label for="filter-cuisine-turkish">🍽️ Türk Mutfağı</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-cuisine-italian" class="filter-cuisine" value="italian">
+                                    <label for="filter-cuisine-italian">🍝 İtalyan</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-cuisine-asian" class="filter-cuisine" value="asian">
+                                    <label for="filter-cuisine-asian">🍜 Asya Mutfağı</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-cuisine-vegan" class="filter-cuisine" value="vegan">
+                                    <label for="filter-cuisine-vegan">🌱 Vegan</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-cuisine-fastfood" class="filter-cuisine" value="fastfood">
+                                    <label for="filter-cuisine-fastfood">🍔 Fast Food</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="filter-cuisine-seafood" class="filter-cuisine" value="seafood">
+                                    <label for="filter-cuisine-seafood">🐟 Deniz Ürünleri</label>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     

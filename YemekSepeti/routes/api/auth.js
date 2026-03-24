@@ -6,12 +6,13 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const db = require("../../config/database");
-const { User, EmailVerificationCode, Seller, Courier } = require("../../models");
+const { User, EmailVerificationCode, Seller, Courier, Review } = require("../../models");
 const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
 const { body, validationResult } = require('express-validator');
 const { authLimiter } = require('../../middleware/security');
 const { submitDocumentsJsonValidation, handleValidationErrors: handleValidate } = require('../../middleware/validate');
+const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
 
 // --- MULTER YAPILANDIRMASI (DOSYA YÜKLEME) ---
 const uploadDir = path.resolve(__dirname, '..', '..', 'public', 'uploads', 'merchants');
@@ -482,8 +483,22 @@ router.delete("/delete-account", async (req, res) => {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
 
+        const reviewedSellerRows = await Review.findAll({
+            where: { user_id: user.id },
+            attributes: ['seller_id'],
+            group: ['seller_id'],
+            raw: true
+        });
+        const reviewedSellerIds = reviewedSellerRows.map((row) => row.seller_id);
+
         // Kullanıcıyı tamamen sil
         await user.destroy();
+
+        try {
+            await recalculateSellerRatings(reviewedSellerIds);
+        } catch (ratingError) {
+            console.error('Hesap silme sonrası puan güncelleme hatası:', ratingError);
+        }
 
         req.session.destroy(() => {});
         res.clearCookie('connect.sid');

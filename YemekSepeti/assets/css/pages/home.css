@@ -425,8 +425,13 @@
     color: var(--text-color);
 }
 
+.filters-sidebar .filters-title {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
 .filters-sidebar .form-group {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .filters-sidebar .form-label {
@@ -441,8 +446,8 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    padding: 0.5rem;
+    margin-bottom: 0.4rem;
+    padding: 0.35rem 0.45rem;
     border-radius: 6px;
     transition: background var(--transition-normal);
 }
@@ -459,9 +464,60 @@
 
 .filters-sidebar .form-check label {
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     color: var(--text-color);
     user-select: none;
+}
+
+.filters-accordion {
+    display: grid;
+    gap: 0.7rem;
+    margin-bottom: 1rem;
+}
+
+.filter-accordion-item {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+    overflow: hidden;
+}
+
+.filter-accordion-trigger {
+    width: 100%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.filter-accordion-trigger:hover {
+    background: var(--bg-secondary);
+}
+
+.filter-accordion-icon {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-right: 2px solid var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    transform: rotate(45deg);
+    transition: transform var(--transition-fast);
+    margin-right: 0.2rem;
+}
+
+.filter-accordion-item.is-open .filter-accordion-icon {
+    transform: rotate(-135deg);
+    margin-top: 0.25rem;
+}
+
+.filter-accordion-panel {
+    padding: 0.15rem 0.6rem 0.6rem;
+    border-top: 1px solid var(--border-color);
 }
 
 /* Sağ Taraf: Restoranlar */

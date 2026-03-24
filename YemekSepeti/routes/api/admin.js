@@ -3,11 +3,12 @@ const router=express.Router();
 const db=require("../../config/database");
 const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
-const { User, Seller, Courier, Order }=require("../../models");
+const { User, Seller, Courier, Order, Review }=require("../../models");
 const { Op }=require("sequelize");
 const { Sequelize }=require("sequelize");
 const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
 const { createCouponValidation, idParam, handleValidationErrors }=require("../../middleware/validate");
+const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
 
 router.use((req,res,next)=>{ requireAuth(req,res,next); });
 
@@ -196,7 +197,22 @@ router.delete("/users/:id", async (req, res) => {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
 
+        const reviewedSellerRows = await Review.findAll({
+            where: { user_id: user.id },
+            attributes: ['seller_id'],
+            group: ['seller_id'],
+            raw: true
+        });
+        const reviewedSellerIds = reviewedSellerRows.map((row) => row.seller_id);
+
         await user.destroy();
+
+        try {
+            await recalculateSellerRatings(reviewedSellerIds);
+        } catch (ratingError) {
+            console.error('Admin kullanıcı silme sonrası puan güncelleme hatası:', ratingError);
+        }
+
         res.json({ success: true, message: "Kullanıcı silindi." });
     } 
     catch (error) 

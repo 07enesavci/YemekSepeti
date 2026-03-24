@@ -3,8 +3,9 @@ const router=express.Router();
 const db=require("../../config/database");
 const { requireRole }=require("../../middleware/auth");
 const bcrypt=require("bcryptjs");
-const { User, Address, Order, Review, Seller } = require("../../models");
-const { Op, Sequelize } = require('sequelize');
+const { User, Address, Order, Review } = require("../../models");
+const { Op } = require('sequelize');
+const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
 
 router.get("/profile", requireRole('buyer'), async (req, res) => {
     try {
@@ -683,17 +684,7 @@ router.post("/orders/:orderId/review", requireRole('buyer'), async (req, res) =>
             is_visible: true
         });
 
-        const seller = await Seller.findByPk(order.seller_id);
-        if (seller) {
-            const count = await Review.count({ where: { seller_id: seller.id, is_visible: true } });
-            const avgRow = await Review.findOne({
-                where: { seller_id: seller.id, is_visible: true },
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
-                raw: true
-            });
-            const newAvg = avgRow && avgRow.avg != null ? parseFloat(Number(avgRow.avg).toFixed(2)) : 0;
-            await seller.update({ rating: newAvg, total_reviews: count });
-        }
+        await recalculateSellerRatings([order.seller_id]);
 
         res.json({
             success: true,
