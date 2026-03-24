@@ -406,6 +406,10 @@ async function updateOrderStatus(orderId, status) {
 function createOrderCardHTML(order) {
     const statusClass = order.status === 'delivered' ? 'delivered' : 
                        order.status === 'cancelled' ? 'cancelled' : '';
+    const discount = parseFloat(order.discount) || 0;
+    const subtotal = parseFloat(order.subtotal) || 0;
+    const deliveryFee = parseFloat(order.deliveryFee) || 0;
+    const couponCode = order.couponCode || order.coupon_code || '';
     
     let actionButtons = '';
     if (order.status === 'pending' || order.status === 'confirmed') {
@@ -435,6 +439,8 @@ function createOrderCardHTML(order) {
             <div class="order-card-body">
                 <p><strong>Ürünler:</strong> ${order.items || 'Belirtilmemiş'}</p>
                 ${order.address ? `<p><strong>Adres:</strong> ${order.address}</p>` : ''}
+                ${discount > 0 ? `<p><strong>Kupon:</strong> ${couponCode || 'Uygulandı'} • <span style="color:#27AE60;">-${discount.toFixed(2)} TL</span></p>` : ''}
+                ${discount > 0 ? `<p><strong>Tutar:</strong> ${subtotal.toFixed(2)} + ${deliveryFee.toFixed(2)} - ${discount.toFixed(2)} = <strong>${(parseFloat(order.total) || 0).toFixed(2)} TL</strong></p>` : ''}
                 ${order.statusText ? `<p><strong>Durum:</strong> ${order.statusText}</p>` : ''}
                 ${order.courierId && order.courierName ? `<p><strong>Kurye:</strong> ${order.courierName} (ID: ${order.courierId})</p>` : ''}
             </div>
@@ -631,11 +637,14 @@ function renderRecentOrdersList(orders, containerId) {
                           order.status === 'cancelled' ? 'İptal Edildi' :
                           order.status === 'ready' ? 'Hazır' : 'Bekliyor';
         const total = parseFloat(order.total) || 0;
+        const discount = parseFloat(order.discount) || 0;
+        const couponCode = order.couponCode || order.coupon_code || '';
         return `
             <div class="order-list-item">
                 <div class="order-info">
                     <strong>#${order.orderNumber || order.id} - ${order.customer || 'Müşteri'}</strong>
                     <span>${order.items || 'Belirtilmemiş'}</span>
+                    ${discount > 0 ? `<span style="color:#27AE60;">Kupon: ${couponCode || 'Uygulandı'} (-${discount.toFixed(2)} TL)</span>` : ''}
                 </div>
                 <div class="order-status ${statusClass}">
                     ${statusText}

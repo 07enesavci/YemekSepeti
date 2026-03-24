@@ -14,6 +14,44 @@ var sepet = [];
 var cachedDeliveryFee = null; 
 var cachedSellerId = null; 
 var appliedCoupon = null; 
+var APPLIED_COUPON_STORAGE_KEY = 'evLezzetleriAppliedCoupon';
+
+function getCurrentCartSellerId() {
+    if (!sepet || sepet.length === 0 || !sepet[0] || !sepet[0].urun) {
+        return null;
+    }
+    var sellerId = sepet[0].urun.sellerId || sepet[0].urun.seller_id || null;
+    return sellerId ? parseInt(sellerId, 10) : null;
+}
+
+function syncAppliedCouponState(nextCoupon) {
+    appliedCoupon = nextCoupon || null;
+    window.appliedCoupon = appliedCoupon;
+
+    try {
+        if (appliedCoupon) {
+            localStorage.setItem(APPLIED_COUPON_STORAGE_KEY, JSON.stringify(appliedCoupon));
+        } else {
+            localStorage.removeItem(APPLIED_COUPON_STORAGE_KEY);
+        }
+    } catch (e) {
+    }
+}
+
+function getValidAppliedCouponForCurrentCart() {
+    if (!appliedCoupon) {
+        return null;
+    }
+
+    var currentSellerId = getCurrentCartSellerId();
+    var couponSellerId = appliedCoupon.sellerId != null ? parseInt(appliedCoupon.sellerId, 10) : null;
+
+    if (couponSellerId != null && currentSellerId != null && couponSellerId !== currentSellerId) {
+        return null;
+    }
+
+    return appliedCoupon;
+}
 
 function isPanelPath(pathname)
 {
@@ -338,6 +376,10 @@ function adetArtirAzalt(id, delta)
 
 async function sepetiYenile()
 {
+    if (!sepet || sepet.length === 0) {
+        syncAppliedCouponState(null);
+    }
+
    	var ara = 0;
    	var adetTop = 0;
    	for(var i=0; i<sepet.length; i++)
@@ -375,8 +417,9 @@ async function sepetiYenile()
    	
    	// Kupon indirimi varsa çıkar
    	var kuponIndirimi = 0;
-   	if (appliedCoupon && appliedCoupon.discountAmount) {
-   	    kuponIndirimi = parseFloat(appliedCoupon.discountAmount) || 0;
+    var validCoupon = getValidAppliedCouponForCurrentCart();
+    if (validCoupon && validCoupon.discountAmount) {
+        kuponIndirimi = parseFloat(validCoupon.discountAmount) || 0;
    	}
    	
    	var toplam = ara + teslimatUcreti - kuponIndirimi;
@@ -477,11 +520,11 @@ async function sepetiYenile()
    	 	            var couponRow = document.createElement('div');
    	 	            couponRow.className = 'summary-row';
    	 	            couponRow.id = 'summary-coupon-discount';
-   	 	            couponRow.innerHTML = '<span>Kupon İndirimi (' + (appliedCoupon.code || '') + ')</span><span style="color: #27AE60;">-' + tl(kuponIndirimi) + '</span>';
+        	            couponRow.innerHTML = '<span>Kupon İndirimi (' + ((validCoupon && validCoupon.code) || '') + ')</span><span style="color: #27AE60;">-' + tl(kuponIndirimi) + '</span>';
    	 	            deliveryRow.insertAdjacentElement('afterend', couponRow);
    	 	        }
    	 	    } else {
-   	 	        couponDiscountRow.innerHTML = '<span>Kupon İndirimi (' + (appliedCoupon.code || '') + ')</span><span style="color: #27AE60;">-' + tl(kuponIndirimi) + '</span>';
+        	        couponDiscountRow.innerHTML = '<span>Kupon İndirimi (' + ((validCoupon && validCoupon.code) || '') + ')</span><span style="color: #27AE60;">-' + tl(kuponIndirimi) + '</span>';
    	 	    }
    	 	} else if (couponDiscountRow) {
    	 	    couponDiscountRow.remove();
@@ -556,8 +599,9 @@ window.getSepetTotals = async function(){
    	teslimatUcreti = Math.round(teslimatUcreti * 100) / 100;
    	
    	var kuponIndirimi = 0;
-   	if (appliedCoupon && appliedCoupon.discountAmount) {
-   	    kuponIndirimi = Math.round(parseFloat(appliedCoupon.discountAmount) * 100) / 100;
+    var validCoupon = getValidAppliedCouponForCurrentCart();
+    if (validCoupon && validCoupon.discountAmount) {
+        kuponIndirimi = Math.round(parseFloat(validCoupon.discountAmount) * 100) / 100;
    	}
    	
    	var toplam = Math.round((ara + teslimatUcreti - kuponIndirimi) * 100) / 100;
@@ -577,6 +621,7 @@ window.addToCartById = async function(mealId, quantity) {
 
 window.sepetiTemizle = function(){
    	sepet = [];
+    syncAppliedCouponState(null);
    	sepetiKaydet();
 }
 
@@ -763,7 +808,9 @@ async function applyCoupon() {
             return;
         }
         
-        appliedCoupon = data.coupon;
+        var couponWithContext = Object.assign({}, data.coupon || {});
+        couponWithContext.sellerId = sellerId ? parseInt(sellerId, 10) : null;
+        syncAppliedCouponState(couponWithContext);
         
         couponInput.disabled = true;
         couponInput.value = couponCode.toUpperCase();
@@ -909,7 +956,7 @@ async function loadAvailableCoupons() {
 }
 
 function removeCoupon() {
-    appliedCoupon = null;
+    syncAppliedCouponState(null);
     var couponInput = document.getElementById('coupon');
     var couponButton = document.querySelector('.coupon-form button');
     
@@ -957,6 +1004,22 @@ document.addEventListener('DOMContentLoaded', async function(){
 	}
 	
    	sepetiYukle();
+    try {
+        var storedCoupon = localStorage.getItem(APPLIED_COUPON_STORAGE_KEY);
+        if (storedCoupon) {
+            var parsedCoupon = JSON.parse(storedCoupon);
+            syncAppliedCouponState(parsedCoupon);
+        } else {
+            syncAppliedCouponState(null);
+        }
+    } catch (e) {
+        syncAppliedCouponState(null);
+    }
+
+    if (appliedCoupon && !getValidAppliedCouponForCurrentCart()) {
+        syncAppliedCouponState(null);
+    }
+
    	if (window.location.pathname.includes('/buyer/cart') || window.location.pathname.includes('/buyer/checkout')) {
    		if (sepet.length === 0) {
    			alert('Sepetiniz boş. Ana sayfaya yönlendiriliyorsunuz.');

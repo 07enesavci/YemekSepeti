@@ -9,7 +9,7 @@ const { createNotification } = require("../../lib/notificationHelper");
 
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
-        const { cart, address, paymentMethod } = req.body;
+        const { cart, address, paymentMethod, couponCode } = req.body;
         
         const userId = req.session.user.id;
 
@@ -166,6 +166,130 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             subtotal = Math.round(subtotal * 100) / 100;
             deliveryFee = Math.round(deliveryFee * 100) / 100;
             const totalAmount = Math.round((subtotal + deliveryFee) * 100) / 100;
+            
+            // Kupon validasyonu ve uygulaması
+            let discountAmount = 0;
+            let appliedCouponCode = null;
+            let appliedCouponId = null;
+            
+            if (couponCode && couponCode.trim() !== '') {
+                try {
+                    const coupon = await Coupon.findOne({
+                        where: {
+                            code: couponCode.toUpperCase().trim(),
+                            is_active: true
+                        },
+                        transaction
+                    });
+                    
+                    if (!coupon) {
+                        await transaction.rollback();
+                        return res.status(400).json({
+                            success: false,
+                            message: "Geçersiz kupon kodu."
+                        });
+                    }
+                    
+                    // Zaman validasyonu
+                    const now = new Date();
+                    const validFrom = new Date(coupon.valid_from);
+                    const validUntil = new Date(coupon.valid_until);
+                    validUntil.setHours(23, 59, 59, 999);
+                    
+                    if (now < validFrom) {
+                        await transaction.rollback();
+                        return res.status(400).json({
+                            success: false,
+                            message: "Bu kupon henüz geçerli değil."
+                        });
+                    }
+                    
+                    if (now > validUntil) {
+                        await transaction.rollback();
+                        return res.status(400).json({
+                            success: false,
+                            message: "Bu kupon süresi dolmuş."
+                        });
+                    }
+                    
+                    // Minimum tutar kontrolü
+                    if (parseFloat(subtotal) < parseFloat(coupon.min_order_amount || 0)) {
+                        await transaction.rollback();
+                        return res.status(400).json({
+                            success: false,
+                            message: `Bu kupon minimum ${parseFloat(coupon.min_order_amount)} TL sipariş için geçerlidir.`
+                        });
+                    }
+                    
+                    // Satıcı kontrolü - tüm roller için uygulanabilir (applicable_seller_ids null ise)
+                    if (coupon.applicable_seller_ids && sellerId) {
+                        let applicableSellers = [];
+                        try {
+                            applicableSellers = typeof coupon.applicable_seller_ids === 'string' 
+                                ? JSON.parse(coupon.applicable_seller_ids) 
+                                : coupon.applicable_seller_ids;
+                        } catch (e) {
+                            applicableSellers = [];
+                        }
+                        
+                        if (Array.isArray(applicableSellers) && applicableSellers.length > 0) {
+                            const sellerIdNum = parseInt(sellerId);
+                            if (!applicableSellers.includes(sellerIdNum)) {
+                                await transaction.rollback();
+                                return res.status(400).json({
+                                    success: false,
+                                    message: "Bu kupon bu satıcı için geçerli değil."
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Kullanım limiti kontrolü
+                    if (coupon.usage_limit > 0) {
+                        const actualUsageCount = await CouponUsage.count({
+                            where: { coupon_id: coupon.id }
+                        });
+                        
+                        if (actualUsageCount >= coupon.usage_limit) {
+                            await transaction.rollback();
+                            return res.status(400).json({
+                                success: false,
+                                message: "Bu kupon kullanım limiti dolmuş."
+                            });
+                        }
+                    }
+                    
+                    // İndirim tutarı hesapla
+                    if (coupon.discount_type === 'percentage') {
+                        discountAmount = (parseFloat(subtotal) * parseFloat(coupon.discount_value)) / 100;
+                        if (coupon.max_discount_amount) {
+                            discountAmount = Math.min(discountAmount, parseFloat(coupon.max_discount_amount));
+                        }
+                    } else {
+                        discountAmount = parseFloat(coupon.discount_value);
+                    }
+                    
+                    discountAmount = Math.min(discountAmount, parseFloat(subtotal));
+                    discountAmount = Math.round(discountAmount * 100) / 100;
+                    
+                    appliedCouponCode = coupon.code;
+                    appliedCouponId = coupon.id;
+                    
+                    console.log(`✅ Kupon uygulandı: ${coupon.code}, İndirim: ${discountAmount} TL`);
+                } catch (couponError) {
+                    console.error('Kupon işleme hatası:', couponError.message);
+                    // Kupon hatası sipariş oluşturmayı durdurmaz (warning olarak davran)
+                    if (couponError.name === 'SequelizeError' || couponError.name === 'ValidationError') {
+                        await transaction.rollback();
+                        return res.status(500).json({
+                            success: false,
+                            message: "Kupon validasyonu sırasında bir hata oluştu."
+                        });
+                    }
+                }
+            }
+            
+            const finalTotal = Math.round((totalAmount - discountAmount) * 100) / 100;
             const timestamp = Date.now().toString().slice(-6);
             const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
             const orderNumber = `ORD-${new Date().getFullYear()}-${timestamp}${random}`;
@@ -177,7 +301,9 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 payment_method: paymentMethod || 'credit_card',
                 subtotal: subtotal.toFixed(2),
                 delivery_fee: deliveryFee.toFixed(2),
-                total_amount: totalAmount.toFixed(2),
+                discount_amount: discountAmount.toFixed(2),
+                coupon_code: appliedCouponCode,
+                total_amount: finalTotal.toFixed(2),
                 status: 'pending'
             }, { transaction });
 
@@ -206,6 +332,26 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             if (orderItems.length > 0) {
                 await OrderItem.bulkCreate(orderItems, { transaction });
             }
+            
+            // Kupon kullanımını kaydet
+            if (appliedCouponId && discountAmount > 0) {
+                await CouponUsage.create({
+                    coupon_id: appliedCouponId,
+                    order_id: orderId,
+                    user_id: userId,
+                    discount_amount: discountAmount.toFixed(2)
+                }, { transaction });
+                
+                // Kupon'un kullanım sayısını artır
+                await Coupon.increment('used_count', {
+                    by: 1,
+                    where: { id: appliedCouponId },
+                    transaction
+                });
+                
+                console.log(`✅ CouponUsage kaydı oluşturuldu - Order: ${orderId}, Discount: ${discountAmount} TL`);
+            }
+            
             await transaction.commit();
 
             createNotification(userId, 'order', 'Siparişiniz alındı', `Sipariş #${orderNumber} oluşturuldu.`, order.id).catch(() => {});
@@ -250,6 +396,8 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                                 totalAmount: newOrder.total_amount,
                                 subtotal: newOrder.subtotal,
                                 deliveryFee: newOrder.delivery_fee,
+                                discountAmount: newOrder.discount_amount,
+                                couponCode: newOrder.coupon_code,
                                 items: newOrder.items || [],
                                 createdAt: new Date(newOrder.created_at).toLocaleString('tr-TR')
                             });
@@ -281,7 +429,9 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 sellerId: sellerId,
                 subtotal: subtotal.toFixed(2),
                 deliveryFee: deliveryFee.toFixed(2),
-                total: totalAmount.toFixed(2),
+                discountAmount: discountAmount.toFixed(2),
+                couponCode: appliedCouponCode,
+                total: finalTotal.toFixed(2),
                 message: "Sipariş başarıyla oluşturuldu."
             });
 
@@ -580,7 +730,8 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
                 total: parseFloat(order.total_amount) || 0,
                 subtotal: parseFloat(order.subtotal) || 0,
                 deliveryFee: parseFloat(order.delivery_fee) || 0,
-                discount: parseFloat(order.discount_amount) || 0
+                discount: parseFloat(order.discount_amount) || 0,
+                couponCode: order.coupon_code || null
             };
         });
         

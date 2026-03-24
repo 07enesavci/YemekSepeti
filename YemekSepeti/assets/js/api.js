@@ -380,11 +380,19 @@ async function createOrder(cart, address, paymentMethod = 'credit_card')
         }
         console.log('API isteği gönderiliyor:', apiUrl);
         console.log('API_BASE_URL:', API_BASE_URL);
+        
+        // Kupon bilgisini ekle
+        const orderData = { cart, address, paymentMethod };
+        if (window.appliedCoupon && window.appliedCoupon.code) {
+            orderData.couponCode = window.appliedCoupon.code;
+            console.log('Kupon uygulanıyor:', window.appliedCoupon.code);
+        }
+        
         const response=await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ cart, address, paymentMethod })
+            body: JSON.stringify(orderData)
         });
 
         console.log('API yanıtı:', response.status, response.statusText);

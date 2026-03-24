@@ -315,6 +315,27 @@ async function cizOdemeSayfasi()
         
         if (subtotalEl) subtotalEl.textContent = tl(tutarlar.ara);
         if (deliveryEl) deliveryEl.textContent = tl(tutarlar.teslimat);
+
+        var couponDiscountRow = document.getElementById('summary-coupon-discount-checkout');
+        if (tutarlar.kuponIndirimi > 0) {
+            if (!couponDiscountRow && deliveryEl) {
+                var deliveryRow = deliveryEl.closest('.summary-row');
+                if (deliveryRow) {
+                    couponDiscountRow = document.createElement('div');
+                    couponDiscountRow.className = 'summary-row';
+                    couponDiscountRow.id = 'summary-coupon-discount-checkout';
+                    deliveryRow.insertAdjacentElement('afterend', couponDiscountRow);
+                }
+            }
+
+            if (couponDiscountRow) {
+                var couponCode = (window.appliedCoupon && window.appliedCoupon.code) ? window.appliedCoupon.code : '';
+                couponDiscountRow.innerHTML = '<span>Kupon İndirimi' + (couponCode ? ' (' + couponCode + ')' : '') + '</span><span style="color: #27AE60;">-' + tl(tutarlar.kuponIndirimi) + '</span>';
+            }
+        } else if (couponDiscountRow) {
+            couponDiscountRow.remove();
+        }
+
         if (totalEl) totalEl.textContent = tl(tutarlar.toplam);
         
         if (!sepet || sepet.length === 0)

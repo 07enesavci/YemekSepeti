@@ -58,27 +58,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         }
                         
-                        let restaurantInfo = '';
-                        let couponClickable = false;
-                        let couponData = null;
-                        
-                        if (coupon.applicableSellers === null) {
-                            restaurantInfo = '<span style="color: #059669; font-size: 0.85rem; cursor: pointer; text-decoration: underline;" class="show-all-restaurants" data-coupon-index="' + index + '">Tüm restoranlarda geçerli (detaylar için tıklayın)</span>';
-                            couponClickable = true;
-                            couponData = { type: 'all', coupon: coupon };
-                        } else if (coupon.applicableSellers && coupon.applicableSellers.length === 1) {
-                            const sellerName = coupon.applicableSellers[0].name;
-                            restaurantInfo = '<span style="color: #2563EB; font-size: 0.9rem; font-weight: 600;">📍 ' + sellerName + '</span>';
-                            couponClickable = false;
-                        } else if (coupon.applicableSellers && coupon.applicableSellers.length > 1) {
-                            const restaurantCount = coupon.applicableSellers.length;
-                            restaurantInfo = '<span style="color: #2563EB; font-size: 0.85rem; cursor: pointer; text-decoration: underline;" class="show-restaurants-modal" data-coupon-index="' + index + '">' + restaurantCount + ' restoranda geçerli (detaylar için tıklayın)</span>';
-                            couponClickable = true;
-                            couponData = { type: 'multiple', coupon: coupon, sellers: coupon.applicableSellers };
-                        }
+                        let restaurantInfo = '<span style="color: #2563EB; font-size: 0.85rem; cursor: pointer; text-decoration: underline;" class="show-coupon-details" data-coupon-index="' + index + '">Kupon detayları (detaylar için tıklayın)</span>';
+                        let couponClickable = true;
+                        let couponData = { coupon: coupon, sellers: coupon.applicableSellers };
                         
                         const couponHtml = `
-                            <div class="coupon-item" data-coupon-id="${coupon.id}" data-coupon-index="${index}" style="padding: 1.25rem; margin-bottom: 1rem; background: var(--card-bg); border-radius: 8px; border-left: 4px solid var(--primary-color); ${couponClickable ? 'cursor: pointer;' : ''} transition: all 0.3s;" ${couponClickable ? 'onclick="showCouponRestaurantsModal(' + index + ')"' : ''}>
+                            <div class="coupon-item" data-coupon-id="${coupon.id}" data-coupon-index="${index}" style="padding: 1.25rem; margin-bottom: 1rem; background: var(--card-bg); border-radius: 8px; border-left: 4px solid var(--primary-color); ${couponClickable ? 'cursor: pointer;' : ''} transition: all 0.3s;">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                                     <div style="flex: 1;">
                                         <span class="coupon-code" style="font-weight: 700; font-size: 1.2rem; color: var(--primary-color); display: block; margin-bottom: 0.5rem;">${coupon.code || 'KUPON'}</span>
@@ -107,7 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div id="coupon-restaurants-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
                                 <div style="background: var(--card-bg); border-radius: 12px; padding: 2rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; border: 1px solid var(--border-color);">
                                     <button id="close-coupon-modal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color-light);">&times;</button>
-                                    <h3 style="margin: 0 0 1.5rem 0; color: var(--text-color); font-size: 1.5rem;">Geçerli Restoranlar</h3>
+                                    <h3 style="margin: 0 0 1.5rem 0; color: var(--text-color); font-size: 1.5rem;">Kupon Detayları</h3>
                                     <div id="coupon-modal-content"></div>
                                 </div>
                             </div>
@@ -131,16 +116,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const couponData = window.couponModalData && window.couponModalData[index];
                         
                         if (!modal || !content || !couponData) return;
-                        
-                        if (couponData.type === 'all') {
-                            content.innerHTML = '<p style="color: var(--text-color-light); margin-bottom: 1rem;">Bu kupon tüm restoranlarda geçerlidir.</p>';
-                        } else if (couponData.type === 'multiple' && couponData.sellers) {
-                            content.innerHTML = `
-                                <p style="color: var(--text-color-light); margin-bottom: 1rem;">Bu kupon aşağıdaki restoranlarda geçerlidir:</p>
+
+                        const coupon = couponData.coupon || {};
+                        const sellers = couponData.sellers;
+                        const formatTL = window.formatTL || ((amt) => (amt || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }));
+                        const formatDate = function(value) {
+                            if (!value) return '-';
+                            const dt = new Date(value);
+                            if (isNaN(dt.getTime())) return '-';
+                            return dt.toLocaleDateString('tr-TR');
+                        };
+
+                        let discountInfo = '-';
+                        if (coupon.discountType === 'percentage') {
+                            discountInfo = '%' + (coupon.discountValue || 0) + ' indirim';
+                            if (coupon.maxDiscountAmount) {
+                                discountInfo += ' (Maks: ' + formatTL(coupon.maxDiscountAmount) + ')';
+                            }
+                        } else {
+                            discountInfo = formatTL(coupon.discountValue || 0) + ' indirim';
+                        }
+
+                        let restaurantsHtml = '<p style="color: var(--text-color-light); margin: 0;">Geçerlilik bilgisi bulunamadı.</p>';
+                        if (sellers === null) {
+                            restaurantsHtml = '<p style="color: var(--text-color-light); margin: 0;">Tüm restoranlarda geçerli.</p>';
+                        } else if (Array.isArray(sellers) && sellers.length > 0) {
+                            restaurantsHtml = `
                                 <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
-                                    ${couponData.sellers.map(seller => `
-                                        <a href="/buyer/seller-profile/${seller.id}" style="display: inline-block; padding: 0.75rem 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--primary-color); text-decoration: none; font-size: 0.95rem; transition: all 0.2s;" 
-                                           onmouseover="this.style.borderColor='var(--primary-color)';" 
+                                    ${sellers.map(seller => `
+                                        <a href="/buyer/seller-profile/${seller.id}" style="display: inline-block; padding: 0.75rem 1.25rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--primary-color); text-decoration: none; font-size: 0.95rem; transition: all 0.2s;"
+                                           onmouseover="this.style.borderColor='var(--primary-color)';"
                                            onmouseout="this.style.borderColor='var(--border-color)';">
                                             ${seller.name}
                                         </a>
@@ -148,9 +153,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 </div>
                             `;
                         }
+
+                        content.innerHTML = `
+                            <div style="display: grid; gap: 0.75rem;">
+                                <p style="margin: 0;"><strong>Kod:</strong> ${coupon.code || '-'}</p>
+                                <p style="margin: 0;"><strong>Açıklama:</strong> ${coupon.description || '-'}</p>
+                                <p style="margin: 0;"><strong>İndirim:</strong> ${discountInfo}</p>
+                                <p style="margin: 0;"><strong>Minimum sipariş:</strong> ${formatTL(coupon.minOrderAmount || 0)}</p>
+                                <p style="margin: 0;"><strong>Geçerlilik tarihi:</strong> ${formatDate(coupon.validFrom)} - ${formatDate(coupon.validUntil)}</p>
+                                <div style="margin-top: 0.5rem;">
+                                    <p style="margin: 0 0 0.5rem 0;"><strong>Geçerli restoranlar:</strong></p>
+                                    ${restaurantsHtml}
+                                </div>
+                            </div>
+                        `;
                         
                         modal.style.display = 'flex';
                     };
+
+                    if (couponsList && !couponsList.dataset.couponModalBound) {
+                        couponsList.dataset.couponModalBound = 'true';
+                        couponsList.addEventListener('click', function(e) {
+                            const clickableEl = e.target.closest('.show-coupon-details, .coupon-item[data-coupon-index]');
+                            if (!clickableEl) {
+                                return;
+                            }
+
+                            const couponItem = clickableEl.classList.contains('coupon-item')
+                                ? clickableEl
+                                : clickableEl.closest('.coupon-item[data-coupon-index]');
+
+                            if (!couponItem) {
+                                return;
+                            }
+
+                            const indexAttr = couponItem.getAttribute('data-coupon-index');
+                            const couponIndex = parseInt(indexAttr, 10);
+                            if (Number.isNaN(couponIndex)) {
+                                return;
+                            }
+
+                            const couponData = window.couponModalData && window.couponModalData[couponIndex];
+                            if (!couponData) {
+                                return;
+                            }
+
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.showCouponRestaurantsModal(couponIndex);
+                        });
+                    }
                 } else {
                     couponsList.innerHTML = `
                         <div class="coupon-item" style="text-align: center; padding: 2rem; color: var(--text-color-light); background: var(--card-bg);">

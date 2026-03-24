@@ -368,6 +368,8 @@ router.get("/dashboard", async (req, res) => {
                 o.order_number,
                 o.status,
                 o.total_amount as total,
+                o.discount_amount as discount,
+                o.coupon_code,
                 o.created_at as date,
                 CONCAT(SUBSTRING(u.fullname, 1, 1), '*** ', SUBSTRING(u.fullname, -1)) as customer_name,
                 GROUP_CONCAT(CONCAT(oi.quantity, ' x ', oi.meal_name) SEPARATOR ', ') as items
@@ -398,6 +400,8 @@ router.get("/dashboard", async (req, res) => {
                 customer: order.customer_name,
                 items: order.items || 'Belirtilmemiş',
                 total: parseFloat(order.total) || 0,
+                discount: parseFloat(order.discount) || 0,
+                couponCode: order.coupon_code || null,
                 status: order.status,
                 date: new Date(order.date).toLocaleString('tr-TR')
             }))
