@@ -45,7 +45,7 @@ const updateCartValidation = [
 // --- Orders ---
 const createOrderValidation = [
     body('address_id').isInt({ min: 1 }).withMessage('Adres seçin.'),
-    body('payment_method').isIn(['credit_card', 'cash', 'wallet']).withMessage('Geçerli ödeme yöntemi seçin.'),
+    body('payment_method').isIn(['credit_card', 'cash', 'wallet', 'iyzico']).withMessage('Geçerli ödeme yöntemi seçin.'),
     body('notes').optional().trim()
 ];
 

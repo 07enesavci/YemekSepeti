@@ -375,7 +375,7 @@ async function getSellerMenu(sellerId)
 }
 
 // Order functions
-async function createOrder(cart, address, paymentMethod = 'credit_card') 
+async function createOrder(cart, address, paymentMethod = 'credit_card', paymentPayload = null) 
 {
     try 
     {
@@ -403,6 +403,9 @@ async function createOrder(cart, address, paymentMethod = 'credit_card')
         
         // Kupon bilgisini ekle
         const orderData = { cart, address, paymentMethod };
+        if (paymentPayload && typeof paymentPayload === 'object') {
+            orderData.iyzicoCard = paymentPayload.iyzicoCard || undefined;
+        }
         if (window.appliedCoupon && window.appliedCoupon.code) {
             orderData.couponCode = window.appliedCoupon.code;
             console.log('Kupon uygulanıyor:', window.appliedCoupon.code);

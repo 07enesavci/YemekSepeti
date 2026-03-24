@@ -3,9 +3,8 @@ const router=express.Router();
 const db=require("../../config/database");
 const { requireRole }=require("../../middleware/auth");
 const bcrypt=require("bcryptjs");
-const { User, Address, Order, Review } = require("../../models");
-const { Op } = require('sequelize');
-const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
+const { User, Address, Order, Review, Seller } = require("../../models");
+const { Op, Sequelize } = require('sequelize');
 
 router.get("/profile", requireRole('buyer'), async (req, res) => {
     try {
@@ -539,6 +538,84 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
     }
 });
 
+router.put("/payment-cards/:id", requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const cardId = parseInt(req.params.id, 10);
+        if (!cardId || Number.isNaN(cardId)) {
+            return res.status(400).json({ success: false, message: "Geçersiz kart ID." });
+        }
+        const { cardName, expiryMonth, expiryYear, isDefault } = req.body;
+        if (!cardName || !expiryMonth || !expiryYear) {
+            return res.status(400).json({
+                success: false,
+                message: "Kart adı ve son kullanma tarihi gereklidir."
+            });
+        }
+        const em = parseInt(expiryMonth, 10);
+        const ey = parseInt(expiryYear, 10);
+        if (em < 1 || em > 12 || ey < 2000 || ey > 2100) {
+            return res.status(400).json({ success: false, message: "Geçersiz son kullanma tarihi." });
+        }
+        const def = isDefault ? 1 : 0;
+        if (def) {
+            await db.execute(
+                "UPDATE payment_cards SET is_default = 0 WHERE user_id = ?",
+                [userId]
+            );
+        }
+        const upd = await db.execute(
+            `UPDATE payment_cards SET card_name = ?, card_expiry_month = ?, card_expiry_year = ?, is_default = ?
+             WHERE id = ? AND user_id = ?`,
+            [cardName.trim(), em, ey, def, cardId, userId]
+        );
+        if (!upd || upd.affectedRows === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Kart bulunamadı veya size ait değil."
+            });
+        }
+        res.json({ success: true, message: "Kart güncellendi." });
+    } catch (error) {
+        if (error.message && (error.message.includes("doesn't exist") || error.message.includes("Unknown column"))) {
+            return res.status(404).json({ success: false, message: "Kart kaydı bulunamadı." });
+        }
+        res.status(500).json({
+            success: false,
+            message: "Sunucu hatası: " + error.message
+        });
+    }
+});
+
+router.delete("/payment-cards/:id", requireRole('buyer'), async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const cardId = parseInt(req.params.id, 10);
+        if (!cardId || Number.isNaN(cardId)) {
+            return res.status(400).json({ success: false, message: "Geçersiz kart ID." });
+        }
+        const del = await db.execute(
+            "DELETE FROM payment_cards WHERE id = ? AND user_id = ?",
+            [cardId, userId]
+        );
+        if (!del || del.affectedRows === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Kart bulunamadı veya size ait değil."
+            });
+        }
+        res.json({ success: true, message: "Kart silindi." });
+    } catch (error) {
+        if (error.message && (error.message.includes("doesn't exist") || error.message.includes("Unknown column"))) {
+            return res.status(404).json({ success: false, message: "Kart kaydı bulunamadı." });
+        }
+        res.status(500).json({
+            success: false,
+            message: "Sunucu hatası: " + error.message
+        });
+    }
+});
+
 router.get("/coupons/active", async (req, res) => {
     try {
         const sql = `
@@ -684,7 +761,17 @@ router.post("/orders/:orderId/review", requireRole('buyer'), async (req, res) =>
             is_visible: true
         });
 
-        await recalculateSellerRatings([order.seller_id]);
+        const seller = await Seller.findByPk(order.seller_id);
+        if (seller) {
+            const count = await Review.count({ where: { seller_id: seller.id, is_visible: true } });
+            const avgRow = await Review.findOne({
+                where: { seller_id: seller.id, is_visible: true },
+                attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
+                raw: true
+            });
+            const newAvg = avgRow && avgRow.avg != null ? parseFloat(Number(avgRow.avg).toFixed(2)) : 0;
+            await seller.update({ rating: newAvg, total_reviews: count });
+        }
 
         res.json({
             success: true,

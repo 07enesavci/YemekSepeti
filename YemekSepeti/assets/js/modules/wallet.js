@@ -12,8 +12,91 @@ const BUYER_API = {
             console.error('Cüzdan yükleme hatası:', error);
             return { balance: 0, coupons: [] };
         }
+    },
+    getPaymentCards: async () => {
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        const response = await fetch(`${baseUrl}/api/buyer/payment-cards`, { credentials: 'include' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) return [];
+        return data.data || [];
+    },
+    savePaymentCard: async (body) => {
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        const response = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        return response.json().catch(() => ({}));
+    },
+    updatePaymentCard: async (id, body) => {
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        const response = await fetch(`${baseUrl}/api/buyer/payment-cards/${id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        return response.json().catch(() => ({}));
+    },
+    deletePaymentCard: async (id) => {
+        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+        const response = await fetch(`${baseUrl}/api/buyer/payment-cards/${id}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        return response.json().catch(() => ({}));
     }
 };
+
+function formatCardInput(el) {
+    let numbers = el.value.replace(/\D/g, '');
+    if (numbers.length > 16) numbers = numbers.slice(0, 16);
+    el.value = numbers.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+}
+
+function formatExpiryInput(el, e) {
+    if (e && e.inputType === 'deleteContentBackward' && el.value.endsWith('/')) {
+        el.value = el.value.slice(0, -1);
+        return;
+    }
+    let numbers = el.value.replace(/\D/g, '');
+    if (numbers.length >= 1 && parseInt(numbers[0], 10) > 1) numbers = '0' + numbers;
+    if (numbers.length >= 2) {
+        const month = parseInt(numbers.substring(0, 2), 10);
+        if (month > 12) numbers = '12' + numbers.slice(2);
+        else if (month === 0) numbers = '01' + numbers.slice(2);
+    }
+    if (numbers.length > 4) numbers = numbers.slice(0, 4);
+    if (numbers.length >= 3) el.value = numbers.slice(0, 2) + '/' + numbers.slice(2);
+    else el.value = numbers;
+}
+
+function parseExpiryMmYy(str) {
+    const parts = String(str || '').split('/');
+    const month = parseInt(parts[0], 10);
+    let year = parseInt(parts[1], 10);
+    if (!month || month < 1 || month > 12) return null;
+    if (year < 100) year = 2000 + year;
+    if (year < 2000 || year > 2100) return null;
+    return { month, year };
+}
+
+function yearToShort(y) {
+    const n = Number(y);
+    if (!n || Number.isNaN(n)) return '';
+    return String(n).length > 2 ? String(n).slice(-2) : String(n).padStart(2, '0');
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     const walletTransactions = document.getElementById('wallet-transactions');
@@ -241,6 +324,217 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    const savedCardsList = document.getElementById('saved-cards-list');
+    const toggleAddBtn = document.getElementById('toggle-add-card-btn');
+    const addCardPanel = document.getElementById('add-card-panel');
+    const addCardForm = document.getElementById('add-card-form');
+    const addCardCancel = document.getElementById('add-card-cancel-btn');
+    const newPcNumber = document.getElementById('new-pc-number');
+    const newPcExpiry = document.getElementById('new-pc-expiry');
+
+    function ensureEditModal() {
+        let el = document.getElementById('pc-edit-modal-overlay');
+        if (el) return el;
+        document.body.insertAdjacentHTML('beforeend', `
+<div id="pc-edit-modal-overlay" class="pc-edit-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pc-edit-title">
+  <div class="pc-edit-modal">
+    <h4 id="pc-edit-title">Kartı düzenle</h4>
+    <p class="text-muted" style="font-size:0.88rem;margin:0 0 1rem;">Kart numarası güvenlik nedeniyle saklanmaz; sadece isim ve son kullanma güncellenir.</p>
+    <form id="pc-edit-form">
+      <input type="hidden" id="pc-edit-id" value="">
+      <div class="form-group">
+        <label for="pc-edit-name" class="form-label">Kart üzerindeki isim</label>
+        <input type="text" id="pc-edit-name" class="form-input" required maxlength="80">
+      </div>
+      <div class="form-group">
+        <label for="pc-edit-expiry" class="form-label">Son kullanma (AA/YY)</label>
+        <input type="text" id="pc-edit-expiry" class="form-input" required placeholder="AA/YY" maxlength="5">
+      </div>
+      <div class="form-group">
+        <label class="form-check form-check-inline">
+          <input type="checkbox" id="pc-edit-default">
+          <span>Varsayılan kart</span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="pc-edit-save-btn">Kaydet</button>
+        <button type="button" class="btn btn-secondary" id="pc-edit-cancel-btn">İptal</button>
+      </div>
+    </form>
+  </div>
+</div>`);
+        el = document.getElementById('pc-edit-modal-overlay');
+        document.getElementById('pc-edit-cancel-btn').addEventListener('click', () => {
+            el.classList.remove('is-open');
+        });
+        el.addEventListener('click', (e) => {
+            if (e.target === el) el.classList.remove('is-open');
+        });
+        const expIn = document.getElementById('pc-edit-expiry');
+        expIn.addEventListener('input', (e) => formatExpiryInput(expIn, e));
+        return el;
+    }
+
+    async function renderSavedCards() {
+        if (!savedCardsList) return;
+        savedCardsList.innerHTML = '<p class="text-muted payment-cards-loading">Yükleniyor…</p>';
+        const cards = await BUYER_API.getPaymentCards();
+        if (!cards.length) {
+            savedCardsList.innerHTML = `
+                <div class="payment-cards-empty">
+                    <p>Henüz kayıtlı kartınız yok.</p>
+                    <p style="font-size:0.9rem;margin-top:0.5rem;">Aşağıdan yeni kart ekleyebilirsiniz.</p>
+                </div>`;
+            return;
+        }
+        savedCardsList.innerHTML = '';
+        cards.forEach((c) => {
+            const yy = yearToShort(c.expiryYear);
+            const mm = String(c.expiryMonth || '').padStart(2, '0');
+            const tile = document.createElement('div');
+            tile.className = 'saved-card-tile' + (c.isDefault ? ' is-default' : '');
+            tile.dataset.cardId = String(c.id);
+            tile.innerHTML = `
+                <div class="saved-card-visual">
+                    <span class="saved-card-chip" aria-hidden="true"></span>
+                    <div class="saved-card-number">${c.cardNumber || ('**** **** **** ' + (c.cardLastFour || '****'))}</div>
+                    <div class="saved-card-name">${escapeHtml(c.cardName || 'Kart')}</div>
+                    <div class="saved-card-meta">SKT ${mm}/${yy}</div>
+                    ${c.isDefault ? '<span class="saved-card-badge">Varsayılan</span>' : ''}
+                </div>
+                <div class="saved-card-actions">
+                    <button type="button" class="btn btn-sm btn-card-edit" data-action="edit" data-id="${c.id}">Düzenle</button>
+                    <button type="button" class="btn btn-sm btn-card-delete" data-action="delete" data-id="${c.id}">Sil</button>
+                </div>`;
+            savedCardsList.appendChild(tile);
+        });
+
+        savedCardsList.querySelectorAll('[data-action="edit"]').forEach((btn) => {
+            btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.id, 10), cards));
+        });
+        savedCardsList.querySelectorAll('[data-action="delete"]').forEach((btn) => {
+            btn.addEventListener('click', () => deleteCard(parseInt(btn.dataset.id, 10)));
+        });
+    }
+
+    function openEditModal(cardId, cardsList) {
+        const c = (cardsList || []).find((x) => x.id === cardId);
+        if (!c) return;
+        ensureEditModal();
+        const overlay = document.getElementById('pc-edit-modal-overlay');
+        document.getElementById('pc-edit-id').value = String(cardId);
+        document.getElementById('pc-edit-name').value = c.cardName || '';
+        const mm = String(c.expiryMonth || '').padStart(2, '0');
+        const yy = yearToShort(c.expiryYear);
+        document.getElementById('pc-edit-expiry').value = `${mm}/${yy}`;
+        document.getElementById('pc-edit-default').checked = !!c.isDefault;
+        overlay.classList.add('is-open');
+    }
+
+    async function deleteCard(cardId) {
+        const ok = window.showConfirm
+            ? await window.showConfirm('Bu kartı silmek istediğinize emin misiniz?')
+            : window.confirm('Bu kartı silmek istediğinize emin misiniz?');
+        if (!ok) return;
+        const data = await BUYER_API.deletePaymentCard(cardId);
+        if (data.success) {
+            await renderSavedCards();
+        } else {
+            alert(data.message || 'Kart silinemedi.');
+        }
+    }
+
+    if (toggleAddBtn && addCardPanel) {
+        toggleAddBtn.addEventListener('click', () => {
+            const open = addCardPanel.hidden;
+            addCardPanel.hidden = !open;
+            toggleAddBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            toggleAddBtn.textContent = open ? '− Formu gizle' : '+ Yeni kart ekle';
+        });
+    }
+
+    if (newPcNumber) {
+        newPcNumber.addEventListener('input', () => formatCardInput(newPcNumber));
+    }
+    if (newPcExpiry) {
+        newPcExpiry.addEventListener('input', (e) => formatExpiryInput(newPcExpiry, e));
+    }
+
+    if (addCardCancel && addCardPanel && addCardForm) {
+        addCardCancel.addEventListener('click', () => {
+            addCardForm.reset();
+            addCardPanel.hidden = true;
+            if (toggleAddBtn) {
+                toggleAddBtn.setAttribute('aria-expanded', 'false');
+                toggleAddBtn.textContent = '+ Yeni kart ekle';
+            }
+        });
+    }
+
+    if (addCardForm) {
+        addCardForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-pc-name').value.trim();
+            const num = document.getElementById('new-pc-number').value.replace(/\s/g, '');
+            const exp = parseExpiryMmYy(document.getElementById('new-pc-expiry').value);
+            const cvc = document.getElementById('new-pc-cvc').value.trim();
+            const isDef = document.getElementById('new-pc-default').checked;
+            if (!name || num.length < 13 || !exp) {
+                alert('Lütfen kart bilgilerini eksiksiz girin.');
+                return;
+            }
+            const body = {
+                cardName: name,
+                cardNumber: num,
+                expiryMonth: exp.month,
+                expiryYear: exp.year,
+                cvc: cvc || undefined,
+                isDefault: isDef
+            };
+            const data = await BUYER_API.savePaymentCard(body);
+            if (data.success) {
+                addCardForm.reset();
+                addCardPanel.hidden = true;
+                if (toggleAddBtn) {
+                    toggleAddBtn.setAttribute('aria-expanded', 'false');
+                    toggleAddBtn.textContent = '+ Yeni kart ekle';
+                }
+                await renderSavedCards();
+            } else {
+                alert(data.message || 'Kart kaydedilemedi.');
+            }
+        });
+    }
+
+    document.addEventListener('submit', async (e) => {
+        if (e.target && e.target.id === 'pc-edit-form') {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('pc-edit-id').value, 10);
+            const name = document.getElementById('pc-edit-name').value.trim();
+            const exp = parseExpiryMmYy(document.getElementById('pc-edit-expiry').value);
+            const isDef = document.getElementById('pc-edit-default').checked;
+            if (!id || !name || !exp) {
+                alert('Geçerli bilgiler girin.');
+                return;
+            }
+            const data = await BUYER_API.updatePaymentCard(id, {
+                cardName: name,
+                expiryMonth: exp.month,
+                expiryYear: exp.year,
+                isDefault: isDef
+            });
+            if (data.success) {
+                document.getElementById('pc-edit-modal-overlay').classList.remove('is-open');
+                await renderSavedCards();
+            } else {
+                alert(data.message || 'Güncellenemedi.');
+            }
+        }
+    });
+
     await loadWalletData();
+    if (savedCardsList) {
+        await renderSavedCards();
+    }
 });
 

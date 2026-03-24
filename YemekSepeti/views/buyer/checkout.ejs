@@ -1,3 +1,5 @@
+<link rel="stylesheet" href="/assets/css/pages/payment-cards.css">
+
 <div class="container section-padding">
     <h1 class="section-title">Siparişi Tamamla</h1>
 
@@ -41,24 +43,34 @@
                     </div>
                 </div>
 
-                <form id="new-card-form" style="display: none; margin-top: 1.5rem;">
+                <form id="new-card-form" class="checkout-new-card-form" style="display: none; margin-top: 1.5rem;">
                     <div class="form-group">
                         <label for="card-name" class="form-label">Kart Üzerindeki İsim</label>
-                        <input type="text" id="card-name" class="form-input">
+                        <input type="text" id="card-name" class="form-input" autocomplete="cc-name">
                     </div>
                     <div class="form-group">
                         <label for="card-number" class="form-label">Kart Numarası</label>
-                        <input type="text" id="card-number" class="form-input" placeholder="0000 0000 0000 0000">
+                        <input type="text" id="card-number" class="form-input" placeholder="0000 0000 0000 0000" inputmode="numeric" autocomplete="cc-number">
                     </div>
                     <div class="form-row"> 
                         <div class="form-group">
                             <label for="card-expiry" class="form-label">Son Kul. Tarihi</label>
-                            <input type="text" id="card-expiry" class="form-input" placeholder="AA/YY">
+                            <input type="text" id="card-expiry" class="form-input" placeholder="AA/YY" autocomplete="cc-exp">
                         </div>
                         <div class="form-group">
                             <label for="card-cvc" class="form-label">CVC</label>
-                            <input type="text" id="card-cvc" class="form-input" placeholder="123">
+                            <input type="text" id="card-cvc" class="form-input" placeholder="123" maxlength="4" autocomplete="cc-csc">
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-check form-check-inline">
+                            <input type="checkbox" id="card-save-default">
+                            <span>Varsayılan kart olarak kaydet</span>
+                        </label>
+                    </div>
+                    <div class="checkout-new-card-actions">
+                        <button type="button" class="btn btn-primary" id="checkout-save-card-btn">Kaydet</button>
+                        <span class="checkout-save-hint">Kartı kaydetmeden sadece bu sipariş için de kullanabilirsiniz; siparişi tamamlayınca bilgiler iyzico ile işlenir.</span>
                     </div>
                 </form>
             </div>

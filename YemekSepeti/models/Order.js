@@ -27,7 +27,7 @@ module.exports=(sequelize, DataTypes)=>{
             allowNull: false
         },
         payment_method: {
-            type: DataTypes.ENUM('credit_card', 'cash', 'wallet'),
+            type: DataTypes.ENUM('credit_card', 'cash', 'wallet', 'iyzico'),
             allowNull: false
         },
         subtotal: {
@@ -63,6 +63,14 @@ module.exports=(sequelize, DataTypes)=>{
             allowNull: true
         },
         delivered_at: {
+            type: DataTypes.DATE,
+            allowNull: true
+        },
+        iyzico_payment_data: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        iyzico_refunded_at: {
             type: DataTypes.DATE,
             allowNull: true
         }

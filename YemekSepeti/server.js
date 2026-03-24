@@ -62,8 +62,12 @@ try {
         if (sequelize) {
             // alter: true -> Modellerdeki yeni sütunları SQL'e otomatik ekler.
             // "Too many keys" hatası: unique alanlar artık indexes içinde tanımlı; hâlâ oluşursa alter olmadan sync yapılır.
+            const { ensureOrderPaymentMethodEnum } = require('./config/sequelize');
             sequelize.sync({ alter: true })
-                .then(() => {
+                .then(async () => {
+                    if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
+                        await ensureOrderPaymentMethodEnum();
+                    }
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
                 })
@@ -72,7 +76,10 @@ try {
                     if (isTooManyKeys) {
                         writeLog('WARN', 'Sequelize alter atlandı (çok fazla indeks). Tablolar mevcut haliyle kullanılıyor.', { error: err.message });
                         console.warn("⚠️ SQL alter atlandı (çok fazla indeks). Tablolar mevcut haliyle kullanılıyor. Veritabanında gereksiz indeksleri temizleyebilirsiniz.");
-                        return sequelize.sync({ alter: false }).then(() => {
+                        return sequelize.sync({ alter: false }).then(async () => {
+                            if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
+                                await ensureOrderPaymentMethodEnum();
+                            }
                             console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
                         });
                     }

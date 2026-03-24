@@ -47,7 +47,19 @@ async function testConnection() {
     }
 }
 
+/** MySQL/TiDB ENUM güncellemesi (iyzico ödeme yöntemi). Başarısız olursa sessiz geçilir. */
+async function ensureOrderPaymentMethodEnum() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders MODIFY COLUMN payment_method ENUM('credit_card','cash','wallet','iyzico') NOT NULL`
+        );
+    } catch (e) {
+        // Sütun zaten güncel, farklı tip veya yetki — uygulama yine de çalışsın
+    }
+}
+
 module.exports = {
     sequelize,
-    testConnection
+    testConnection,
+    ensureOrderPaymentMethodEnum
 };

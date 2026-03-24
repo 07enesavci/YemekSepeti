@@ -38,6 +38,171 @@ async function loadPaymentCards() {
     }
 }
 
+function checkoutGetBaseUrl() {
+    return window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+}
+
+function escapeHtmlCheckout(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function checkoutYearShort(y) {
+    const n = Number(y);
+    if (!n || Number.isNaN(n)) return '';
+    return String(n).length > 2 ? String(n).slice(-2) : String(n).padStart(2, '0');
+}
+
+function markCheckoutCardFormDirty() {
+    window.__checkoutCardSavedForOrder = false;
+}
+
+/** @returns {null | { kartAdi: string, cleanCardNo: string, expiryMonth: number, expiryYear2: number, expiryYearFull: number, kartCvc: string, isDefault: boolean }} */
+function parseCheckoutNewCardFields() {
+    const kartNo = document.getElementById('card-number')?.value;
+    const kartAdi = document.getElementById('card-name')?.value;
+    const kartExpiry = document.getElementById('card-expiry')?.value;
+    const kartCvc = document.getElementById('card-cvc')?.value;
+    const isDefault = !!(document.getElementById('card-save-default')?.checked);
+
+    if (!kartNo || !kartAdi || !kartExpiry) {
+        return null;
+    }
+    const cleanCardNo = kartNo.replace(/\s/g, '');
+    const expiryParts = kartExpiry.split('/');
+    const expiryMonth = parseInt(expiryParts[0], 10);
+    let expiryYear2 = parseInt(expiryParts[1], 10);
+    if (Number.isNaN(expiryMonth) || Number.isNaN(expiryYear2) || expiryMonth < 1 || expiryMonth > 12) {
+        return null;
+    }
+    if (expiryYear2 > 99) {
+        expiryYear2 = parseInt(String(expiryYear2).slice(-2), 10);
+    }
+    const expiryYearFull = 2000 + expiryYear2;
+    return {
+        kartAdi: kartAdi.trim(),
+        cleanCardNo,
+        expiryMonth,
+        expiryYear2,
+        expiryYearFull,
+        kartCvc: kartCvc,
+        isDefault
+    };
+}
+
+function buildIyzicoPayloadFromParsed(p) {
+    if (!p || !p.kartCvc) return null;
+    return {
+        iyzicoCard: {
+            cardHolderName: p.kartAdi,
+            cardNumber: p.cleanCardNo,
+            expireMonth: String(p.expiryMonth).padStart(2, '0'),
+            expireYear: String(p.expiryYear2).padStart(2, '0'),
+            cvc: String(p.kartCvc)
+        }
+    };
+}
+
+function ensureCheckoutEditModal() {
+    if (document.getElementById('checkout-pc-edit-overlay')) return;
+    document.body.insertAdjacentHTML('beforeend', `
+<div id="checkout-pc-edit-overlay" class="pc-edit-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="checkout-pc-edit-title">
+  <div class="pc-edit-modal">
+    <h4 id="checkout-pc-edit-title">Kartı düzenle</h4>
+    <p class="text-muted" style="font-size:0.88rem;margin:0 0 1rem;">Kart numarası güvenlik nedeniyle saklanmaz; sadece isim ve son kullanma güncellenir.</p>
+    <form id="checkout-pc-edit-form">
+      <input type="hidden" id="checkout-pc-edit-id" value="">
+      <div class="form-group">
+        <label for="checkout-pc-edit-name" class="form-label">Kart üzerindeki isim</label>
+        <input type="text" id="checkout-pc-edit-name" class="form-input" required maxlength="80">
+      </div>
+      <div class="form-group">
+        <label for="checkout-pc-edit-expiry" class="form-label">Son kullanma (AA/YY)</label>
+        <input type="text" id="checkout-pc-edit-expiry" class="form-input" required placeholder="AA/YY" maxlength="5">
+      </div>
+      <div class="form-group">
+        <label class="form-check form-check-inline">
+          <input type="checkbox" id="checkout-pc-edit-default">
+          <span>Varsayılan kart</span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+        <button type="button" class="btn btn-secondary" id="checkout-pc-edit-cancel">İptal</button>
+      </div>
+    </form>
+  </div>
+</div>`);
+    const overlay = document.getElementById('checkout-pc-edit-overlay');
+    document.getElementById('checkout-pc-edit-cancel').addEventListener('click', () => overlay.classList.remove('is-open'));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('is-open'); });
+    const expIn = document.getElementById('checkout-pc-edit-expiry');
+    expIn.addEventListener('input', (e) => {
+        if (e.inputType === 'deleteContentBackward' && expIn.value.endsWith('/')) expIn.value = expIn.value.slice(0, -1);
+        let numbers = expIn.value.replace(/\D/g, '');
+        if (numbers.length >= 1 && parseInt(numbers[0], 10) > 1) numbers = '0' + numbers;
+        if (numbers.length >= 2) {
+            const month = parseInt(numbers.substring(0, 2), 10);
+            if (month > 12) numbers = '12' + numbers.slice(2);
+            else if (month === 0) numbers = '01' + numbers.slice(2);
+        }
+        if (numbers.length > 4) numbers = numbers.slice(0, 4);
+        if (numbers.length >= 3) expIn.value = numbers.slice(0, 2) + '/' + numbers.slice(2);
+        else expIn.value = numbers;
+    });
+    document.getElementById('checkout-pc-edit-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = parseInt(document.getElementById('checkout-pc-edit-id').value, 10);
+        const name = document.getElementById('checkout-pc-edit-name').value.trim();
+        const expStr = document.getElementById('checkout-pc-edit-expiry').value;
+        const parts = expStr.split('/');
+        const em = parseInt(parts[0], 10);
+        let ey = parseInt(parts[1], 10);
+        if (ey < 100) ey = 2000 + ey;
+        const isDef = document.getElementById('checkout-pc-edit-default').checked;
+        if (!id || !name || !em || em < 1 || em > 12) {
+            alert('Geçerli bilgiler girin.');
+            return;
+        }
+        const baseUrl = checkoutGetBaseUrl();
+        const res = await fetch(`${baseUrl}/api/buyer/payment-cards/${id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cardName: name,
+                expiryMonth: em,
+                expiryYear: ey,
+                isDefault: isDef
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.success) {
+            overlay.classList.remove('is-open');
+            const cards = await loadPaymentCards();
+            renderPaymentCards(cards);
+        } else {
+            alert(data.message || 'Güncellenemedi.');
+        }
+    });
+}
+
+function openCheckoutEditModal(card) {
+    ensureCheckoutEditModal();
+    const overlay = document.getElementById('checkout-pc-edit-overlay');
+    document.getElementById('checkout-pc-edit-id').value = String(card.id);
+    document.getElementById('checkout-pc-edit-name').value = card.cardName || '';
+    const mm = String(card.expiryMonth || '').padStart(2, '0');
+    const yy = checkoutYearShort(card.expiryYear);
+    document.getElementById('checkout-pc-edit-expiry').value = `${mm}/${yy}`;
+    document.getElementById('checkout-pc-edit-default').checked = !!card.isDefault;
+    overlay.classList.add('is-open');
+}
+
 async function reverseGeocode(lat, lng) {
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=tr`);
@@ -215,26 +380,75 @@ function renderAddresses(addresses) {
 function renderPaymentCards(cards) {
     const paymentContainer = document.querySelectorAll('.checkout-card .role-selector')[1];
     if (!paymentContainer) return;
-    
+
     const newCardRadio = paymentContainer.querySelector('#card-new');
     const newCardLabel = newCardRadio ? newCardRadio.closest('.form-check-radio') : null;
     paymentContainer.innerHTML = '';
-    
+
     if (cards.length > 0) {
         cards.forEach((card) => {
-            const cardDiv = document.createElement('div');
-            cardDiv.className = 'form-check form-check-radio';
-            cardDiv.innerHTML = `
-                <input type="radio" id="card-${card.id}" name="payment-card" value="${card.id}" ${card.isDefault ? 'checked' : ''}>
-                <label for="card-${card.id}">
-                    <strong>💳 ${card.cardNumber || '**** **** **** ' + card.cardLastFour}</strong>
-                    ${card.expiryMonth && card.expiryYear ? `<span>(${card.expiryMonth}/${card.expiryYear})</span>` : ''}
-                </label>
+            const row = document.createElement('div');
+            row.className = 'checkout-payment-row';
+            const yy = checkoutYearShort(card.expiryYear);
+            const mm = String(card.expiryMonth || '').padStart(2, '0');
+            const masked = card.cardNumber || ('**** **** **** ' + (card.cardLastFour || '****'));
+            row.innerHTML = `
+                <div class="form-check form-check-radio checkout-payment-card-wrap">
+                    <input type="radio" id="card-${card.id}" name="payment-card" value="${card.id}" ${card.isDefault ? 'checked' : ''}>
+                    <label for="card-${card.id}">
+                        <strong>💳 ${escapeHtmlCheckout(masked)}</strong>
+                        <span>${escapeHtmlCheckout(card.cardName || 'Kart')}</span>
+                        ${card.expiryMonth && card.expiryYear ? `<span>(${mm}/${yy})</span>` : ''}
+                        ${card.isDefault ? '<span class="badge badge-default">Varsayılan</span>' : ''}
+                    </label>
+                </div>
+                <div class="checkout-payment-row-actions">
+                    <button type="button" class="btn btn-secondary btn-sm btn-checkout-card" data-edit-card="${card.id}">Düzenle</button>
+                    <button type="button" class="btn btn-secondary btn-sm btn-checkout-card danger" data-delete-card="${card.id}">Sil</button>
+                </div>
             `;
-            paymentContainer.appendChild(cardDiv);
+            paymentContainer.appendChild(row);
+
+            row.querySelector('[data-edit-card]')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = parseInt(e.currentTarget.getAttribute('data-edit-card'), 10);
+                const c = cards.find((x) => x.id === id);
+                if (c) openCheckoutEditModal(c);
+            });
+            row.querySelector('[data-delete-card]')?.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const id = parseInt(e.currentTarget.getAttribute('data-delete-card'), 10);
+                if (!confirm('Bu kartı silmek istediğinize emin misiniz?')) return;
+                const baseUrl = checkoutGetBaseUrl();
+                const res = await fetch(`${baseUrl}/api/buyer/payment-cards/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.success) {
+                    const refreshed = await loadPaymentCards();
+                    renderPaymentCards(refreshed);
+                    if (refreshed.length) {
+                        const pick = refreshed.find((c) => c.isDefault) || refreshed[0];
+                        const r = document.getElementById(`card-${pick.id}`);
+                        if (r) r.checked = true;
+                        const newForm = document.getElementById('new-card-form');
+                        if (newForm) newForm.style.display = 'none';
+                    } else {
+                        const radioNew = document.getElementById('card-new');
+                        if (radioNew) radioNew.checked = true;
+                        const newForm = document.getElementById('new-card-form');
+                        if (newForm) newForm.style.display = 'block';
+                    }
+                } else {
+                    alert(data.message || 'Silinemedi.');
+                }
+            });
         });
     }
-    
+
     if (newCardLabel) {
         paymentContainer.appendChild(newCardLabel);
     } else {
@@ -499,6 +713,58 @@ document.addEventListener('DOMContentLoaded', async function(){
             });
         }
 
+        const newCardFormEl = document.getElementById('new-card-form');
+        if (newCardFormEl) {
+            newCardFormEl.addEventListener('input', markCheckoutCardFormDirty);
+            newCardFormEl.addEventListener('change', markCheckoutCardFormDirty);
+        }
+
+        const checkoutSaveCardBtn = document.getElementById('checkout-save-card-btn');
+        if (checkoutSaveCardBtn) {
+            checkoutSaveCardBtn.addEventListener('click', async function () {
+                const parsed = parseCheckoutNewCardFields();
+                if (!parsed) {
+                    alert('Kaydetmek için kart adı, numara ve son kullanma tarihini girin.');
+                    return;
+                }
+                if (!parsed.kartCvc) {
+                    alert('Kaydetmek için CVC girin.');
+                    return;
+                }
+                checkoutSaveCardBtn.disabled = true;
+                try {
+                    const baseUrl = checkoutGetBaseUrl();
+                    const cardResponse = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            cardName: parsed.kartAdi,
+                            cardNumber: parsed.cleanCardNo,
+                            expiryMonth: parsed.expiryMonth,
+                            expiryYear: parsed.expiryYearFull,
+                            cvc: parsed.kartCvc,
+                            isDefault: parsed.isDefault
+                        })
+                    });
+                    const cardData = await cardResponse.json();
+                    if (!cardData.success) {
+                        alert(cardData.message || 'Kart kaydedilemedi.');
+                        return;
+                    }
+                    window.__checkoutCardSavedForOrder = true;
+                    const newCards = await loadPaymentCards();
+                    renderPaymentCards(newCards);
+                    alert('Kart kaydedildi.');
+                } catch (err) {
+                    console.error('Checkout kart kaydetme:', err);
+                    alert('Kart kaydedilirken bir hata oluştu.');
+                } finally {
+                    checkoutSaveCardBtn.disabled = false;
+                }
+            });
+        }
+
         cizOdemeSayfasi();
         
         var tamamlaBtn = document.getElementById('complete-order-btn') || document.querySelector('.order-summary .btn-primary');
@@ -561,31 +827,29 @@ document.addEventListener('DOMContentLoaded', async function(){
                                         }
     	 	 	        }
 
-    	 	 	        var paymentMethod = 'credit_card';
+    	 	 	        var paymentMethod = 'iyzico';
+                        var iyzicoCardPayload = null;
 
     	 	 	 	        if (kartSecili === 'new')
                                         {
-    	 	 	 	        var kartNo = document.getElementById('card-number')?.value;
-    	 	 	 	        var kartAdi = document.getElementById('card-name')?.value;
-    	 	 	 	        var kartExpiry = document.getElementById('card-expiry')?.value;
-    	 	 	 	        var kartCvc = document.getElementById('card-cvc')?.value;
-
-    	 	 	 	        if (!kartNo || !kartAdi || !kartExpiry) {
+    	 	 	 	        const parsed = parseCheckoutNewCardFields();
+    	 	 	 	        if (!parsed) {
     	 	 	 	            alert('Lütfen tüm kart bilgilerini girin.');
-    	 	 	 	 	 	return;
-    	 	 	 	 	}
-    	 	 	 	        
-    	 	 	 	        const cleanCardNo = kartNo.replace(/\s/g, '');
-    	 	 	 	        
-    	 	 	 	        const expiryParts = kartExpiry.split('/');
-    	 	 	 	        const expiryMonth = parseInt(expiryParts[0]);
-    	 	 	 	        const expiryYear = parseInt(expiryParts[1]);
-    	 	 	 	        
-    	 	 	 	        if (!expiryMonth || !expiryYear || expiryMonth < 1 || expiryMonth > 12) {
-    	 	 	 	            alert('Geçersiz son kullanma tarihi. MM/YY formatında girin.');
     	 	 	 	            return;
     	 	 	 	        }
-    	 	 	 	        
+    	 	 	 	        if (!parsed.kartCvc) {
+                                    alert('Lütfen CVC bilgisini girin.');
+                                    return;
+                                }
+                                iyzicoCardPayload = buildIyzicoPayloadFromParsed(parsed);
+                                if (!iyzicoCardPayload) {
+                                    alert('Lütfen CVC bilgisini girin.');
+                                    return;
+                                }
+
+    	 	 	 	        const skipDbPost = !!window.__checkoutCardSavedForOrder;
+
+    	 	 	 	        if (!skipDbPost) {
     	 	 	 	        try {
                                 const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
     	 	 	 	            const cardResponse = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
@@ -593,12 +857,12 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	                credentials: 'include',
     	 	 	 	                headers: { 'Content-Type': 'application/json' },
     	 	 	 	                body: JSON.stringify({
-    	 	 	 	                    cardName: kartAdi,
-    	 	 	 	                    cardNumber: cleanCardNo,
-    	 	 	 	                    expiryMonth: expiryMonth,
-    	 	 	 	                    expiryYear: 2000 + expiryYear,
-    	 	 	 	                    cvc: kartCvc,
-    	 	 	 	                    isDefault: false
+    	 	 	 	                    cardName: parsed.kartAdi,
+    	 	 	 	                    cardNumber: parsed.cleanCardNo,
+    	 	 	 	                    expiryMonth: parsed.expiryMonth,
+    	 	 	 	                    expiryYear: parsed.expiryYearFull,
+    	 	 	 	                    cvc: parsed.kartCvc,
+    	 	 	 	                    isDefault: parsed.isDefault
     	 	 	 	                })
     	 	 	 	            });
     	 	 	 	            
@@ -616,8 +880,10 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	                newCardRadio.checked = true;
     	 	 	 	            }
     	 	 	 	            
-    	 	 	 	            document.getElementById('new-card-form').style.display = 'none';
-    	 	 	 	            document.getElementById('card-new').checked = false;
+    	 	 	 	            const ncf = document.getElementById('new-card-form');
+    	 	 	 	            if (ncf) ncf.style.display = 'none';
+    	 	 	 	            const cnew = document.getElementById('card-new');
+    	 	 	 	            if (cnew) cnew.checked = false;
     	 	 	 	            
     	 	 	 	            kartSecili = cardData.cardId.toString();
     	 	 	 	        } catch (cardError) {
@@ -625,7 +891,10 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	            alert('Kart kaydedilirken bir hata oluştu.');
     	 	 	 	            return;
     	 	 	 	        }
+    	 	 	 	        }
     	 	 	        } else {
+                            alert('iyzico ödemesi için güvenlik nedeniyle bu aşamada yeni kart bilgisi girmeniz gerekiyor.');
+                            return;
     	 	 	        }
 
     	 	 	        var cartForAPI = sepet.map(function(item) {
@@ -648,7 +917,7 @@ document.addEventListener('DOMContentLoaded', async function(){
                                         {
             	 	 	    try {
             	 	 	        console.log('📦 Sipariş oluşturuluyor...', { cart: cartForAPI, addressId, paymentMethod });
-            	 	 	        const sonuc = await window.createOrder(cartForAPI, addressId, paymentMethod);
+            	 	 	        const sonuc = await window.createOrder(cartForAPI, addressId, paymentMethod, iyzicoCardPayload);
             	 	 	        console.log('📦 Sipariş sonucu:', sonuc);
             	 	 	        
             	 	 	        if (!sonuc || !sonuc.success) {

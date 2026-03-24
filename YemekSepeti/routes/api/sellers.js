@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
-const { Seller, Review } = require("../../models");
-const { Op, Sequelize } = require('sequelize');
+const { Seller } = require("../../models");
 const { idParam, optionalLimit, handleValidationErrors } = require("../../middleware/validate");
 
 router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
@@ -17,32 +16,6 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
             ],
             order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
         });
-
-        const sellerIds = dbSellers.map((seller) => seller.id);
-        const ratingRows = sellerIds.length > 0 ? await Review.findAll({
-            where: {
-                seller_id: { [Op.in]: sellerIds },
-                is_visible: true
-            },
-            attributes: [
-                'seller_id',
-                [Sequelize.fn('COUNT', Sequelize.col('id')), 'review_count'],
-                [Sequelize.fn('AVG', Sequelize.col('rating')), 'avg_rating']
-            ],
-            group: ['seller_id'],
-            raw: true
-        }) : [];
-
-        const ratingMap = new Map(
-            ratingRows.map((row) => [
-                parseInt(row.seller_id, 10),
-                {
-                    reviewCount: parseInt(row.review_count, 10) || 0,
-                    averageRating: row.avg_rating != null ? parseFloat(Number(row.avg_rating).toFixed(2)) : 0
-                }
-            ])
-        );
-
         const sellers = dbSellers.map(seller => {
             let imageUrl = seller.logo_url;
             if (!imageUrl || imageUrl.trim() === '' || imageUrl.includes('placeholder')) {
@@ -52,20 +25,17 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
             if (!bannerUrl || bannerUrl.trim() === '' || bannerUrl.includes('placeholder')) {
                 bannerUrl = null;
             }
-
-            const ratingInfo = ratingMap.get(seller.id) || { reviewCount: 0, averageRating: 0 };
-
             return {
                 id: seller.id,
                 name: seller.shop_name || 'İsimsiz Satıcı',
                 location: seller.location || 'Konum belirtilmemiş',
-                rating: ratingInfo.averageRating,
+                rating: parseFloat(seller.rating) || 0,
                 imageUrl,
                 bannerUrl,
                 description: seller.description || "",
                 deliveryFee: parseFloat(seller.delivery_fee) || 15.00,
                 minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
-                totalReviews: ratingInfo.reviewCount
+                totalReviews: parseInt(seller.total_reviews) || 0
             };
         }).filter(Boolean);
 
@@ -152,31 +122,17 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             bannerUrl = null;
         }
 
-        const ratingRow = await Review.findOne({
-            where: { seller_id: seller.id, is_visible: true },
-            attributes: [
-                [Sequelize.fn('COUNT', Sequelize.col('id')), 'review_count'],
-                [Sequelize.fn('AVG', Sequelize.col('rating')), 'avg_rating']
-            ],
-            raw: true
-        });
-
-        const liveReviewCount = ratingRow ? (parseInt(ratingRow.review_count, 10) || 0) : 0;
-        const liveAverageRating = ratingRow && ratingRow.avg_rating != null
-            ? parseFloat(Number(ratingRow.avg_rating).toFixed(2))
-            : 0;
-
         res.json({
             id: seller.id,
             name: seller.shop_name,
             location: seller.location,
-            rating: liveAverageRating,
+            rating: parseFloat(seller.rating) || 0,
             imageUrl,
             bannerUrl,
             description: seller.description || "",
             deliveryFee: parseFloat(seller.delivery_fee) || 15.00,
             minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
-            totalReviews: liveReviewCount
+            totalReviews: parseInt(seller.total_reviews) || 0
         });
     } catch (error) {
         res.status(500).json({

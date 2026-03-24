@@ -1,15 +1,102 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
+const Iyzipay = require("iyzipay");
 const { authenticateToken, requireAuth, requireRole } = require("../../middleware/auth");
 const { sequelize } = require("../../config/database");
 const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, CourierTask, Review } = require("../../models");
 const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
+const { refundIyzicoPaymentForOrder } = require("../../lib/iyzicoRefund");
+
+const iyzipay = new Iyzipay({
+    apiKey: process.env.IYZICO_API_KEY || "",
+    secretKey: process.env.IYZICO_SECRET_KEY || "",
+    uri: process.env.IYZICO_BASE_URL || "https://sandbox-api.iyzipay.com"
+});
+
+/**
+ * iyzico: price / paidPrice, sepet kalemlerinin toplamına (2 ondalık) birebir eşit olmalıdır.
+ * Ürün satırları + teslimat; kupon indirimi ürün tutarlarına orantılı yansıtılır.
+ */
+function buildIyzicoBasketItems({ cart, mealPriceMap, mealNameMap, deliveryFee, discountAmount, subtotal }) {
+    const lines = [];
+    cart.forEach((item, index) => {
+        const mealId = item.urun?.id || item.urun?.meal_id || item.meal_id;
+        const quantity = item.adet || item.quantity || 1;
+        const unitPrice = Number(mealPriceMap[mealId] || 0);
+        const mealName = mealNameMap[mealId] || item.urun?.name || item.urun?.ad || `Urun ${index + 1}`;
+        const lineTotal = Math.round(unitPrice * quantity * 100) / 100;
+        lines.push({
+            id: String(mealId || index + 1),
+            name: mealName,
+            lineTotal
+        });
+    });
+
+    const foodAfterDiscount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+    const basketItems = [];
+
+    if (subtotal > 0 && discountAmount > 0) {
+        let allocated = 0;
+        lines.forEach((line, idx) => {
+            const isLast = idx === lines.length - 1;
+            const share = isLast
+                ? Math.round((foodAfterDiscount - allocated) * 100) / 100
+                : Math.round((line.lineTotal / subtotal) * foodAfterDiscount * 100) / 100;
+            allocated += share;
+            basketItems.push({
+                id: line.id,
+                name: line.name,
+                category1: "Yemek",
+                itemType: "PHYSICAL",
+                price: share.toFixed(2)
+            });
+        });
+    } else {
+        lines.forEach((line) => {
+            basketItems.push({
+                id: line.id,
+                name: line.name,
+                category1: "Yemek",
+                itemType: "PHYSICAL",
+                price: line.lineTotal.toFixed(2)
+            });
+        });
+    }
+
+    if (deliveryFee > 0) {
+        basketItems.push({
+            id: "delivery-fee",
+            name: "Teslimat Ucreti",
+            category1: "Hizmet",
+            itemType: "PHYSICAL",
+            price: deliveryFee.toFixed(2)
+        });
+    }
+
+    const target = Math.round((subtotal - discountAmount + deliveryFee) * 100) / 100;
+    let sumBasket = basketItems.reduce((s, x) => s + parseFloat(x.price), 0);
+    sumBasket = Math.round(sumBasket * 100) / 100;
+    const drift = Math.round((target - sumBasket) * 100) / 100;
+    if (Math.abs(drift) >= 0.001 && basketItems.length > 0) {
+        const last = basketItems[basketItems.length - 1];
+        last.price = (parseFloat(last.price) + drift).toFixed(2);
+    }
+
+    return basketItems;
+}
+
+function isDeadlockError(err) {
+    const code = err?.parent?.code || err?.original?.code;
+    const errno = err?.parent?.errno ?? err?.original?.errno ?? err?.errno;
+    const msg = String(err?.message || "");
+    return code === "ER_LOCK_DEADLOCK" || errno === 1213 || msg.includes("Deadlock");
+}
 
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
-        const { cart, address, paymentMethod, couponCode } = req.body;
+        const { cart, address, paymentMethod, couponCode, iyzicoCard } = req.body;
         
         const userId = req.session.user.id;
 
@@ -27,7 +114,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
         }
 
-        const transaction = await sequelize.transaction();
         try {
             const firstCartItem = cart[0];
             let sellerId = null;
@@ -42,8 +128,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 const firstMealId = firstCartItem?.urun?.id || firstCartItem?.meal_id;
                 if (firstMealId) {
                     const meal = await Meal.findByPk(firstMealId, {
-                        attributes: ['seller_id'],
-                        transaction
+                        attributes: ['seller_id']
                     });
                     if (meal) {
                         sellerId = meal.seller_id;
@@ -51,7 +136,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 }
             }
             if (!sellerId) {
-                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: "Satıcı bilgisi bulunamadı. Lütfen sepete ürün ekleyin." 
@@ -62,8 +146,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             if (addressId) {
                 const addressCheck = await Address.findOne({
                     where: { id: addressId, user_id: userId },
-                    attributes: ['id'],
-                    transaction
+                    attributes: ['id']
                 });
                 if (!addressCheck) {
                     addressId = null;
@@ -72,16 +155,14 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             if (!addressId) {
                 const defaultAddress = await Address.findOne({
                     where: { user_id: userId, is_default: true },
-                    attributes: ['id'],
-                    transaction
+                    attributes: ['id']
                 });
                 
                 if (defaultAddress) {
                     addressId = defaultAddress.id;
                 } else {
                     const userInfo = await User.findByPk(userId, {
-                        attributes: ['fullname', 'phone'],
-                        transaction
+                        attributes: ['fullname', 'phone']
                     });
                     
                     const newAddress = await Address.create({
@@ -91,7 +172,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         district: 'İstanbul',
                         city: 'İstanbul',
                         is_default: true
-                    }, { transaction });
+                    });
                     
                     addressId = newAddress.id;
                 }
@@ -101,7 +182,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 .filter(id => id != null);
             
             if (mealIds.length === 0) {
-                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: "Geçersiz sepet içeriği." 
@@ -113,8 +193,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     id: { [Op.in]: mealIds },
                     is_available: true
                 },
-                attributes: ['id', 'name', 'price'],
-                transaction
+                attributes: ['id', 'name', 'price']
             });
 
             const mealPriceMap = {};
@@ -126,7 +205,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
 
             const missingMeals = mealIds.filter(id => !mealPriceMap[id]);
             if (missingMeals.length > 0) {
-                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: `Bazı ürünler bulunamadı veya satışta değil. Ürün ID'leri: ${missingMeals.join(', ')}` 
@@ -134,12 +212,10 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
 
             const seller = await Seller.findByPk(sellerId, {
-                attributes: ['delivery_fee'],
-                transaction
+                attributes: ['delivery_fee']
             });
 
             if (!seller) {
-                await transaction.rollback();
                 return res.status(400).json({ 
                     success: false, 
                     message: "Satıcı bilgisi bulunamadı." 
@@ -154,7 +230,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 const mealPrice = mealPriceMap[mealId];
                 
                 if (!mealPrice) {
-                    await transaction.rollback();
                     return res.status(400).json({ 
                         success: false, 
                         message: `Ürün ID ${mealId} için fiyat bulunamadı.` 
@@ -178,12 +253,10 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         where: {
                             code: couponCode.toUpperCase().trim(),
                             is_active: true
-                        },
-                        transaction
+                        }
                     });
                     
                     if (!coupon) {
-                        await transaction.rollback();
                         return res.status(400).json({
                             success: false,
                             message: "Geçersiz kupon kodu."
@@ -197,7 +270,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     validUntil.setHours(23, 59, 59, 999);
                     
                     if (now < validFrom) {
-                        await transaction.rollback();
                         return res.status(400).json({
                             success: false,
                             message: "Bu kupon henüz geçerli değil."
@@ -205,7 +277,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     }
                     
                     if (now > validUntil) {
-                        await transaction.rollback();
                         return res.status(400).json({
                             success: false,
                             message: "Bu kupon süresi dolmuş."
@@ -214,7 +285,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     
                     // Minimum tutar kontrolü
                     if (parseFloat(subtotal) < parseFloat(coupon.min_order_amount || 0)) {
-                        await transaction.rollback();
                         return res.status(400).json({
                             success: false,
                             message: `Bu kupon minimum ${parseFloat(coupon.min_order_amount)} TL sipariş için geçerlidir.`
@@ -235,7 +305,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         if (Array.isArray(applicableSellers) && applicableSellers.length > 0) {
                             const sellerIdNum = parseInt(sellerId);
                             if (!applicableSellers.includes(sellerIdNum)) {
-                                await transaction.rollback();
                                 return res.status(400).json({
                                     success: false,
                                     message: "Bu kupon bu satıcı için geçerli değil."
@@ -251,7 +320,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         });
                         
                         if (actualUsageCount >= coupon.usage_limit) {
-                            await transaction.rollback();
                             return res.status(400).json({
                                 success: false,
                                 message: "Bu kupon kullanım limiti dolmuş."
@@ -280,7 +348,6 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     console.error('Kupon işleme hatası:', couponError.message);
                     // Kupon hatası sipariş oluşturmayı durdurmaz (warning olarak davran)
                     if (couponError.name === 'SequelizeError' || couponError.name === 'ValidationError') {
-                        await transaction.rollback();
                         return res.status(500).json({
                             success: false,
                             message: "Kupon validasyonu sırasında bir hata oluştu."
@@ -290,69 +357,231 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
             
             const finalTotal = Math.round((totalAmount - discountAmount) * 100) / 100;
-            const timestamp = Date.now().toString().slice(-6);
-            const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-            const orderNumber = `ORD-${new Date().getFullYear()}-${timestamp}${random}`;
-            const order = await Order.create({
-                order_number: orderNumber,
-                user_id: userId,
-                seller_id: sellerId,
-                address_id: addressId,
-                payment_method: paymentMethod || 'credit_card',
-                subtotal: subtotal.toFixed(2),
-                delivery_fee: deliveryFee.toFixed(2),
-                discount_amount: discountAmount.toFixed(2),
-                coupon_code: appliedCouponCode,
-                total_amount: finalTotal.toFixed(2),
-                status: 'pending'
-            }, { transaction });
+            let iyzicoPaymentData = null;
 
-            const orderId = order.id;
-            const orderItems = [];
-            for (const item of cart) {
-                const mealId = item.urun?.id || item.urun?.meal_id || item.meal_id;
-                const quantity = item.adet || item.quantity || 1;
-                const mealPrice = mealPriceMap[mealId];
-                const mealName = mealNameMap[mealId] || item.urun?.name || item.urun?.ad || "Belirtilmemiş";
-                if (!mealPrice) {
-                    continue;
+            if ((paymentMethod || "credit_card") === "iyzico") {
+                if (!process.env.IYZICO_API_KEY || !process.env.IYZICO_SECRET_KEY) {
+                    return res.status(500).json({
+                        success: false,
+                        message: "iyzico yapılandırması eksik. API anahtarlarını .env dosyasına ekleyin."
+                    });
                 }
-                
-                const itemSubtotal = (mealPrice * quantity).toFixed(2);
 
-                orderItems.push({
-                    order_id: orderId,
-                    meal_id: mealId,
-                    meal_name: mealName,
-                    meal_price: mealPrice.toFixed(2),
-                    quantity: quantity,
-                    subtotal: itemSubtotal
+                if (!iyzicoCard || !iyzicoCard.cardHolderName || !iyzicoCard.cardNumber || !iyzicoCard.expireMonth || !iyzicoCard.expireYear || !iyzicoCard.cvc) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "iyzico kart bilgileri eksik."
+                    });
+                }
+
+                const selectedAddress = await Address.findByPk(addressId);
+                const buyerUser = await User.findByPk(userId, {
+                    attributes: ['fullname', 'phone', 'email', 'created_at']
+                });
+
+                const fullname = (buyerUser?.fullname || "Musteri").trim();
+                const [firstName, ...surnameParts] = fullname.split(" ");
+                const surname = surnameParts.length ? surnameParts.join(" ") : "Musteri";
+                const gsmNumber = (buyerUser?.phone || "+905555555555").startsWith("+")
+                    ? buyerUser.phone
+                    : `+9${(buyerUser?.phone || "05555555555").replace(/\D/g, "")}`;
+
+                const basketItems = buildIyzicoBasketItems({
+                    cart,
+                    mealPriceMap,
+                    mealNameMap,
+                    deliveryFee,
+                    discountAmount,
+                    subtotal
+                });
+
+                const paymentRequest = {
+                    locale: Iyzipay.LOCALE.TR,
+                    conversationId: `ORDER-${userId}-${Date.now()}`,
+                    price: finalTotal.toFixed(2),
+                    paidPrice: finalTotal.toFixed(2),
+                    currency: Iyzipay.CURRENCY.TRY,
+                    installment: "1",
+                    basketId: `BASKET-${userId}-${Date.now()}`,
+                    paymentChannel: Iyzipay.PAYMENT_CHANNEL.WEB,
+                    paymentGroup: Iyzipay.PAYMENT_GROUP.PRODUCT,
+                    paymentCard: {
+                        cardHolderName: iyzicoCard.cardHolderName,
+                        cardNumber: String(iyzicoCard.cardNumber).replace(/\s/g, ""),
+                        expireMonth: String(iyzicoCard.expireMonth).padStart(2, '0'),
+                        expireYear: String(iyzicoCard.expireYear).slice(-2),
+                        cvc: String(iyzicoCard.cvc),
+                        registerCard: '0'
+                    },
+                    buyer: {
+                        id: String(userId),
+                        name: firstName || "Musteri",
+                        surname,
+                        gsmNumber,
+                        email: buyerUser?.email || "test@example.com",
+                        identityNumber: "11111111111",
+                        lastLoginDate: new Date().toISOString().replace("T", " ").slice(0, 19),
+                        registrationDate: new Date(buyerUser?.created_at || Date.now()).toISOString().replace("T", " ").slice(0, 19),
+                        registrationAddress: selectedAddress?.full_address || selectedAddress?.detail || "Adres",
+                        ip: req.ip || "85.34.78.112",
+                        city: selectedAddress?.city || "Istanbul",
+                        country: "Turkey",
+                        zipCode: selectedAddress?.postal_code || "34000"
+                    },
+                    shippingAddress: {
+                        contactName: fullname,
+                        city: selectedAddress?.city || "Istanbul",
+                        country: "Turkey",
+                        address: selectedAddress?.full_address || selectedAddress?.detail || "Adres",
+                        zipCode: selectedAddress?.postal_code || "34000"
+                    },
+                    billingAddress: {
+                        contactName: fullname,
+                        city: selectedAddress?.city || "Istanbul",
+                        country: "Turkey",
+                        address: selectedAddress?.full_address || selectedAddress?.detail || "Adres",
+                        zipCode: selectedAddress?.postal_code || "34000"
+                    },
+                    basketItems
+                };
+
+                const paymentResult = await new Promise((resolve, reject) => {
+                    iyzipay.payment.create(paymentRequest, (err, result) => {
+                        if (err) return reject(err);
+                        return resolve(result);
+                    });
+                });
+
+                if (!paymentResult || paymentResult.status !== "success") {
+                    return res.status(400).json({
+                        success: false,
+                        message: paymentResult?.errorMessage || "iyzico ödeme başarısız."
+                    });
+                }
+                iyzicoPaymentData = JSON.stringify({
+                    paymentId: paymentResult.paymentId,
+                    conversationId: paymentResult.conversationId,
+                    itemTransactions: (paymentResult.itemTransactions || []).map((t) => ({
+                        paymentTransactionId: t.paymentTransactionId,
+                        paidPrice: t.paidPrice != null ? String(t.paidPrice) : String(t.price)
+                    }))
                 });
             }
-            if (orderItems.length > 0) {
-                await OrderItem.bulkCreate(orderItems, { transaction });
+            const MAX_ORDER_ATTEMPTS = 3;
+            let order = null;
+            let orderNumber = null;
+            let lastDbError = null;
+
+            for (let attempt = 0; attempt < MAX_ORDER_ATTEMPTS; attempt++) {
+                const transaction = await sequelize.transaction();
+                try {
+                    if (appliedCouponId && discountAmount > 0) {
+                        const couponRow = await Coupon.findByPk(appliedCouponId, { transaction });
+                        if (!couponRow) {
+                            await transaction.rollback();
+                            return res.status(400).json({
+                                success: false,
+                                message: "Kupon bulunamadı."
+                            });
+                        }
+                        if (couponRow.usage_limit > 0) {
+                            const usageNow = await CouponUsage.count({
+                                where: { coupon_id: appliedCouponId },
+                                transaction
+                            });
+                            if (usageNow >= couponRow.usage_limit) {
+                                await transaction.rollback();
+                                return res.status(400).json({
+                                    success: false,
+                                    message: "Bu kupon kullanım limiti dolmuş."
+                                });
+                            }
+                        }
+                    }
+
+                    const timestamp = Date.now().toString().slice(-6);
+                    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                    orderNumber = `ORD-${new Date().getFullYear()}-${timestamp}${random}`;
+                    order = await Order.create({
+                        order_number: orderNumber,
+                        user_id: userId,
+                        seller_id: sellerId,
+                        address_id: addressId,
+                        payment_method: paymentMethod || 'credit_card',
+                        subtotal: subtotal.toFixed(2),
+                        delivery_fee: deliveryFee.toFixed(2),
+                        discount_amount: discountAmount.toFixed(2),
+                        coupon_code: appliedCouponCode,
+                        total_amount: finalTotal.toFixed(2),
+                        status: 'pending',
+                        iyzico_payment_data: iyzicoPaymentData
+                    }, { transaction });
+
+                    const orderId = order.id;
+                    const orderItems = [];
+                    for (const item of cart) {
+                        const mealId = item.urun?.id || item.urun?.meal_id || item.meal_id;
+                        const quantity = item.adet || item.quantity || 1;
+                        const mealPrice = mealPriceMap[mealId];
+                        const mealName = mealNameMap[mealId] || item.urun?.name || item.urun?.ad || "Belirtilmemiş";
+                        if (!mealPrice) {
+                            continue;
+                        }
+
+                        const itemSubtotal = (mealPrice * quantity).toFixed(2);
+
+                        orderItems.push({
+                            order_id: orderId,
+                            meal_id: mealId,
+                            meal_name: mealName,
+                            meal_price: mealPrice.toFixed(2),
+                            quantity: quantity,
+                            subtotal: itemSubtotal
+                        });
+                    }
+                    if (orderItems.length > 0) {
+                        await OrderItem.bulkCreate(orderItems, { transaction });
+                    }
+
+                    if (appliedCouponId && discountAmount > 0) {
+                        await CouponUsage.create({
+                            coupon_id: appliedCouponId,
+                            order_id: orderId,
+                            user_id: userId,
+                            discount_amount: discountAmount.toFixed(2)
+                        }, { transaction });
+
+                        await Coupon.increment('used_count', {
+                            by: 1,
+                            where: { id: appliedCouponId },
+                            transaction
+                        });
+
+                        console.log(`✅ CouponUsage kaydı oluşturuldu - Order: ${orderId}, Discount: ${discountAmount} TL`);
+                    }
+
+                    await transaction.commit();
+                    lastDbError = null;
+                    break;
+                } catch (dbErr) {
+                    await transaction.rollback();
+                    if (isDeadlockError(dbErr) && attempt < MAX_ORDER_ATTEMPTS - 1) {
+                        lastDbError = dbErr;
+                        await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
+                        continue;
+                    }
+                    lastDbError = dbErr;
+                    break;
+                }
             }
-            
-            // Kupon kullanımını kaydet
-            if (appliedCouponId && discountAmount > 0) {
-                await CouponUsage.create({
-                    coupon_id: appliedCouponId,
-                    order_id: orderId,
-                    user_id: userId,
-                    discount_amount: discountAmount.toFixed(2)
-                }, { transaction });
-                
-                // Kupon'un kullanım sayısını artır
-                await Coupon.increment('used_count', {
-                    by: 1,
-                    where: { id: appliedCouponId },
-                    transaction
+
+            if (lastDbError || !order) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Sipariş oluşturulurken veritabanı hatası oluştu: " + (lastDbError && lastDbError.message ? lastDbError.message : "Bilinmeyen hata"),
+                    error: process.env.NODE_ENV === 'development' && lastDbError ? lastDbError.message : undefined
                 });
-                
-                console.log(`✅ CouponUsage kaydı oluşturuldu - Order: ${orderId}, Discount: ${discountAmount} TL`);
             }
-            
-            await transaction.commit();
 
             createNotification(userId, 'order', 'Siparişiniz alındı', `Sipariş #${orderNumber} oluşturuldu.`, order.id).catch(() => {});
 
@@ -435,14 +664,11 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 message: "Sipariş başarıyla oluşturuldu."
             });
 
-        } catch (dbError) {
-            if (transaction && !transaction.finished) {
-                await transaction.rollback();
-            }
+        } catch (routeError) {
             return res.status(500).json({ 
                 success: false, 
-                message: "Sipariş oluşturulurken veritabanı hatası oluştu: " + dbError.message,
-                error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+                message: "Sipariş oluşturulurken veritabanı hatası oluştu: " + (routeError && routeError.message ? routeError.message : String(routeError)),
+                error: process.env.NODE_ENV === 'development' ? (routeError && routeError.message) : undefined
             });
         }
 
@@ -870,6 +1096,28 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                 } else {}
             } catch (courierError) {}
         }
+        if (status === 'cancelled') {
+            const fullOrder = await Order.findByPk(orderId, {
+                attributes: ['id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number', 'seller_id']
+            });
+            if (fullOrder && fullOrder.seller_id === shopId) {
+                if (fullOrder.payment_method === 'iyzico' && fullOrder.iyzico_payment_data && !fullOrder.iyzico_refunded_at) {
+                    try {
+                        await refundIyzicoPaymentForOrder(fullOrder, req.ip);
+                        await Order.update(
+                            { iyzico_refunded_at: new Date() },
+                            { where: { id: orderId, seller_id: shopId } }
+                        );
+                    } catch (refErr) {
+                        console.error('iyzico iade hatası (satıcı iptal):', refErr);
+                        return res.status(502).json({
+                            success: false,
+                            message: "Ödeme iadesi tamamlanamadı. Sipariş iptal edilmedi. " + (refErr.message || '')
+                        });
+                    }
+                }
+            }
+        }
         await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
         const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id'] });
         const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
@@ -1053,7 +1301,7 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
                 id: orderId,
                 user_id: userId
             },
-            attributes: ['id', 'status']
+            attributes: ['id', 'status', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number']
         });
 
         if (!order) {
@@ -1070,6 +1318,22 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
                 success: false,
                 message: `Bu sipariş ${getStatusText(order.status)} durumunda olduğu için iptal edilemez.`
             });
+        }
+
+        if (order.payment_method === 'iyzico' && order.iyzico_payment_data && !order.iyzico_refunded_at) {
+            try {
+                await refundIyzicoPaymentForOrder(order, req.ip);
+                await Order.update(
+                    { iyzico_refunded_at: new Date() },
+                    { where: { id: orderId, user_id: userId } }
+                );
+            } catch (refErr) {
+                console.error('iyzico iade hatası:', refErr);
+                return res.status(502).json({
+                    success: false,
+                    message: "Ödeme iadesi tamamlanamadı. Sipariş iptal edilmedi. " + (refErr.message || '')
+                });
+            }
         }
 
         await Order.update(

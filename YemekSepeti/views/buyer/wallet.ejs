@@ -1,5 +1,6 @@
 <link rel="stylesheet" href="/assets/css/pages/profile.css">
 <link rel="stylesheet" href="/assets/css/pages/checkout.css">
+<link rel="stylesheet" href="/assets/css/pages/payment-cards.css">
 
 <div class="container section-padding">
     <h1 class="section-title">Cüzdan & Kuponlar</h1>
@@ -37,6 +38,58 @@
                         <h4 style="margin-bottom: 1rem;">Bakiye Geçmişi</h4>
                         <div id="wallet-transactions" style="min-height: 200px;">
                             <p class="text-muted" style="text-align: center; padding: 2rem;">Yükleniyor...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Kayıtlı kartlar -->
+            <section id="payment-cards-section" class="payment-cards-section" style="margin-top: 1.5rem;">
+                <div class="card payment-cards-card">
+                    <div class="card-content">
+                        <div class="payment-cards-header">
+                            <h3 class="checkout-card-title">Kayıtlı kartlarım</h3>
+                            <p class="payment-cards-hint">Ödeme sırasında hızlı seçim için kartlarınızı burada yönetin.</p>
+                        </div>
+                        <div id="saved-cards-list" class="saved-cards-list" aria-live="polite">
+                            <p class="text-muted payment-cards-loading">Yükleniyor…</p>
+                        </div>
+                        <div class="payment-cards-add-block">
+                            <button type="button" class="btn btn-secondary btn-add-card-toggle" id="toggle-add-card-btn" aria-expanded="false">
+                                + Yeni kart ekle
+                            </button>
+                            <div id="add-card-panel" class="add-card-panel" hidden>
+                                <form id="add-card-form" class="add-card-form" autocomplete="off">
+                                    <div class="form-group">
+                                        <label for="new-pc-name" class="form-label">Kart üzerindeki isim</label>
+                                        <input type="text" id="new-pc-name" class="form-input" required maxlength="80" placeholder="Ad Soyad">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new-pc-number" class="form-label">Kart numarası</label>
+                                        <input type="text" id="new-pc-number" class="form-input" inputmode="numeric" required placeholder="0000 0000 0000 0000" maxlength="19">
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="new-pc-expiry" class="form-label">Son kullanma (AA/YY)</label>
+                                            <input type="text" id="new-pc-expiry" class="form-input" required placeholder="AA/YY" maxlength="5">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="new-pc-cvc" class="form-label">CVC</label>
+                                            <input type="password" id="new-pc-cvc" class="form-input" maxlength="4" placeholder="•••" autocomplete="off">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-check form-check-inline">
+                                            <input type="checkbox" id="new-pc-default" name="new-pc-default">
+                                            <span>Varsayılan kart olarak kaydet</span>
+                                        </label>
+                                    </div>
+                                    <div class="add-card-actions">
+                                        <button type="submit" class="btn btn-primary" id="add-card-save-btn">Kaydet</button>
+                                        <button type="button" class="btn btn-secondary" id="add-card-cancel-btn">Vazgeç</button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
