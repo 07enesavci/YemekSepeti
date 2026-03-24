@@ -623,6 +623,7 @@ let courierSocket = null;
 let lastRenderedActiveTaskKey = null;
 let lastRenderedDashboardMode = null;
 let courierLocationInterval = null;
+let hasShownGeoPermissionWarning = false;
 
 async function resolveCourierSocketUserId() {
     try {
@@ -692,11 +693,7 @@ async function connectCourierSocket() {
             reconnectionAttempts: 5
         }));
 
-<<<<<<< Updated upstream
-=======
         if (!courierSocket) return;
-
->>>>>>> Stashed changes
         courierSocket.on('courier_task_assigned', async (payload) => {
             lastRenderedActiveTaskKey = null;
             lastRenderedDashboardMode = null;
@@ -710,18 +707,7 @@ async function connectCourierSocket() {
             }
             playCourierTaskSound();
             const taskId = payload && payload.taskId ? payload.taskId : null;
-<<<<<<< Updated upstream
-            
-            const isConfirmed = taskId && await window.showConfirm('Yeni bir teslimat görevi atandı. Bu görevi kabul etmek istiyor musunuz?');
-            if (isConfirmed) {
-                acceptAssignedTask(taskId);
-            } else if (taskId) {
-                rejectAssignedTask(taskId);
-            } else {
-=======
-
             if (!taskId) {
->>>>>>> Stashed changes
                 displayMessage('🆕 Yeni görev atandı! Panel güncellendi.', 'success');
                 return;
             }
@@ -891,11 +877,34 @@ async function getCourierCurrentPosition() {
             return;
         }
 
+        try {
+            if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+                navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+                    if (status && status.state === 'denied' && !hasShownGeoPermissionWarning) {
+                        if (typeof displayMessage === 'function') {
+                            displayMessage('ℹ️ Konum izni kapalı. Harita yine çalışır, ama canlı konum görünmez.', 'info');
+                        }
+                        hasShownGeoPermissionWarning = true;
+                    }
+                }).catch(() => {});
+            }
+        } catch (e) {}
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 resolve([position.coords.latitude, position.coords.longitude]);
             },
-            () => {
+            (error) => {
+                if (!hasShownGeoPermissionWarning) {
+                    const denied = error && error.code === 1;
+                    const blockedMsg = denied
+                        ? 'Konum izni engelli (Access blocked). Tarayıcı ayarlarından bu site için konumu "İzin ver" yapın.'
+                        : 'Konum alınamadı. Harita varsayılan merkezle gösterilecek.';
+                    if (typeof displayMessage === 'function') {
+                        displayMessage('ℹ️ ' + blockedMsg, denied ? 'error' : 'info');
+                    }
+                    hasShownGeoPermissionWarning = true;
+                }
                 resolve(null);
             },
             {

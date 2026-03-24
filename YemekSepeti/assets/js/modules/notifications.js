@@ -121,10 +121,11 @@
 
     function init() {
         const btn = document.getElementById('header-notifications-btn');
-        const wrap = document.querySelector('.header-notifications-wrap');
+        const wrap = btn ? btn.closest('.header-notifications-wrap') : null;
         if (!btn || !wrap) return;
         updateUnreadBadge();
         btn.addEventListener('click', function(e) {
+            e.preventDefault();
             e.stopPropagation();
             toggleDropdown();
         });

@@ -24,38 +24,107 @@
         <div class="nav-overlay" id="nav-overlay"></div>
         <nav class="main-nav" id="main-nav">
             <ul> 	
+                <% const userInitial = (user && (user.fullname || user.name || user.email) ? String(user.fullname || user.name || user.email).trim().charAt(0).toUpperCase() : ''); %>
                 <% if (typeof documentsOnlyNav !== 'undefined' && documentsOnlyNav) { %>
                     <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
                 <% } else if (user && user.role === 'seller') { %>
-                    <!-- Satıcı: onay bekliyorsa bekleme sayfasına, onaylıysa panele -->
                     <% if (user.sellerApproved) { %>
                     <li><a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="btn btn-primary">Satıcı Paneli</a></li>
                     <% } else { %>
-                    <li><a href="/seller/pending-approval" class="btn btn-primary">Başvurunuz Değerlendiriliyor</a></li>
+                    <li><a href="/seller/pending-approval" class="btn btn-primary">Başvuru Durumu</a></li>
                     <% } %>
-                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                    <li class="header-notifications-wrap" style="position: relative;">
+                        <button type="button" id="header-notifications-btn" class="btn btn-secondary" aria-label="Bildirimler" style="position: relative;">
+                            <span aria-hidden="true">🔔</span>
+                            <span id="header-notifications-badge" class="notifications-badge" style="display: none;">0</span>
+                        </button>
+                        <div id="header-notifications-dropdown" class="notifications-dropdown" style="display: none;">
+                            <div class="notifications-dropdown-header">
+                                <span>Bildirimler</span>
+                                <button type="button" id="notifications-mark-all-read" class="btn btn-sm">Hepsini oku</button>
+                            </div>
+                            <div id="notifications-list" class="notifications-list"></div>
+                            <div id="notifications-empty" class="notifications-empty" style="display: none;">Bildirim yok.</div>
+                        </div>
+                    </li>
+                    <li class="header-user-menu-wrap">
+                        <button type="button" class="header-user-menu-toggle" id="header-user-menu-toggle" aria-expanded="false" aria-haspopup="true">
+                            <span class="header-user-avatar" data-has-initial="<%= userInitial ? '1' : '0' %>"><span class="header-user-avatar-initial"><%= userInitial || '' %></span><span class="header-user-avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg></span></span>
+                            <span class="header-user-caret">▾</span>
+                        </button>
+                        <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/profile` : '/seller/profile' %>" class="header-user-menu-item">Profilim</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="header-user-menu-item">Panelim</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/orders` : '/seller/orders' %>" class="header-user-menu-item">Siparişler</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/earnings` : '/seller/earnings' %>" class="header-user-menu-item">Kazançlar</a>
+                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                        </div>
+                    </li>
                 <% } else if (user && user.role === 'courier') { %>
-                    <!-- Kurye: onay bekliyorsa bekleme sayfasına, onaylıysa panele -->
-                    <% if (user.courierApproved) { %>
                     <% const courierId = user.courierId || user.id; %>
+                    <% if (user.courierApproved) { %>
                     <li><a href="/courier/<%= courierId %>/dashboard" class="btn btn-primary">Kurye Paneli</a></li>
                     <% } else { %>
-                    <li><a href="/courier/pending-approval" class="btn btn-primary">Başvurunuz Değerlendiriliyor</a></li>
+                    <li><a href="/courier/pending-approval" class="btn btn-primary">Başvuru Durumu</a></li>
                     <% } %>
-                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                    <li class="header-notifications-wrap" style="position: relative;">
+                        <button type="button" id="header-notifications-btn" class="btn btn-secondary" aria-label="Bildirimler" style="position: relative;">
+                            <span aria-hidden="true">🔔</span>
+                            <span id="header-notifications-badge" class="notifications-badge" style="display: none;">0</span>
+                        </button>
+                        <div id="header-notifications-dropdown" class="notifications-dropdown" style="display: none;">
+                            <div class="notifications-dropdown-header">
+                                <span>Bildirimler</span>
+                                <button type="button" id="notifications-mark-all-read" class="btn btn-sm">Hepsini oku</button>
+                            </div>
+                            <div id="notifications-list" class="notifications-list"></div>
+                            <div id="notifications-empty" class="notifications-empty" style="display: none;">Bildirim yok.</div>
+                        </div>
+                    </li>
+                    <li class="header-user-menu-wrap">
+                        <button type="button" class="header-user-menu-toggle" id="header-user-menu-toggle" aria-expanded="false" aria-haspopup="true">
+                            <span class="header-user-avatar" data-has-initial="<%= userInitial ? '1' : '0' %>"><span class="header-user-avatar-initial"><%= userInitial || '' %></span><span class="header-user-avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg></span></span>
+                            <span class="header-user-caret">▾</span>
+                        </button>
+                        <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
+                            <a href="/courier/<%= courierId %>/profile" class="header-user-menu-item">Profilim</a>
+                            <a href="/courier/<%= courierId %>/available" class="header-user-menu-item">Uygun Görevler</a>
+                            <a href="/courier/<%= courierId %>/history" class="header-user-menu-item">Teslimat Geçmişi</a>
+                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                        </div>
+                    </li>
                 <% } else if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
-                    <!-- Admin için panel ve çıkış butonu -->
                     <li><a href="/admin/users" class="btn btn-primary">Admin Paneli</a></li>
-                    <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                    <li class="header-notifications-wrap" style="position: relative;">
+                        <button type="button" id="header-notifications-btn" class="btn btn-secondary" aria-label="Bildirimler" style="position: relative;">
+                            <span aria-hidden="true">🔔</span>
+                            <span id="header-notifications-badge" class="notifications-badge" style="display: none;">0</span>
+                        </button>
+                        <div id="header-notifications-dropdown" class="notifications-dropdown" style="display: none;">
+                            <div class="notifications-dropdown-header">
+                                <span>Bildirimler</span>
+                                <button type="button" id="notifications-mark-all-read" class="btn btn-sm">Hepsini oku</button>
+                            </div>
+                            <div id="notifications-list" class="notifications-list"></div>
+                            <div id="notifications-empty" class="notifications-empty" style="display: none;">Bildirim yok.</div>
+                        </div>
+                    </li>
+                    <li class="header-user-menu-wrap">
+                        <button type="button" class="header-user-menu-toggle" id="header-user-menu-toggle" aria-expanded="false" aria-haspopup="true">
+                            <span class="header-user-avatar" data-has-initial="<%= userInitial ? '1' : '0' %>"><span class="header-user-avatar-initial"><%= userInitial || '' %></span><span class="header-user-avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg></span></span>
+                            <span class="header-user-caret">▾</span>
+                        </button>
+                        <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
+                            <a href="/admin/users" class="header-user-menu-item">Kullanıcılar</a>
+                            <a href="/admin/sellers" class="header-user-menu-item">Satıcı Onayı</a>
+                            <a href="/admin/reports" class="header-user-menu-item">Raporlar</a>
+                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                        </div>
+                    </li>
                 <% } else { %>
-                    <!-- Buyer ve misafirler için normal menü -->
-                    <li><a href="/" class="btn btn-secondary">Ana Sayfa</a></li>
-                    
                     <% if (user) { %>
                         <% if(user.role === 'buyer') { %>
                             <li id="header-active-order-wrap" style="display: none;"><a href="#" id="header-active-order-link" class="btn btn-primary" style="position: relative;"><span aria-hidden="true">📦</span> Aktif siparişiniz var</a></li>
-                            <li><a href="/buyer/favorites" class="btn btn-secondary">Favorilerim</a></li>
-                            <li><a href="/buyer/profile" class="btn btn-secondary">Profilim</a></li>
                         <% } %>
                         <li class="header-notifications-wrap" style="position: relative;">
                             <button type="button" id="header-notifications-btn" class="btn btn-secondary" aria-label="Bildirimler" style="position: relative;">
@@ -71,17 +140,28 @@
                                 <div id="notifications-empty" class="notifications-empty" style="display: none;">Bildirim yok.</div>
                             </div>
                         </li>
-                        <li><a href="#" class="btn btn-secondary" id="header-logout-btn">Çıkış Yap</a></li>
+                        <li id="cart-button-li" style="position: relative; display: none;"> 
+                            <a href="/buyer/cart" class="btn btn-primary" id="cart-button">
+                                Sepet (<span id="cart-count">0</span>) 
+                            </a>
+                        </li>
+                        <li class="header-user-menu-wrap">
+                            <button type="button" class="header-user-menu-toggle" id="header-user-menu-toggle" aria-expanded="false" aria-haspopup="true">
+                                <span class="header-user-avatar" data-has-initial="<%= userInitial ? '1' : '0' %>"><span class="header-user-avatar-initial"><%= userInitial || '' %></span><span class="header-user-avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg></span></span>
+                                <span class="header-user-caret">▾</span>
+                            </button>
+                            <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
+                                <a href="/buyer/profile" class="header-user-menu-item">Profilim</a>
+                                <a href="/buyer/favorites" class="header-user-menu-item">Favori Satıcılar</a>
+                                <a href="/buyer/orders" class="header-user-menu-item">Siparişlerim</a>
+                                <a href="/buyer/cart" class="header-user-menu-item">Sepetim</a>
+                                <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                            </div>
+                        </li>
                     <% } else { %>
                         <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>
                         <li><a href="/register" class="btn btn-primary">Kayıt Ol</a></li>
                     <% } %>
-                    
-                    <li id="cart-button-li" style="position: relative; display: none;"> 
-                        <a href="/buyer/cart" class="btn btn-primary" id="cart-button">
-                            Sepet (<span id="cart-count">0</span>) 
-                        </a>
-                    </li>
                 <% } %>
 
             </ul>
