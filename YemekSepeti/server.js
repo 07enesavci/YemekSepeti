@@ -548,7 +548,7 @@ try {
         if (req.path.startsWith('/api/')) {
             return res.status(404).json({ success: false, message: 'Kaynak bulunamadı.', code: 404 });
         }
-        res.status(404).send(`<h1>404 - Sayfa Bulunamadı</h1><a href="/">Ana Sayfaya Dön</a>`);
+        res.status(404).render('common/404', { layout: false, title: 'Sayfa Bulunamadı' });
     });
 
     app.use((err, req, res, next) => {
