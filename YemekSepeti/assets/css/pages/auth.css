@@ -369,12 +369,44 @@
     cursor: pointer;
 }
 
-/* Checkbox (Kullanım Koşulları) Hizalama Fix */
-.auth-card .form-check {
-    margin-top: 1.5rem;
+/* Beni Hatırla satırı — toggle + etiket + link hizalaması */
+.auth-card .form-group-inline {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 0.25rem;      /* şifre alanı ile arası */
+    margin-bottom: 1.25rem;   /* GİRİŞ YAP butonu ile arası */
+    gap: 0.75rem;
+}
+
+.auth-card .form-check {
+    display: flex;
+    align-items: center;
     gap: 10px;
+    flex-shrink: 0;
+}
+
+.auth-card .form-check label {
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.auth-card .form-link {
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+    text-decoration: none;
+    white-space: nowrap;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+
+.auth-card .form-link:hover {
+    color: var(--primary-color);
 }
 
 /* ==================================== */

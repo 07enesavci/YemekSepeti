@@ -98,7 +98,7 @@ async function loadPendingCouriers() {
             var u = user(c);
             var hasDocs = !!(c.id_card || c.driver_license);
             return '<tr class="align-middle">' +
-                '<td><div style="font-weight: 600;">' + (u ? u.fullname : '-') + '</div><small style="color:#888">' + (c.createdAt ? new Date(c.createdAt).toLocaleDateString('tr-TR') : '') + '</small></td>' +
+                '<td><div style="font-weight: 600;">' + (u ? u.fullname : '-') + '</div><small style="color:#888">Başvuru Tarihi: ' + (c.created_at ? new Date(c.created_at).toLocaleDateString('tr-TR') : '-') + '</small></td>' +
                 '<td>' + (u ? u.email : '-') + '</td>' +
                 '<td>' + (hasDocs ? '<button type="button" class="btn btn-secondary btn-sm btn-doc-view" data-courier-id="' + c.id + '">Belgeleri Görüntüle</button>' : '<span class="text-muted">Belge yok</span>') + '</td>' +
                 '<td class="text-end"><button type="button" class="btn btn-primary btn-sm btn-courier-approve" data-courier-id="' + c.id + '">Onayla</button> <button type="button" class="btn btn-outline-danger btn-sm btn-courier-reject" data-courier-id="' + c.id + '">Reddet</button></td></tr>';
