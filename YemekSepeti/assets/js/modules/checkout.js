@@ -1,3 +1,100 @@
+function initCreditCardAnimation(ids) {
+    const cardEl = document.getElementById(ids.card);
+    const highlightEl = document.getElementById(ids.highlight);
+    const cardNumEl = document.getElementById(ids.number);
+    const cardHolderEl = document.getElementById(ids.holder);
+    const cardMonthEl = document.getElementById(ids.month);
+    const cardYearEl = document.getElementById(ids.year);
+    const cardCvvEl = document.getElementById(ids.cvv);
+    const numInput = document.getElementById(ids.numInput);
+    const holderInput = document.getElementById(ids.holderInput);
+    const expiryInput = document.getElementById(ids.expiryInput);
+    const cvvInput = document.getElementById(ids.cvvInput);
+
+    if (!cardEl || !numInput) return null;
+
+    numInput.addEventListener('focus', () => {
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-number';
+    });
+    if (holderInput) holderInput.addEventListener('focus', () => {
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-holder';
+    });
+    if (expiryInput) expiryInput.addEventListener('focus', () => {
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-expire';
+    });
+    if (cvvInput) {
+        cvvInput.addEventListener('focus', () => {
+            cardEl.classList.add('flip');
+            highlightEl.className = 'cc-anim-highlight hl-cvv';
+        });
+        cvvInput.addEventListener('focusout', () => {
+            cardEl.classList.remove('flip');
+            highlightEl.className = 'cc-anim-highlight hl-hidden';
+        });
+    }
+
+    numInput.addEventListener('input', (e) => {
+        let numbers = e.target.value.replace(/\D/g, '');
+        if (numbers.length > 16) numbers = numbers.slice(0, 16);
+        e.target.value = numbers.replace(/(\d{4})(?=\d)/g, '$1 ');
+
+        const raw = numbers;
+        const spans = cardNumEl.children;
+        for (let i = 0; i < 16; i++) {
+            if (i < raw.length) {
+                const char = (i >= 4 && i < 12) ? '*' : raw[i];
+                spans[i].innerHTML = '#<br>' + char;
+                spans[i].classList.add('filed');
+            } else {
+                spans[i].innerHTML = '#<br>';
+                spans[i].classList.remove('filed');
+            }
+        }
+    });
+
+    if (holderInput) holderInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+        cardHolderEl.innerText = holderInput.value || 'Ad Soyad';
+    });
+    if (expiryInput) expiryInput.addEventListener('input', (e) => {
+        if (e.inputType === 'deleteContentBackward' && e.target.value.endsWith('/')) {
+            e.target.value = e.target.value.slice(0, -1);
+        }
+        let numbers = e.target.value.replace(/\D/g, '');
+        if (numbers.length >= 1 && parseInt(numbers[0], 10) > 1) numbers = '0' + numbers;
+        if (numbers.length >= 2) {
+            const month = parseInt(numbers.substring(0, 2), 10);
+            if (month > 12) numbers = '12' + numbers.slice(2);
+            else if (month === 0) numbers = '01' + numbers.slice(2);
+        }
+        if (numbers.length > 4) numbers = numbers.slice(0, 4);
+        if (numbers.length >= 3) e.target.value = numbers.slice(0, 2) + '/' + numbers.slice(2);
+        else e.target.value = numbers;
+
+        cardMonthEl.innerText = numbers.substring(0, 2).padEnd(2, 'A');
+        cardYearEl.innerText = numbers.substring(2, 4).padEnd(2, 'Y');
+    });
+    if (cvvInput) cvvInput.addEventListener('input', (e) => {
+        let val = e.target.value.replace(/\D/g, '');
+        if (val.length > 3) val = val.slice(0, 3);
+        e.target.value = val;
+        cardCvvEl.innerText = '*'.repeat(val.length);
+    });
+
+    return function resetCard() {
+        Array.from(cardNumEl.children).forEach(s => { s.classList.remove('filed'); s.innerHTML = '#<br>'; });
+        cardHolderEl.innerText = 'Ad Soyad';
+        cardMonthEl.innerText = 'AA';
+        cardYearEl.innerText = 'YY';
+        cardCvvEl.innerText = '';
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-hidden';
+    };
+}
+
 async function loadAddresses() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -140,6 +237,12 @@ function ensureCheckoutEditModal() {
     const overlay = document.getElementById('checkout-pc-edit-overlay');
     document.getElementById('checkout-pc-edit-cancel').addEventListener('click', () => overlay.classList.remove('is-open'));
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('is-open'); });
+    const nameIn = document.getElementById('checkout-pc-edit-name');
+    if (nameIn) {
+        nameIn.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+        });
+    }
     const expIn = document.getElementById('checkout-pc-edit-expiry');
     expIn.addEventListener('input', (e) => {
         if (e.inputType === 'deleteContentBackward' && expIn.value.endsWith('/')) expIn.value = expIn.value.slice(0, -1);
@@ -649,69 +752,22 @@ document.addEventListener('DOMContentLoaded', async function(){
             }
         }
 
-        // Kredi kartı form alanları için formatlama ve filtreleme
-        const cardNumberInput = document.getElementById('card-number');
-        if (cardNumberInput) {
-            cardNumberInput.addEventListener('input', function (e) {
-                // Sadece rakamları al
-                let numbers = e.target.value.replace(/\D/g, '');
-                // 16 haneyle sınırla
-                if (numbers.length > 16) {
-                    numbers = numbers.slice(0, 16);
-                }
-                // 4 hanede bir boşluk ekle
-                const formattedValue = numbers.replace(/(\d{4})(?=\d)/g, '$1 ');
-                e.target.value = formattedValue;
-            });
-        }
+        // Kredi kartı 3D animasyon başlatma
+        initCreditCardAnimation({
+            card: 'checkout-cc-card',
+            highlight: 'checkout-cc-highlight',
+            number: 'checkout-cc-number',
+            holder: 'checkout-cc-holder',
+            month: 'checkout-cc-month',
+            year: 'checkout-cc-year',
+            cvv: 'checkout-cc-cvv',
+            numInput: 'card-number',
+            holderInput: 'card-name',
+            expiryInput: 'card-expiry',
+            cvvInput: 'card-cvc'
+        });
 
-        const cardExpiryInput = document.getElementById('card-expiry');
-        if (cardExpiryInput) {
-            cardExpiryInput.addEventListener('input', function (e) {
-                // Eğer silme tuşuna basıldıysa ve son karakter '/' ise onu da silmesini sağla
-                if (e.inputType === 'deleteContentBackward' && e.target.value.endsWith('/')) {
-                    e.target.value = e.target.value.slice(0, -1);
-                }
-                
-                // Sadece rakamları al
-                let numbers = e.target.value.replace(/\D/g, '');
-                // İlk rakam kontrolü (ay)
-                if (numbers.length >= 1 && parseInt(numbers[0]) > 1) {
-                    numbers = '0' + numbers;
-                }
-                if (numbers.length >= 2) {
-                    const month = parseInt(numbers.substring(0, 2));
-                    if (month > 12) {
-                        numbers = '12' + numbers.slice(2);
-                    } else if (month === 0) {
-                        numbers = '01' + numbers.slice(2);
-                    }
-                }
-                // 4 haneyle sınırla
-                if (numbers.length > 4) {
-                    numbers = numbers.slice(0, 4);
-                }
-                // AA/YY formatına çevir
-                if (numbers.length >= 3) {
-                    e.target.value = numbers.slice(0, 2) + '/' + numbers.slice(2);
-                } else {
-                    e.target.value = numbers;
-                }
-            });
-        }
 
-        const cardCvcInput = document.getElementById('card-cvc');
-        if (cardCvcInput) {
-            cardCvcInput.addEventListener('input', function (e) {
-                // Sadece rakamları al
-                let numbers = e.target.value.replace(/\D/g, '');
-                // 3 haneyle sınırla
-                if (numbers.length > 3) {
-                    numbers = numbers.slice(0, 3);
-                }
-                e.target.value = numbers;
-            });
-        }
 
         const newCardFormEl = document.getElementById('new-card-form');
         if (newCardFormEl) {

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Emirhan Çalık/Desktop/YemekSepeti/YemekSepeti/views -type f -name *.ejs)",
+      "Bash(find /c/Users/Emirhan Çalık/Desktop/YemekSepeti/YemekSepeti -type f \\\\\\(-name *.js -o -name *.ts \\\\\\) ! -path */node_modules/* ! -path */assets/* ! -path */views/*)",
+      "Bash(grep -r \"card-number\\\\|card-name\\\\|card-cvc\\\\|card-expiry\\\\|cardNumber\\\\|cardName\" /c/Users/Emirhan Çalık/Desktop/YemekSepeti/YemekSepeti/views --include=*.ejs)",
+      "Bash(find /c/Users/Emirhan Çalık/Desktop/YemekSepeti/YemekSepeti/models -type f -name *.js)"
+    ]
+  }
+}

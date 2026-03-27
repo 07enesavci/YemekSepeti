@@ -50,6 +50,19 @@
     margin-bottom: 1.5rem;
 }
 
+/* Ödeme kartı animasyonunu parent hover'dan koru */
+.checkout-card:hover {
+    transform: none !important;
+    transform-style: flat !important;
+    box-shadow: var(--card-shadow) !important;
+    border-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+.checkout-card::before,
+.checkout-card::after {
+    display: none !important;
+}
+
 .checkout-card-title {
     font-family: var(--font-family-heading);
     font-size: 1.5rem;
