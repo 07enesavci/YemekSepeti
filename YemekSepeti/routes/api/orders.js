@@ -1119,10 +1119,18 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
             }
         }
         await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
-        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id'] });
+        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number'] });
         const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
         if (updatedOrder && statusTitles[status]) {
             createNotification(updatedOrder.user_id, 'order', statusTitles[status], `Sipariş #${orderId} durumu: ${statusTitles[status]}.`, orderId).catch(() => {});
+            
+            if (global.io) {
+                global.io.to(`buyer-${updatedOrder.user_id}`).emit('order_status_updated', {
+                    orderId: orderId,
+                    status: status,
+                    orderNumber: updatedOrder.order_number
+                });
+            }
         }
         // Socket.IO ile iptal bildirimini gönder
         if (status === 'cancelled' && global.io) {

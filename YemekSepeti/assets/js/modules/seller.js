@@ -484,44 +484,48 @@ async function loadOrdersPage() {
     
     await loadOrdersForTab(currentTab);
     
-    setInterval(async () => {
-        await loadOrdersForTab(currentTab);
-    }, 10000);
+    // Auto-refresh is handled globally by startSellerAutoSyncFallback
 }
 
-async function loadOrdersForTab(tab) {
+async function loadOrdersForTab(tab, isSilent = false) {
     const tabContent = document.getElementById(tab);
     if (!tabContent) return;
     
-    tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
+    if (!isSilent) tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
     
     try {
         const orders = await fetchSellerOrders(tab);
         
+        let newHtml = '';
         if (orders.length === 0) {
             const tabNames = {
                 'new': 'Yeni sipariş',
                 'preparing': 'Hazırlanan sipariş',
                 'history': 'Geçmiş sipariş'
             };
-            tabContent.innerHTML = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
-            return;
+            newHtml = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
+        } else {
+            newHtml = orders.map(order => createOrderCardHTML(order)).join('');
+        }
+        
+        const newHash = Array.from(newHtml).reduce((hash, char) => 0 | (31 * hash + char.charCodeAt(0)), 0);
+        const currentHash = tabContent.getAttribute('data-hash');
+        
+        if (currentHash !== String(newHash) || !isSilent) {
+            tabContent.innerHTML = newHtml;
+            tabContent.setAttribute('data-hash', newHash);
+            if (orders.length > 0) attachOrderEventListeners();
         }
         
         const tabButton = document.querySelector(`.tab-link[data-tab="${tab}"]`);
         if (tabButton) {
-            const tabText = tabButton.textContent.replace(/\(\d+\)/, `(${orders.length})`);
-            tabButton.textContent = tabText;
+            const currentTabTitle = tabButton.textContent;
+            const tabText = currentTabTitle.replace(/\(\d+\)/, `(${orders.length})`);
+            if (currentTabTitle !== tabText) tabButton.textContent = tabText;
         }
         
-        tabContent.innerHTML = '';
-        orders.forEach(order => {
-            tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-        });
-        
-        attachOrderEventListeners();
     } catch (error) {
-        tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
+        if (!isSilent) tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
     }
 }
 
@@ -1544,16 +1548,11 @@ async function runSellerAutoSync() {
         } else if (isEarningsPage) {
             await loadRecentOrdersForPanel();
         } else if (isOrdersPage) {
-            const tabContent = document.querySelector('.tab-content');
-            if (tabContent) {
-                tabContent.innerHTML = '';
-                if (pendingOrders.length > 0) {
-                    pendingOrders.forEach(function(order) {
-                        tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                    });
-                    attachOrderEventListeners();
-                } else {
-                    tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş yok</p>';
+            const activeTabBtn = document.querySelector('.tab-link.active');
+            if (activeTabBtn) {
+                const currentTab = activeTabBtn.getAttribute('data-tab');
+                if (typeof loadOrdersForTab === 'function') {
+                    await loadOrdersForTab(currentTab, true);
                 }
             }
         }

@@ -177,6 +177,24 @@ try {
         }
     });
 
+    // --- FAVICON ---
+    const faviconSvgPath = path.resolve(__dirname, 'public', 'favicon.svg');
+    const faviconPngPath = path.resolve(__dirname, 'public', 'favicon.png');
+    app.get('/favicon.svg', (req, res) => {
+        res.set('Cache-Control', 'public, max-age=86400');
+        if (fs.existsSync(faviconSvgPath)) return res.type('image/svg+xml').sendFile(faviconSvgPath);
+        res.status(404).end();
+    });
+    app.get('/favicon.png', (req, res) => {
+        res.set('Cache-Control', 'public, max-age=86400');
+        if (fs.existsSync(faviconPngPath)) return res.type('image/png').sendFile(faviconPngPath);
+        res.status(404).end();
+    });
+    app.get('/favicon.ico', (req, res) => {
+        if (fs.existsSync(faviconPngPath)) return res.type('image/png').sendFile(faviconPngPath);
+        res.status(204).end();
+    });
+
     // --- SESSION YAPILANDIRMASI ---
     let sessionStore = null;
     if (process.env.NODE_ENV === 'production' || process.env.USE_MYSQL_SESSION === 'true') {

@@ -242,6 +242,18 @@ router.patch("/tasks/:id/location", async (req, res) => {
             }
             return res.status(404).json({ success: false, message: "Görev bulunamadı veya size ait değil." });
         }
+        
+        try {
+            const orderInfo = await Order.findByPk(orderId, { attributes: ['user_id'] });
+            if (orderInfo && global.io) {
+                global.io.to(`buyer-${orderInfo.user_id}`).emit('courier_location_updated', {
+                    orderId: orderId,
+                    courierLat: lat,
+                    courierLng: lng
+                });
+            }
+        } catch (emErr) { console.error('Emit err', emErr); }
+        
         res.json({ success: true, message: "Konum güncellendi." });
     } catch (error) {
         console.error('LOCATION UPDATE HATA:', error);
@@ -265,6 +277,22 @@ router.put("/tasks/:id/pickup", async (req, res) => {
             { status: 'picked_up', picked_up_at: new Date() },
             { where: { order_id: orderId, courier_id: courierId } }
         );
+        
+        await Order.update(
+            { status: 'on_delivery' },
+            { where: { id: orderId } }
+        );
+
+        try {
+            const orderInfo = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number'] });
+            if (orderInfo && global.io) {
+                global.io.to(`buyer-${orderInfo.user_id}`).emit('order_status_updated', {
+                    orderId: orderId,
+                    status: 'on_delivery',
+                    orderNumber: orderInfo.order_number
+                });
+            }
+        } catch(e) {}
 
         res.json({ success: true, message: 'Sipariş başarıyla alındı olarak işaretlendi.' });
     } catch (error) {
@@ -317,7 +345,7 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
 
         const task = await CourierTask.findOne({
             where: { id: taskId, courier_id: courierId },
-            attributes: ['id', 'status']
+            attributes: ['id', 'status', 'order_id']
         });
         if (!task) return res.status(404).json({ success: false, message: "Görev bulunamadı." });
 
@@ -329,6 +357,22 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
             { status: 'on_way' },
             { where: { id: taskId, courier_id: courierId } }
         );
+        
+        await Order.update(
+            { status: 'on_delivery' },
+            { where: { id: task.order_id } }
+        );
+
+        try {
+            const orderInfo = await Order.findByPk(task.order_id, { attributes: ['user_id', 'order_number'] });
+            if (orderInfo && global.io) {
+                global.io.to(`buyer-${orderInfo.user_id}`).emit('order_status_updated', {
+                    orderId: task.order_id,
+                    status: 'on_delivery',
+                    orderNumber: orderInfo.order_number
+                });
+            }
+        } catch(e) {}
 
         return res.json({ success: true, message: "Görev kabul edildi." });
     } catch (error) {

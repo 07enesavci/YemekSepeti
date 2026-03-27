@@ -78,12 +78,34 @@
                 <div id="verification-section" style="display: none;">
                     <h2 class="card-title text-center">Email Doğrulama</h2>
                     <p class="text-center auth-subtext">Email adresinize gönderilen 6 haneli kodu girin.</p>
+                    
+                    <!-- Geri Sayım Sayacı -->
+                    <div id="countdown-container" style="display: flex; flex-direction: column; align-items: center; margin: 18px 0 10px;">
+                        <div style="position: relative; width: 80px; height: 80px;">
+                            <svg width="80" height="80" viewBox="0 0 80 80" style="transform: rotate(-90deg);">
+                                <circle cx="40" cy="40" r="34" fill="none" stroke="#f0f0f0" stroke-width="6"/>
+                                <circle id="countdown-ring" cx="40" cy="40" r="34" fill="none" stroke="#e63946" stroke-width="6"
+                                    stroke-dasharray="213.628" stroke-dashoffset="0"
+                                    stroke-linecap="round" style="transition: stroke-dashoffset 1s linear, stroke 0.3s;"/>
+                            </svg>
+                            <div id="countdown-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1.15rem; font-weight: 700; color: #e63946; font-family: 'Inter', monospace;">
+                                5:00
+                            </div>
+                        </div>
+                        <p id="countdown-label" style="margin-top: 8px; font-size: 0.85rem; color: #888;">Kodun geçerlilik süresi</p>
+                    </div>
+                    
+                    <!-- Süre Doldu Mesajı -->
+                    <div id="code-expired-msg" style="display: none; text-align: center; padding: 12px; background: #FEE2E2; color: #DC2626; border-radius: 8px; margin-bottom: 12px; font-weight: 600; font-size: 0.95rem;">
+                        ⏰ Kodun süresi doldu! Lütfen yeni kod isteyin.
+                    </div>
+
                     <form id="verify-email-form">
                         <div class="form-group">
                             <label for="verification-code" class="form-label">Doğrulama Kodu</label>
                             <input type="text" id="verification-code" class="form-input" placeholder="123456" maxlength="6" required>
                         </div>
-                        <button type="submit" class="btn btn-primary btn-full">Doğrula</button>
+                        <button type="submit" class="btn btn-primary btn-full" id="verify-submit-btn">Doğrula</button>
                         <button type="button" id="resend-code" class="btn btn-secondary btn-full" style="margin-top: 10px;">Kodu Tekrar Gönder</button>
                     </form>
                 </div>

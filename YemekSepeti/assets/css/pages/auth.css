@@ -451,6 +451,7 @@
 }
 .doc-upload-item {
     min-height: 0;
+    height: 100%;
 }
 .doc-upload-box {
     display: flex;
@@ -465,6 +466,7 @@
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
     position: relative;
     min-height: 120px;
+    height: 100%;
 }
 .doc-upload-box:hover {
     border-color: var(--primary-color-light);
