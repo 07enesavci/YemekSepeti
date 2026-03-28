@@ -12,7 +12,7 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
             attributes: [
                 'id', 'shop_name', 'location', 'rating', 'logo_url', 
                 'banner_url', 'description', 'delivery_fee', 
-                'min_order_amount', 'total_reviews', 'is_active'
+                'min_order_amount', 'total_reviews', 'is_active', 'is_open'
             ],
             order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
         });
@@ -35,7 +35,8 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 description: seller.description || "",
                 deliveryFee: parseFloat(seller.delivery_fee) || 15.00,
                 minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
-                totalReviews: parseInt(seller.total_reviews) || 0
+                totalReviews: parseInt(seller.total_reviews) || 0,
+                isOpen: !!seller.is_open
             };
         }).filter(Boolean);
 
@@ -101,7 +102,7 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             attributes: [
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
-                'min_order_amount', 'total_reviews', 'is_active'
+                'min_order_amount', 'total_reviews', 'is_active', 'is_open'
             ]
         });
 
@@ -132,7 +133,8 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             description: seller.description || "",
             deliveryFee: parseFloat(seller.delivery_fee) || 15.00,
             minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
-            totalReviews: parseInt(seller.total_reviews) || 0
+            totalReviews: parseInt(seller.total_reviews) || 0,
+            isOpen: !!seller.is_open
         });
     } catch (error) {
         res.status(500).json({
@@ -148,8 +150,8 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
         const { Meal } = require("../../models");
 
         const meals = await Meal.findAll({
-            where: { seller_id: sellerId, is_available: true },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url'],
+            where: { seller_id: sellerId },
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
 
@@ -164,7 +166,8 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
                 name: meal.name,
                 description: meal.description || "",
                 price: parseFloat(meal.price) || 0,
-                imageUrl: mealImageUrl
+                imageUrl: mealImageUrl,
+                isAvailable: !!meal.is_available
             };
         });
 

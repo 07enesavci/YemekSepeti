@@ -384,16 +384,17 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .auth-card .form-check label {
     font-size: 0.9rem;
     color: var(--text-color-light);
     cursor: pointer;
-    line-height: 1;
-    white-space: nowrap;
+    line-height: 1.4;
+    white-space: normal;
     user-select: none;
+    flex: 1;
 }
 
 .auth-card .form-link {

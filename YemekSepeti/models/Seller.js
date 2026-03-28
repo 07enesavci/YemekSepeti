@@ -74,6 +74,10 @@ module.exports = (sequelize, DataTypes) => {
         is_active: {
             type: DataTypes.BOOLEAN,
             defaultValue: false // Belgeler onaylanana kadar varsayılan olarak kapalı (false) olması daha güvenlidir
+        },
+        is_open: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: true
         }
     }, {
         tableName: 'sellers',

@@ -145,6 +145,9 @@ function createMealCardHTML(meal) {
                 ${parseFloat(meal.price || 0).toFixed(2)} TL
             </div>
             <div class="menu-item-actions">
+                <button class="btn ${meal.isAvailable ? 'btn-secondary' : 'btn-primary'} btn-sm toggle-meal-btn" data-meal-id="${meal.id}" data-available="${meal.isAvailable}">
+                    ${meal.isAvailable ? 'Tükendi Yap' : 'Satışa Aç'}
+                </button>
                 <button class="btn btn-secondary btn-sm edit-meal-btn" data-meal-id="${meal.id}">Düzenle</button>
                 <button class="btn btn-danger btn-sm delete-meal-btn" data-meal-id="${meal.id}">Sil</button>
             </div>
@@ -176,7 +179,7 @@ async function loadMenuPage() {
 }
 
 function attachMenuEventListeners() {
-        document.querySelectorAll('.delete-meal-btn').forEach(btn => {
+    document.querySelectorAll('.delete-meal-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const mealId = parseInt(e.target.getAttribute('data-meal-id'));
             const isConfirmed = await window.showConfirm('Bu yemeği silmek istediğinize emin misiniz?');
@@ -188,6 +191,21 @@ function attachMenuEventListeners() {
                 alert('Yemek başarıyla silindi.');
             } catch (error) {
                 alert('Yemek silinirken hata oluştu: ' + error.message);
+            }
+        });
+    });
+
+    document.querySelectorAll('.toggle-meal-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const mealId = parseInt(e.target.getAttribute('data-meal-id'));
+            const isAvailable = e.target.getAttribute('data-available') === 'true';
+            btn.disabled = true;
+            try {
+                await updateMeal(mealId, { isAvailable: !isAvailable });
+                loadMenuPage();
+            } catch (error) {
+                alert('Yemek durumu güncellenirken hata oluştu: ' + error.message);
+                btn.disabled = false;
             }
         });
     });
@@ -721,6 +739,39 @@ async function loadDashboardPage() {
             setTimeout(() => {
                 window.updateSellerSidebarOwnerName();
             }, 200);
+        }
+
+        const shopStatusBtn = document.getElementById('shop-status-btn');
+        if (shopStatusBtn && data.hasOwnProperty('isOpen')) {
+            shopStatusBtn.style.display = 'inline-block';
+            shopStatusBtn.textContent = data.isOpen ? 'Dükkanı Kapat' : 'Dükkanı Aç';
+            shopStatusBtn.className = data.isOpen ? 'btn btn-danger' : 'btn btn-primary';
+            
+            shopStatusBtn.onclick = async () => {
+                const newStatus = !data.isOpen;
+                shopStatusBtn.disabled = true;
+                shopStatusBtn.textContent = 'Bekleyin...';
+                try {
+                    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+                    const response = await fetch(`${baseUrl}/api/seller/toggle-shop-status`, {
+                        method: 'PUT',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ is_open: newStatus })
+                    });
+                    if (!response.ok) throw new Error('Güncelleme başarısız');
+                    
+                    data.isOpen = newStatus;
+                    shopStatusBtn.textContent = data.isOpen ? 'Dükkanı Kapat' : 'Dükkanı Aç';
+                    shopStatusBtn.className = data.isOpen ? 'btn btn-danger' : 'btn btn-primary';
+                    showSellerActionNotification('success', 'Dükkan Durumu', 'Dükkan ' + (data.isOpen ? 'açıldı.' : 'kapatıldı.'));
+                } catch (err) {
+                    showSellerActionNotification('error', 'Hata', err.message);
+                    shopStatusBtn.textContent = data.isOpen ? 'Dükkanı Kapat' : 'Dükkanı Aç';
+                } finally {
+                    shopStatusBtn.disabled = false;
+                }
+            };
         }
         
         // İstatistikleri güncelle

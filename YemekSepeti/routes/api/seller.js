@@ -329,11 +329,35 @@ router.get("/earnings", async (req, res) => {
     }
 });
 
+router.put("/toggle-shop-status", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const { is_open } = req.body;
+        
+        if (typeof is_open !== 'boolean') {
+            return res.status(400).json({ success: false, message: "Geçerli bir durum belirtin." });
+        }
+
+        const [result] = await db.query(
+            "UPDATE sellers SET is_open = ? WHERE user_id = ?",
+            [is_open ? 1 : 0, userId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        }
+
+        res.json({ success: true, message: "Dükkan durumu güncellendi." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
 router.get("/dashboard", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const sellerQuery = await db.query(
-            "SELECT id, shop_name FROM sellers WHERE user_id = ?",
+            "SELECT id, shop_name, is_open FROM sellers WHERE user_id = ?",
             [userId]
         );
         
@@ -387,6 +411,7 @@ router.get("/dashboard", async (req, res) => {
         res.json({
             success: true,
             shopName: shopName,
+            isOpen: !!sellerQuery[0].is_open,
             fullname: fullname,
             stats: {
                 newOrders: parseInt(stats.new_orders) || 0,

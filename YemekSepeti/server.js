@@ -464,8 +464,8 @@ try {
     app.get("/about", (req, res) => res.render("common/about", { title: "Hakkımızda" }));
     app.get("/contact", (req, res) => res.render("common/contact", { title: "İletişim" }));
     app.get("/terms", (req, res) => res.render("common/terms", { title: "Kullanım Koşulları" }));
-    app.get("/forgot-password", (req, res) => res.render("common/forgot-password", { title: "Şifremi Unuttum" }));
-    app.get("/reset-password", (req, res) => res.render("common/reset-password", { title: "Şifre Sıfırla" }));
+    app.get("/forgot-password", (req, res) => res.render("common/forgot-password", { title: "Şifremi Unuttum", pageCss: "auth.css", pageJs: "auth.js" }));
+    app.get("/reset-password", (req, res) => res.render("common/reset-password", { title: "Şifre Sıfırla", pageCss: "auth.css", pageJs: "auth.js" }));
 
     // --- ALICI (BUYER) ROUTE'LARI ---
     app.get("/buyer/cart", requireRole('buyer'), (req, res) => res.render("buyer/cart", { title: "Sepetim", pageCss: "cart.css", pageJs: "cart.js" }));

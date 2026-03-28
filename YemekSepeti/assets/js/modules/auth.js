@@ -651,4 +651,159 @@ document.addEventListener("DOMContentLoaded", function ()
             }
         });
     }
+
+    // --- ŞİFRE SIFIRLAMA FORMU (reset-password) ---
+    var resetForm=document.getElementById("reset-password-form");
+    if (resetForm) 
+    {
+        resetForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            var password=document.getElementById("password").value;
+            var confirmPassword=document.getElementById("confirm-password").value;
+            var messageDiv=document.getElementById("reset-password-message");
+
+            // Validasyonlar
+            if (!password || !confirmPassword) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Lütfen tüm alanları doldurun.";
+                } 
+                else 
+                {
+                    alert("Lütfen tüm alanları doldurun.");
+                }
+                return;
+            }
+
+            if (password.length < 6) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Şifre en az 6 karakter olmalıdır.";
+                } 
+                else 
+                {
+                    alert("Şifre en az 6 karakter olmalıdır.");
+                }
+                return;
+            }
+
+            if (password !== confirmPassword) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Şifreler eşleşmiyor.";
+                } 
+                else 
+                {
+                    alert("Şifreler eşleşmiyor.");
+                }
+                return;
+            }
+
+            // URL'den token'ı al
+            var urlParams = new URLSearchParams(window.location.search);
+            var token = urlParams.get("token");
+
+            if (!token) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Geçersiz sıfırlama bağlantısı. Lütfen yeni bir bağlantı isteyin.";
+                } 
+                else 
+                {
+                    alert("Geçersiz sıfırlama bağlantısı.");
+                }
+                return;
+            }
+
+            var btn=this.querySelector("button[type=submit]");
+            var oldText=btn.textContent;
+            btn.disabled=true;
+            btn.textContent="Şifre sıfırlanıyor...";
+
+            if (messageDiv) 
+            {
+                messageDiv.style.display = "none";
+                messageDiv.textContent = "";
+            }
+
+            try 
+            {
+                var result=await window.resetPassword(token, password);
+                
+                if (messageDiv) 
+                {
+                    messageDiv.style.display="block";
+                    
+                    if (result && result.success) 
+                    {
+                        messageDiv.style.backgroundColor="#D1FAE5";
+                        messageDiv.style.color="#059669";
+                        messageDiv.textContent=result.message || "Şifreniz başarıyla güncellendi!";
+                        
+                        // Formu gizle, 3 saniye sonra giriş sayfasına yönlendir
+                        resetForm.style.display = "none";
+                        setTimeout(function() {
+                            var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                            window.location.href = baseUrl + "/login";
+                        }, 3000);
+                    } 
+                    else 
+                    {
+                        messageDiv.style.backgroundColor="#FEE2E2";
+                        messageDiv.style.color="#DC2626";
+                        messageDiv.textContent=result && result.message ? result.message : "Şifre sıfırlama başarısız.";
+                    }
+                } 
+                else 
+                {
+                    if (result && result.success) 
+                    {
+                        alert(result.message || "Şifreniz güncellendi!");
+                        var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                        window.location.href = baseUrl + "/login";
+                    } 
+                    else 
+                    {
+                        alert(result && result.message ? result.message : "Şifre sıfırlama başarısız.");
+                    }
+                }
+            } 
+            catch (error) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Bir hata oluştu, tekrar deneyin.";
+                } 
+                else 
+                {
+                    alert("Bir hata oluştu, tekrar deneyin.");
+                }
+            } 
+            finally 
+            {
+                btn.disabled=false;
+                btn.textContent=oldText;
+            }
+        });
+    }
 });

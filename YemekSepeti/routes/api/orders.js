@@ -212,13 +212,20 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
 
             const seller = await Seller.findByPk(sellerId, {
-                attributes: ['delivery_fee']
+                attributes: ['delivery_fee', 'is_open']
             });
 
             if (!seller) {
                 return res.status(400).json({ 
                     success: false, 
                     message: "Satıcı bilgisi bulunamadı." 
+                });
+            }
+
+            if (seller.is_open === false || seller.is_open === 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Üzgünüz, bu dükkan şu an kapalı olduğu için sipariş alamıyor." 
                 });
             }
 

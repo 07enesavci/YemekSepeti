@@ -153,35 +153,110 @@ async function sendPasswordResetLink(email, resetLink) {
         <html>
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-                .button { display: inline-block; background: #DC2626; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-                .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+                body { 
+                    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: #374151; 
+                    background-color: #f3f4f6; 
+                    margin: 0; 
+                    padding: 40px 20px; 
+                }
+                .container { 
+                    max-width: 600px; 
+                    margin: 0 auto; 
+                    background: #ffffff; 
+                    border-radius: 16px; 
+                    overflow: hidden; 
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+                }
+                .header { 
+                    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); 
+                    color: white; 
+                    padding: 40px 30px; 
+                    text-align: center; 
+                }
+                .header h1 { 
+                    margin: 0; 
+                    font-size: 28px; 
+                    font-weight: 800; 
+                    letter-spacing: -0.5px; 
+                }
+                .header p { 
+                    margin: 5px 0 0; 
+                    font-size: 16px; 
+                    opacity: 0.9; 
+                }
+                .content { 
+                    padding: 40px 30px; 
+                }
+                .content p { 
+                    margin-bottom: 20px; 
+                    font-size: 16px; 
+                }
+                .button-container { 
+                    text-align: center; 
+                    margin: 35px 0; 
+                }
+                .button { 
+                    display: inline-block; 
+                    background: #dc2626; 
+                    color: #ffffff; 
+                    padding: 14px 32px; 
+                    text-decoration: none; 
+                    border-radius: 50px; 
+                    font-weight: 600; 
+                    font-size: 16px; 
+                    box-shadow: 0 4px 6px rgba(220, 38, 38, 0.25);
+                }
+                a.button { color: #ffffff !important; }
+                .link-box {
+                    background-color: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 16px;
+                    margin-top: 10px;
+                    word-break: break-all;
+                    font-size: 13px;
+                    color: #6b7280;
+                }
+                .footer { 
+                    text-align: center; 
+                    padding: 20px 30px 40px; 
+                    color: #9ca3af; 
+                    font-size: 13px; 
+                }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
                     <h1>Ev Lezzetleri</h1>
-                    <p>Şifre Sıfırlama</p>
+                    <p>Şifre Sıfırlama Talebi</p>
                 </div>
                 <div class="content">
                     <p>Merhaba,</p>
-                    <p>Şifrenizi sıfırlamak için aşağıdaki butona tıklayın:</p>
-                    <div style="text-align: center;">
+                    <p>Hesabınızın şifresini sıfırlamak için bir talep aldık. Aşağıdaki butona tıklayarak yeni şifrenizi belirleyebilirsiniz:</p>
+                    
+                    <div class="button-container">
                         <a href="${resetLink}" class="button">Şifremi Sıfırla</a>
                     </div>
-                    <p>Veya bu linki kopyalayıp tarayıcınıza yapıştırın:</p>
-                    <p style="word-break: break-all; color: #666;">${resetLink}</p>
-                    <p><strong>Bu link 1 saat geçerlidir.</strong></p>
-                    <p>Eğer bu işlemi siz yapmadıysanız, bu emaili görmezden gelebilirsiniz.</p>
+                    
+                    <p style="font-size: 14px; margin-bottom: 8px;">Veya bu bağlantıyı kopyalayıp tarayıcınıza yapıştırın:</p>
+                    <div class="link-box">
+                        <a href="${resetLink}" style="color: #6b7280; text-decoration: none;">${resetLink}</a>
+                    </div>
+                    
+                    <p style="margin-top: 25px; font-size: 14px; color: #6b7280;">
+                        <strong>Not:</strong> Bu bağlantı güvenlik amacıyla 1 saat boyunca geçerlidir.
+                        <br><br>
+                        Eğer şifre sıfırlama talebinde bulunmadıysanız, bu e-postayı güvenle göz ardı edebilirsiniz. Hesabınız güvendedir.
+                    </p>
                 </div>
-                <div class="footer">
-                    <p>© ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
-                </div>
+            </div>
+            <div class="footer">
+                <p>© ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
             </div>
         </body>
         </html>

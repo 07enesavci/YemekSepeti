@@ -476,10 +476,11 @@ function displayRestaurants(sellers, append) {
                              loading="lazy"
                              onerror="this.onerror=null; this.style.display='none'; const parent=this.parentElement; if(parent) { parent.innerHTML='<div style=\\'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\'>' + this.alt.replace(/&#39;/g, '\\'') + '</div>'; }">
                     `}
-                    <div class="rating-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.95); padding: 6px 12px; border-radius: 20px; font-weight: bold; color: #333; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                    <div class="rating-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.95); padding: 6px 12px; border-radius: 20px; font-weight: bold; color: #333; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 2;">
                         <span style="color: #FFA500;">★</span>
                         <span>${rating.toFixed(1)}</span>
                     </div>
+                    ${seller.isOpen === false ? `<div style="position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.6); z-index: 10; display:flex; align-items:center; justify-content:center; color:white; font-size:24px; font-weight:bold;">KAPALI</div>` : ''}
                 </div>
                 <div class="card-content" style="padding: 1.5rem;">
                     <h3 class="card-title" style="margin: 0 0 0.5rem 0; font-size: 1.4rem; color: var(--secondary-color); font-weight: 700;">${safeName}</h3>

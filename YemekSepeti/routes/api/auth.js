@@ -391,7 +391,7 @@ router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValid
     }
 });
 
-// Şifre Sıfırlama
+// Şifre Sıfırlama - Link Gönder
 router.post("/forgot-password", async (req, res) => {
     const { email } = req.body;
     try {
@@ -408,6 +408,43 @@ router.post("/forgot-password", async (req, res) => {
     } catch (error) {
         console.error('Forgot password hatası:', error);
         res.status(500).json({ success: false, message: "İşlem sırasında hata oluştu." });
+    }
+});
+
+// Şifre Sıfırlama - Yeni Şifre Kaydet
+router.post("/reset-password", async (req, res) => {
+    const { token, password } = req.body;
+    try {
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: "Token ve yeni şifre gereklidir." });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ success: false, message: "Şifre en az 6 karakter olmalıdır." });
+        }
+
+        const secret = ensureSecret();
+        let decoded;
+        try {
+            decoded = jwt.verify(token, secret);
+        } catch (err) {
+            if (err.name === 'TokenExpiredError') {
+                return res.status(400).json({ success: false, message: "Sıfırlama bağlantısının süresi dolmuş. Lütfen yeni bir bağlantı isteyin." });
+            }
+            return res.status(400).json({ success: false, message: "Geçersiz sıfırlama bağlantısı." });
+        }
+
+        const user = await User.findByPk(decoded.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+        }
+
+        const hashedPassword = await hashPassword(password);
+        await user.update({ password: hashedPassword });
+
+        res.json({ success: true, message: "Şifreniz başarıyla güncellendi. Şimdi giriş yapabilirsiniz." });
+    } catch (error) {
+        console.error('Reset password hatası:', error);
+        res.status(500).json({ success: false, message: "Şifre sıfırlama sırasında hata oluştu." });
     }
 });
 

@@ -37,7 +37,7 @@ async function loadSellerProfile() {
         const sellerBannerEl = document.querySelector('.seller-banner');
         
         if (sellerNameEl) {
-            sellerNameEl.textContent = seller.name || 'Satıcı Adı';
+            sellerNameEl.textContent = (seller.name || 'Satıcı Adı') + (seller.isOpen === false ? ' (KAPALI)' : '');
         }
         
         if (sellerRatingEl) {
@@ -83,7 +83,7 @@ async function loadSellerProfile() {
             sellerBannerEl.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url(${bannerUrl})`;
         }
 
-        await loadSellerMenu(sellerId);
+        await loadSellerMenu(sellerId, seller); // Pass seller parameter here
         await loadSellerReviews(sellerId);
         initializeTabs();
         
@@ -214,7 +214,7 @@ function initializeTabs() {
     }
 }
 
-async function loadSellerMenu(sellerId) {
+async function loadSellerMenu(sellerId, seller) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
         const menuResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/menu`);
@@ -284,19 +284,28 @@ async function loadSellerMenu(sellerId) {
                     itemImageUrl = itemImageUrl + separator + '_t=' + Date.now();
                 }
                 
+                let cartButtonHtml = '';
+                if (seller.isOpen === false) {
+                    cartButtonHtml = `<button class="btn btn-secondary btn-full" disabled style="margin-top: 0.5rem; opacity: 0.6; cursor: not-allowed;">Dükkan Kapalı</button>`;
+                } else if (!item.isAvailable) {
+                    cartButtonHtml = `<button class="btn btn-secondary btn-full" disabled style="margin-top: 0.5rem; opacity: 0.6; cursor: not-allowed;">Tükendi</button>`;
+                } else {
+                    cartButtonHtml = `<button class="btn btn-primary btn-full" onclick="addToCart(${item.id}, ${sellerId}, 1)" style="margin-top: 0.5rem;">Sepete Ekle</button>`;
+                }
+
                 menuHTML += `
-                    <div class="menu-item" style="background: var(--card-bg); border-radius: var(--border-radius); padding: 1rem; box-shadow: var(--card-shadow);">
+                    <div class="menu-item" style="background: var(--card-bg); border-radius: var(--border-radius); padding: 1rem; box-shadow: var(--card-shadow); ${item.isAvailable ? '' : 'opacity: 0.6;'}">
                         <div style="position: relative; width: 100%; height: 150px; overflow: hidden; border-radius: 8px; margin-bottom: 0.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                             <img src="${itemImageUrl}" 
                                  alt="${safeItemName}" 
-                                 style="width: 100%; height: 100%; object-fit: cover;"
+                                 style="width: 100%; height: 100%; object-fit: cover; ${item.isAvailable ? '' : 'filter: grayscale(100%);'}"
                                  onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
                             <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold; text-align: center; padding: 10px;">${safeItemName}</div>
                         </div>
                         <h4 style="margin: 0.5rem 0; font-size: 1.1rem; color: var(--secondary-color);">${safeItemName}</h4>
                         <p style="margin: 0.5rem 0; color: var(--secondary-color-light); font-size: 0.9rem;">${(item.description || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
                         <p style="margin: 0.5rem 0; font-size: 1.2rem; font-weight: bold; color: var(--primary-color);">${parseFloat(item.price || 0).toFixed(2)} ₺</p>
-                        <button class="btn btn-primary btn-full" onclick="addToCart(${item.id}, ${sellerId}, 1)" style="margin-top: 0.5rem;">Sepete Ekle</button>
+                        ${cartButtonHtml}
                     </div>
                 `;
             });
