@@ -290,7 +290,7 @@ async function loadSellerMenu(sellerId, seller) {
                 } else if (!item.isAvailable) {
                     cartButtonHtml = `<button class="btn btn-secondary btn-full" disabled style="margin-top: 0.5rem; opacity: 0.6; cursor: not-allowed;">Tükendi</button>`;
                 } else {
-                    cartButtonHtml = `<button class="btn btn-primary btn-full" onclick="addToCart(${item.id}, ${sellerId}, 1)" style="margin-top: 0.5rem;">Sepete Ekle</button>`;
+                    cartButtonHtml = `<button class="btn btn-primary btn-full sepete-ekle-btn" onclick="addToCart(${item.id}, ${sellerId}, 1)" style="margin-top: 0.5rem; position: relative; overflow: hidden;"><span class="btn-label">Sepete Ekle</span><span class="food-anim" aria-hidden="true"><svg viewBox="0 0 24 20" width="24" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.5 8.5Q6.5 6.5 7.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M12 7.5Q11 5.5 12 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M16.5 8.5Q15.5 6.5 16.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M3 14Q3 9 12 9Q21 9 21 14Z" fill="currentColor"/><ellipse cx="12" cy="14.5" rx="9" ry="2.2" fill="currentColor"/></svg></span><span class="cart-anim" aria-hidden="true"><svg viewBox="0 0 36 26" width="30" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2.5H6L10 18.5H25.5L28.5 7.5L7.5 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11.5" cy="23" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="24" cy="23" r="2" stroke="currentColor" stroke-width="1.5"/><path class="cart-tick" d="M14.5 13.5L16.5 15.5L21.5 10.5" stroke="#FFD700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:10;stroke-dashoffset:10"/></svg></span></button>`;
                 }
 
                 menuHTML += `
@@ -318,6 +318,19 @@ async function loadSellerMenu(sellerId, seller) {
         // Inline onclick yerine modern event listener kullan
         setTimeout(function() {
             var addToCartButtons = menuContent.querySelectorAll('button[onclick*="addToCart"]');
+
+            // GSAP başlangıç pozisyonlarını ayarla
+            if (typeof gsap !== 'undefined') {
+                addToCartButtons.forEach(function(btn) {
+                    var foodEl = btn.querySelector('.food-anim');
+                    var cartEl = btn.querySelector('.cart-anim');
+                    var tickEl = btn.querySelector('.cart-tick');
+                    if (foodEl) gsap.set(foodEl, { xPercent: -50, yPercent: -50, y: 20, scale: 0, opacity: 0 });
+                    if (cartEl) gsap.set(cartEl, { xPercent: -50, yPercent: -50, x: -60, opacity: 0 });
+                    if (tickEl) gsap.set(tickEl, { strokeDashoffset: 10 });
+                });
+            }
+
             addToCartButtons.forEach(function(button) {
                 var onclickAttr = button.getAttribute('onclick');
                 if (onclickAttr) {
@@ -331,13 +344,84 @@ async function loadSellerMenu(sellerId, seller) {
                             var sellerId = parseInt(match[2]);
                             var quantity = match[3] ? parseInt(match[3]) : 1;
                             addToCart(mealId, sellerId, quantity);
-                            var originalText = button.innerHTML;
-                            button.textContent = 'Eklendi!';
-                            button.disabled = true;
-                            setTimeout(function() {
-                                button.innerHTML = originalText;
-                                button.disabled = false;
-                            }, 1000);
+
+                            if (typeof gsap !== 'undefined' && button.classList.contains('sepete-ekle-btn') && !button.classList.contains('animating')) {
+                                var lbl = button.querySelector('.btn-label');
+                                var foodEl = button.querySelector('.food-anim');
+                                var cartEl = button.querySelector('.cart-anim');
+                                var tickEl = button.querySelector('.cart-tick');
+
+                                if (lbl && foodEl && cartEl) {
+                                    button.classList.add('animating');
+                                    button.disabled = true;
+
+                                    var tl = gsap.timeline({
+                                        onComplete: function() {
+                                            button.classList.remove('animating');
+                                            button.disabled = false;
+                                        }
+                                    });
+
+                                    // Yazı solar
+                                    tl.to(lbl, { opacity: 0, x: -10, duration: 0.2, ease: 'power1.in' });
+
+                                    // Yemek ikonu yükselir
+                                    tl.fromTo(foodEl,
+                                        { xPercent: -50, yPercent: -50, y: 20, scale: 0, opacity: 0 },
+                                        { y: 0, scale: 1, opacity: 1, duration: 0.38, ease: 'back.out(1.7)' },
+                                        0.1
+                                    );
+
+                                    // Yemek hafifçe zıplar
+                                    tl.to(foodEl, { y: -7, duration: 0.18, ease: 'power1.out' });
+
+                                    // Yemek düşer ve solar
+                                    tl.to(foodEl, { y: 20, scale: 0.4, opacity: 0, duration: 0.28, ease: 'power3.in' });
+
+                                    // Sepet soldan kayar
+                                    tl.fromTo(cartEl,
+                                        { xPercent: -50, yPercent: -50, x: -60, opacity: 0 },
+                                        { x: 0, opacity: 1, duration: 0.28, ease: 'power2.out' },
+                                        '-=0.08'
+                                    );
+
+                                    // Tik çizilir
+                                    if (tickEl) {
+                                        tl.to(tickEl, { strokeDashoffset: 0, duration: 0.22, ease: 'none' }, '+=0.05');
+                                    }
+
+                                    // Sepet hafif zıplar
+                                    tl.to(cartEl, { y: 3, duration: 0.09 });
+                                    tl.to(cartEl, { y: 0, duration: 0.14, ease: 'elastic.out(1, 0.5)' });
+
+                                    // Sepet sağa kayar
+                                    tl.to(cartEl, { x: 60, opacity: 0, duration: 0.22, ease: 'power2.in' }, '+=0.4');
+
+                                    // "Eklendi!" yazısı belirir - önce metni değiştir (label hâlâ opacity:0), sonra göster
+                                    tl.call(function() { lbl.textContent = 'Eklendi! \u2713'; });
+                                    tl.to(lbl, { opacity: 1, x: 0, duration: 0.2, ease: 'power2.out' });
+
+                                    // Kısa bekleme sonra sıfırla
+                                    tl.to({}, { duration: 0.85 });
+                                    tl.call(function() {
+                                        lbl.textContent = 'Sepete Ekle';
+                                        gsap.set(foodEl, { xPercent: -50, yPercent: -50, y: 20, scale: 0, opacity: 0 });
+                                        gsap.set(cartEl, { xPercent: -50, yPercent: -50, x: -60, opacity: 0 });
+                                        if (tickEl) gsap.set(tickEl, { strokeDashoffset: 10 });
+                                        gsap.set(lbl, { x: 0, opacity: 1 });
+                                    });
+                                }
+                            } else {
+                                // GSAP yoksa basit geri bildirim
+                                var lbl = button.querySelector('.btn-label') || button;
+                                var origContent = lbl.textContent;
+                                lbl.textContent = 'Eklendi!';
+                                button.disabled = true;
+                                setTimeout(function() {
+                                    lbl.textContent = origContent;
+                                    button.disabled = false;
+                                }, 1000);
+                            }
                         }
                     });
                 }

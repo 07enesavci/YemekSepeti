@@ -61,7 +61,7 @@
     <script src="/assets/js/modules/floating-cart.js?v=20260324-rtfix3"></script>
     <script src="/assets/js/modules/scroll-to-top.js?v=20260324-rtfix3"></script>
 
-    <% if (typeof pageJs !== 'undefined' && pageJs === 'courier.js') { %>
+    <% if (typeof pageJs !== 'undefined' && (pageJs === 'courier.js' || pageJs === 'seller-profile.js')) { %>
         <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
     <% } %>
     <% if (typeof pageJs !== 'undefined' && pageJs) { %>

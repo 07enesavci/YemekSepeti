@@ -208,6 +208,34 @@
     }
 }
 
+/* ============================================
+   SEPETE EKLE ANİMASYON BUTONU
+   ============================================ */
+.sepete-ekle-btn {
+    overflow: hidden !important;
+}
+
+.sepete-ekle-btn .btn-label {
+    display: inline-block;
+}
+
+.sepete-ekle-btn .food-anim,
+.sepete-ekle-btn .cart-anim {
+    position: absolute !important;
+    left: 50%;
+    top: 50%;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Başlangıç transform değerleri GSAP tarafından ayarlanır */
+}
+
+/* Animasyon sırasında button scale efektini kapat */
+.sepete-ekle-btn.animating::before {
+    display: none;
+}
+
 /* Yorum stilleri */
 .review-item {
     padding: 1.5rem 0;
