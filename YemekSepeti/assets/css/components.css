@@ -1016,3 +1016,50 @@ input[type="checkbox"]:checked:active:not(:disabled)::before {
     transform: translateX(20px);
     width: 26px;
 }
+
+/* ============================================
+   YS-SELECT: Modern Arama Destekli Select
+   ============================================ */
+.ys-select-wrapper { position: relative; width: 100%; text-align: left; }
+.ys-select-original { display: none !important; }
+.ys-select-trigger {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 0.65rem 1rem;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px;
+    color: var(--text-color, #334155); font-size: 0.9rem;
+    cursor: pointer; transition: all 0.2s; user-select: none;
+}
+.ys-select-trigger:hover { border-color: rgba(220, 38, 38, 0.4); }
+.ys-select-trigger.open { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+.ys-select-trigger.disabled { background: var(--card-bg-hover, #f8fafc); color: #94a3b8; cursor: not-allowed; opacity: 0.7; }
+.ys-select-arrow { opacity: 0.5; transition: transform 0.2s; font-size: 0.7rem; }
+.ys-select-trigger.open .ys-select-arrow { transform: rotate(180deg); }
+.ys-select-panel {
+    position: absolute;
+    background: #fff;
+    border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15); z-index: 99999;
+    opacity: 0; visibility: hidden; transform: translateY(-5px); transition: opacity 0.15s, visibility 0.15s, transform 0.15s;
+    display: flex; flex-direction: column;
+    min-width: 160px;
+}
+:root[data-theme="dark"] .ys-select-panel { background: #1E293B; border-color: rgba(148,163,184,0.25); }
+.ys-select-panel.open { opacity: 1; visibility: visible; transform: translateY(0); }
+.ys-select-search { padding: 0.5rem; border-bottom: 1px solid var(--border-color, #f1f5f9); position: relative; }
+.ys-select-search input {
+    width: 100%; padding: 0.5rem 0.5rem 0.5rem 2.2rem;
+    border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px;
+    font-size: 0.85rem; outline: none; background: transparent;
+    color: var(--text-color); box-sizing: border-box; transition: border-color 0.2s;
+}
+.ys-select-search input:focus { border-color: #ef4444; }
+.ys-select-search svg { position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; pointer-events: none; opacity: 0.5; color: var(--text-color, #94a3b8); }
+.ys-select-list { list-style: none; padding: 0; margin: 0; max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(239,68,68,0.3) transparent; }
+.ys-select-list::-webkit-scrollbar { width: 6px; }
+.ys-select-list::-webkit-scrollbar-thumb { background: rgba(239,68,68,0.3); border-radius: 4px; }
+.ys-select-list li { padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; color: var(--text-color, #334155); transition: background 0.15s; }
+.ys-select-list li:hover { background: rgba(239,68,68,0.05); color: #ef4444; }
+.ys-select-list li.selected { background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 600; border-left: 3px solid #ef4444; padding-left: calc(1rem - 3px); }
+.ys-select-list li.hidden { display: none; }
+.ys-select-empty { padding: 1rem; text-align: center; color: #888; font-size: 0.85rem; display: none; }

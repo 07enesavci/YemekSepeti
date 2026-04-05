@@ -471,17 +471,18 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
         }
 
         const sql = `
-            SELECT 
+            SELECT
                 s.id as seller_id, s.shop_name, s.location, s.is_open, s.is_active, s.rating, s.total_reviews, s.created_at,
+                s.logo_url, s.banner_url,
                 u.id as user_id, u.fullname, u.email, u.phone
             FROM sellers s
             JOIN users u ON s.user_id = u.id
             WHERE ${whereClauseStr}
             ORDER BY s.created_at DESC
         `;
-        
+
         const rows = await db.query(sql, replacements);
-        
+
         // Return array format similar to couriers
         const formattedData = Array.isArray(rows) ? rows.map(r => ({
             id: r.user_id,
@@ -496,7 +497,9 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
                 is_open: r.is_open,
                 is_active: r.is_active,
                 rating: parseFloat(r.rating) || 0,
-                total_reviews: r.total_reviews
+                total_reviews: r.total_reviews,
+                logo_url: r.logo_url || null,
+                banner_url: r.banner_url || null
             }
         })) : [];
 
@@ -581,6 +584,47 @@ router.get("/seller-stats/:id", requireRole(['admin','super_admin','support']), 
     } catch (error) {
         console.error("Seller stats error:", error);
         res.status(500).json({ success: false, message: "Satıcı detayı getirilemedi." });
+    }
+});
+// Admin: Satıcı logo/banner sil
+const path = require('path');
+const fs = require('fs');
+
+router.delete("/seller/:sellerId/remove-logo", requireRole(['admin','super_admin']), async (req, res) => {
+    try {
+        const sellerId = parseInt(req.params.sellerId);
+        if (!sellerId) return res.status(400).json({ success: false, message: "Geçersiz satıcı ID." });
+        const seller = await Seller.findByPk(sellerId, { attributes: ['id', 'logo_url'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        if (seller.logo_url) {
+            try {
+                const filePath = path.join(__dirname, '../../public', seller.logo_url);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch (e) {}
+        }
+        await seller.update({ logo_url: null });
+        res.json({ success: true, message: "Logo başarıyla kaldırıldı." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Logo kaldırılırken hata oluştu." });
+    }
+});
+
+router.delete("/seller/:sellerId/remove-banner", requireRole(['admin','super_admin']), async (req, res) => {
+    try {
+        const sellerId = parseInt(req.params.sellerId);
+        if (!sellerId) return res.status(400).json({ success: false, message: "Geçersiz satıcı ID." });
+        const seller = await Seller.findByPk(sellerId, { attributes: ['id', 'banner_url'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        if (seller.banner_url) {
+            try {
+                const filePath = path.join(__dirname, '../../public', seller.banner_url);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch (e) {}
+        }
+        await seller.update({ banner_url: null });
+        res.json({ success: true, message: "Banner başarıyla kaldırıldı." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Banner kaldırılırken hata oluştu." });
     }
 });
 // --- TÜM SATICILAR BİTİŞ ---

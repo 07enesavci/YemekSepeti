@@ -8,11 +8,24 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 .actions-bar .form-group { margin: 0; min-width: 200px; flex: 1; }
-.actions-bar label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+.actions-bar label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-color, #111); }
 .actions-bar input, .actions-bar select {
-    width: 100%; padding: 0.75rem; border: 1px solid var(--border-color, #eee); border-radius: 8px;
+    width: 100%; padding: 0.75rem;
+    border: 1px solid var(--border-color, #eee); border-radius: 8px;
+    background: #fff; color: #111;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
+.actions-bar input::placeholder { color: #999; }
 .actions-bar button { height: auto; align-self: flex-end; padding: 0.75rem 1.5rem; }
+
+:root[data-theme="dark"] .actions-bar input,
+:root[data-theme="dark"] .actions-bar select {
+    background: rgba(30, 41, 59, 0.85);
+    color: #F8FAFC;
+    border-color: rgba(148, 163, 184, 0.28);
+}
+:root[data-theme="dark"] .actions-bar input::placeholder { color: #94A3B8; }
+:root[data-theme="dark"] .actions-bar select option { background: #1E293B; color: #F8FAFC; }
 
 .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; display: inline-block; }
 .status-open { background-color: rgba(16, 185, 129, 0.15); color: #10B981; }
@@ -32,6 +45,65 @@
 .recent-orders-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
 .recent-orders-table th, .recent-orders-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color, #eee); font-size: 0.9rem; }
 .recent-orders-table th { background: rgba(0,0,0,0.03); font-weight: 600; }
+
+/* === MODERN ARAMALI SELECT === */
+.ys-select-wrapper { position: relative; width: 100%; text-align: left; }
+.ys-select-original { display: none !important; }
+.ys-select-trigger {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 0.65rem 1rem; background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px;
+    color: var(--text-color, #334155); font-size: 0.9rem; cursor: pointer; transition: all 0.2s;
+    user-select: none;
+}
+.ys-select-trigger:hover { border-color: rgba(220, 38, 38, 0.4); }
+.ys-select-trigger.open { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+.ys-select-arrow { opacity: 0.5; transition: transform 0.2s; font-size: 0.7rem; }
+.ys-select-trigger.open .ys-select-arrow { transform: rotate(180deg); }
+.ys-select-panel {
+    position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: var(--card-bg, #fff);
+    border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 200; opacity: 0; visibility: hidden;
+    transform: translateY(-5px); transition: all 0.2s; display: flex; flex-direction: column;
+}
+.ys-select-panel.open { opacity: 1; visibility: visible; transform: translateY(0); }
+.ys-select-search { padding: 0.5rem; border-bottom: 1px solid var(--border-color, #f1f5f9); position: relative; }
+.ys-select-search input {
+    width: 100%; padding: 0.5rem 0.5rem 0.5rem 2.2rem; border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px;
+    font-size: 0.85rem; outline: none; background: transparent; color: var(--text-color); box-sizing: border-box; transition: border-color 0.2s;
+}
+.ys-select-search input:focus { border-color: #ef4444; }
+.ys-select-search svg { position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); color: var(--text-color, #94a3b8); width: 14px; height: 14px; pointer-events: none; opacity: 0.5; }
+.ys-select-list { list-style: none; padding: 0; margin: 0; max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(239, 68, 68, 0.3) transparent; }
+.ys-select-list::-webkit-scrollbar { width: 6px; }
+.ys-select-list::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.3); border-radius: 4px; }
+.ys-select-list li { padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; color: var(--text-color, #334155); transition: background 0.15s; }
+.ys-select-list li:hover { background: rgba(239, 68, 68, 0.05); color: #ef4444; }
+.ys-select-list li.selected { background: rgba(239, 68, 68, 0.1); color: #ef4444; font-weight: 600; border-left: 3px solid #ef4444; padding-left: calc(1rem - 3px); }
+.ys-select-list li.hidden { display: none; }
+.ys-select-empty { padding: 1rem; text-align: center; color: #888; font-size: 0.85rem; display: none; }
+
+/* Medya Modal CSS */
+.media-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 1.5rem; }
+.media-modal { background: var(--card-bg, #fff); border-radius: 16px; width: 100%; max-width: 700px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.35); }
+.media-modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color,#eee); display: flex; justify-content: space-between; align-items: center; }
+.media-modal-header h3 { margin: 0; font-size: 1.25rem; }
+.media-modal-body { padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.75rem; }
+.media-section { border: 1px solid var(--border-color,#eee); border-radius: 12px; padding: 1.25rem; }
+.media-section-title { font-weight: 700; font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 6px; }
+.media-preview-box { width: 100%; border-radius: 10px; background: #f4f4f4; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
+.media-preview-box.logo-box { width: 110px; height: 110px; border-radius: 50%; flex-shrink: 0; }
+.media-preview-box.banner-box { height: 160px; }
+.media-preview-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-preview-box .no-media { color: #aaa; font-size: 0.85rem; text-align: center; padding: 1rem; }
+.media-actions { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; align-items: center; }
+.media-upload-label { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1.1rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; background: var(--primary-color, #dc2626); color: #fff; border: none; transition: opacity 0.2s; }
+.media-upload-label:hover { opacity: 0.85; }
+.media-upload-label input { display: none; }
+.btn-media-remove { background: transparent; border: 1px solid #dc2626; color: #dc2626; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-media-remove:hover { background: #dc2626; color: #fff; }
+.media-status-msg { font-size: 0.82rem; margin-top: 0.5rem; font-weight: 600; }
+.media-logo-row { display: flex; align-items: center; gap: 1.5rem; }
 </style>
 
 <div class="panel-layout">
@@ -137,6 +209,52 @@
     </div>
 </div>
 
+<!-- Medya Yönetim Modalı -->
+<div id="media-modal-overlay" class="media-modal-overlay">
+    <div class="media-modal">
+        <div class="media-modal-header">
+            <h3 id="media-modal-title">Medya Yönetimi</h3>
+            <button type="button" id="media-modal-close" class="btn btn-secondary btn-sm">Kapat</button>
+        </div>
+        <div class="media-modal-body">
+            <!-- Logo -->
+            <div class="media-section">
+                <div class="media-section-title">🖼️ Profil Fotoğrafı / Logo</div>
+                <div class="media-logo-row">
+                    <div class="media-preview-box logo-box" id="logo-preview-box">
+                        <div class="no-media">Logo Yok</div>
+                    </div>
+                    <div style="flex:1;">
+                        <div class="media-actions">
+                            <label class="media-upload-label">
+                                Yeni Logo Yükle
+                                <input type="file" id="logo-file-input" accept="image/*">
+                            </label>
+                            <button type="button" class="btn-media-remove" id="logo-remove-btn">Logoyu Kaldır</button>
+                        </div>
+                        <div class="media-status-msg" id="logo-status-msg"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Banner -->
+            <div class="media-section">
+                <div class="media-section-title">🏞️ Banner (Kapak Fotoğrafı)</div>
+                <div class="media-preview-box banner-box" id="banner-preview-box">
+                    <div class="no-media">Banner Yok</div>
+                </div>
+                <div class="media-actions">
+                    <label class="media-upload-label">
+                        Yeni Banner Yükle
+                        <input type="file" id="banner-file-input" accept="image/*">
+                    </label>
+                    <button type="button" class="btn-media-remove" id="banner-remove-btn">Bannerı Kaldır</button>
+                </div>
+                <div class="media-status-msg" id="banner-status-msg"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 var baseUrl = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '') || '';
 
@@ -205,7 +323,16 @@ async function loadSellers() {
                         <div>${statusHtml}</div>
                     </td>
                     <td class="text-end">
-                        <button class="btn btn-outline-primary btn-sm btn-details" data-id="${s.id}">Detay / İstatistikler</button>
+                        <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+                            <button class="btn btn-outline-primary btn-sm btn-details" style="min-width:160px;" data-id="${s.id}">Detay / İstatistikler</button>
+                            <button class="btn btn-sm btn-media" style="min-width:160px;background:#dc2626;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;letter-spacing:0.3px;"
+                                data-seller-id="${s.Seller.id}"
+                                data-shop-name="${s.Seller.shop_name}"
+                                data-logo="${s.Seller.logo_url || ''}"
+                                data-banner="${s.Seller.banner_url || ''}">
+                                Medya Yönet
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -297,7 +424,140 @@ async function openDetailsModal(id, startDate, endDate, showAll) {
     }
 }
 
+// === CUSTOM SELECT ===
+function initCustomSelects() {
+    document.querySelectorAll('.actions-bar select').forEach(select => {
+        if (select.classList.contains('ys-select-original')) return;
+        select.classList.add('ys-select-original');
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'ys-select-wrapper';
+        select.parentNode.insertBefore(wrapper, select);
+        wrapper.appendChild(select);
+
+        const trigger = document.createElement('div');
+        trigger.className = 'ys-select-trigger';
+        trigger.innerHTML = `<span class="ys-select-text">${select.options[select.selectedIndex]?.text || ''}</span><span class="ys-select-arrow">▼</span>`;
+
+        const panel = document.createElement('div');
+        panel.className = 'ys-select-panel';
+        panel.innerHTML = `
+            <div class="ys-select-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Ara...">
+            </div>
+            <ul class="ys-select-list"></ul>
+            <div class="ys-select-empty">Sonuç bulunamadı</div>
+        `;
+
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(panel);
+
+        const list = panel.querySelector('.ys-select-list');
+        const searchInput = panel.querySelector('input');
+        const emptyMsg = panel.querySelector('.ys-select-empty');
+        const textSpan = trigger.querySelector('.ys-select-text');
+
+        const renderOptions = () => {
+            list.innerHTML = '';
+            Array.from(select.options).forEach(opt => {
+                const li = document.createElement('li');
+                li.textContent = opt.text;
+                li.dataset.value = opt.value;
+                if (opt.selected) li.classList.add('selected');
+                li.addEventListener('click', e => {
+                    e.stopPropagation();
+                    select.value = opt.value;
+                    textSpan.textContent = opt.text;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    closePanel();
+                    Array.from(list.children).forEach(c => c.classList.remove('selected'));
+                    li.classList.add('selected');
+                });
+                list.appendChild(li);
+            });
+        };
+        renderOptions();
+
+        const openPanel = () => {
+            document.querySelectorAll('.ys-select-panel.open').forEach(p => {
+                p.classList.remove('open');
+                p.parentNode.querySelector('.ys-select-trigger')?.classList.remove('open');
+            });
+            trigger.classList.add('open');
+            panel.classList.add('open');
+            searchInput.value = '';
+            filterList('');
+            setTimeout(() => searchInput.focus(), 50);
+        };
+
+        const closePanel = () => {
+            trigger.classList.remove('open');
+            panel.classList.remove('open');
+        };
+
+        trigger.addEventListener('click', e => {
+            e.stopPropagation();
+            panel.classList.contains('open') ? closePanel() : openPanel();
+        });
+
+        searchInput.addEventListener('input', e => filterList(e.target.value.trim().toLowerCase()));
+
+        function filterList(query) {
+            let hasVisible = false;
+            Array.from(list.children).forEach(li => {
+                const match = li.textContent.toLowerCase().includes(query);
+                li.classList.toggle('hidden', !match);
+                if (match) hasVisible = true;
+            });
+            emptyMsg.style.display = hasVisible ? 'none' : 'block';
+        }
+
+        document.addEventListener('click', e => { if (!wrapper.contains(e.target)) closePanel(); });
+    });
+}
+
+// --- MEDYA MODAL ---
+var currentMediaSellerId = null;
+
+function setLogoPreview(url) {
+    const box = document.getElementById('logo-preview-box');
+    if (url) {
+        box.innerHTML = `<img src="${url}" alt="Logo" onerror="this.parentElement.innerHTML='<div class=\\'no-media\\'>Resim yüklenemedi</div>'">`;
+    } else {
+        box.innerHTML = '<div class="no-media">Logo Yok</div>';
+    }
+}
+
+function setBannerPreview(url) {
+    const box = document.getElementById('banner-preview-box');
+    if (url) {
+        box.innerHTML = `<img src="${url}" alt="Banner" onerror="this.parentElement.innerHTML='<div class=\\'no-media\\'>Resim yüklenemedi</div>'">`;
+    } else {
+        box.innerHTML = '<div class="no-media">Banner Yok</div>';
+    }
+}
+
+function openMediaModal(sellerId, shopName, logoUrl, bannerUrl) {
+    currentMediaSellerId = sellerId;
+    document.getElementById('media-modal-title').textContent = shopName + ' — Medya Yönetimi';
+    document.getElementById('logo-status-msg').textContent = '';
+    document.getElementById('banner-status-msg').textContent = '';
+    document.getElementById('logo-file-input').value = '';
+    document.getElementById('banner-file-input').value = '';
+    setLogoPreview(logoUrl);
+    setBannerPreview(bannerUrl);
+    document.getElementById('media-modal-overlay').style.display = 'flex';
+}
+
+function showMediaStatus(elId, msg, ok) {
+    const el = document.getElementById(elId);
+    el.textContent = msg;
+    el.style.color = ok ? '#10B981' : '#dc2626';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    initCustomSelects();
     loadSellers();
 
     document.getElementById('filter-form').addEventListener('submit', (e) => {
@@ -306,10 +566,122 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('sellers-tbody').addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-details');
-        if(btn) {
-            const id = btn.getAttribute('data-id');
-            openDetailsModal(id);
+        const detailsBtn = e.target.closest('.btn-details');
+        if (detailsBtn) {
+            openDetailsModal(detailsBtn.getAttribute('data-id'));
+        }
+        const mediaBtn = e.target.closest('.btn-media');
+        if (mediaBtn) {
+            openMediaModal(
+                mediaBtn.getAttribute('data-seller-id'),
+                mediaBtn.getAttribute('data-shop-name'),
+                mediaBtn.getAttribute('data-logo'),
+                mediaBtn.getAttribute('data-banner')
+            );
+        }
+    });
+
+    // Medya Modal kapat
+    document.getElementById('media-modal-close').addEventListener('click', () => {
+        document.getElementById('media-modal-overlay').style.display = 'none';
+    });
+    document.getElementById('media-modal-overlay').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('media-modal-overlay')) {
+            document.getElementById('media-modal-overlay').style.display = 'none';
+        }
+    });
+
+    // Logo yükleme
+    document.getElementById('logo-file-input').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || !currentMediaSellerId) return;
+        showMediaStatus('logo-status-msg', 'Yükleniyor...', true);
+        const formData = new FormData();
+        formData.append('logo', file);
+        try {
+            const res = await fetch(`${baseUrl}/api/upload/admin/seller-logo/${currentMediaSellerId}`, {
+                method: 'POST', credentials: 'include', body: formData
+            });
+            const result = await res.json();
+            if (result.success) {
+                setLogoPreview(result.url);
+                showMediaStatus('logo-status-msg', 'Logo başarıyla güncellendi.', true);
+                loadSellers();
+            } else {
+                showMediaStatus('logo-status-msg', result.message || 'Yükleme başarısız.', false);
+            }
+        } catch (err) {
+            showMediaStatus('logo-status-msg', 'Sunucu hatası: ' + err.message, false);
+        }
+        e.target.value = '';
+    });
+
+    // Banner yükleme
+    document.getElementById('banner-file-input').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || !currentMediaSellerId) return;
+        showMediaStatus('banner-status-msg', 'Yükleniyor...', true);
+        const formData = new FormData();
+        formData.append('banner', file);
+        try {
+            const res = await fetch(`${baseUrl}/api/upload/admin/seller-banner/${currentMediaSellerId}`, {
+                method: 'POST', credentials: 'include', body: formData
+            });
+            const result = await res.json();
+            if (result.success) {
+                setBannerPreview(result.url);
+                showMediaStatus('banner-status-msg', 'Banner başarıyla güncellendi.', true);
+                loadSellers();
+            } else {
+                showMediaStatus('banner-status-msg', result.message || 'Yükleme başarısız.', false);
+            }
+        } catch (err) {
+            showMediaStatus('banner-status-msg', 'Sunucu hatası: ' + err.message, false);
+        }
+        e.target.value = '';
+    });
+
+    // Logo kaldır
+    document.getElementById('logo-remove-btn').addEventListener('click', async () => {
+        if (!currentMediaSellerId) return;
+        if (!confirm('Bu satıcının logosunu kaldırmak istediğinizden emin misiniz?')) return;
+        showMediaStatus('logo-status-msg', 'Kaldırılıyor...', true);
+        try {
+            const res = await fetch(`${baseUrl}/api/admin/seller/${currentMediaSellerId}/remove-logo`, {
+                method: 'DELETE', credentials: 'include'
+            });
+            const result = await res.json();
+            if (result.success) {
+                setLogoPreview(null);
+                showMediaStatus('logo-status-msg', 'Logo kaldırıldı.', true);
+                loadSellers();
+            } else {
+                showMediaStatus('logo-status-msg', result.message || 'İşlem başarısız.', false);
+            }
+        } catch (err) {
+            showMediaStatus('logo-status-msg', 'Sunucu hatası: ' + err.message, false);
+        }
+    });
+
+    // Banner kaldır
+    document.getElementById('banner-remove-btn').addEventListener('click', async () => {
+        if (!currentMediaSellerId) return;
+        if (!confirm('Bu satıcının bannerını kaldırmak istediğinizden emin misiniz?')) return;
+        showMediaStatus('banner-status-msg', 'Kaldırılıyor...', true);
+        try {
+            const res = await fetch(`${baseUrl}/api/admin/seller/${currentMediaSellerId}/remove-banner`, {
+                method: 'DELETE', credentials: 'include'
+            });
+            const result = await res.json();
+            if (result.success) {
+                setBannerPreview(null);
+                showMediaStatus('banner-status-msg', 'Banner kaldırıldı.', true);
+                loadSellers();
+            } else {
+                showMediaStatus('banner-status-msg', result.message || 'İşlem başarısız.', false);
+            }
+        } catch (err) {
+            showMediaStatus('banner-status-msg', 'Sunucu hatası: ' + err.message, false);
         }
     });
 

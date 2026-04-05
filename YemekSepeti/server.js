@@ -62,12 +62,13 @@ try {
         if (sequelize) {
             // alter: true -> Modellerdeki yeni sütunları SQL'e otomatik ekler.
             // "Too many keys" hatası: unique alanlar artık indexes içinde tanımlı; hâlâ oluşursa alter olmadan sync yapılır.
-            const { ensureOrderPaymentMethodEnum } = require('./config/sequelize');
+            const { ensureOrderPaymentMethodEnum, ensureMealIsApprovedColumn } = require('./config/sequelize');
             sequelize.sync({ alter: true })
                 .then(async () => {
                     if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
                         await ensureOrderPaymentMethodEnum();
                     }
+                    await ensureMealIsApprovedColumn();
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
                 })
@@ -80,6 +81,7 @@ try {
                             if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
                                 await ensureOrderPaymentMethodEnum();
                             }
+                            await ensureMealIsApprovedColumn();
                             console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
                         });
                     }

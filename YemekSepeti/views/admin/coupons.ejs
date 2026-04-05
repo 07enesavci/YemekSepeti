@@ -130,3 +130,25 @@
 .modal-overlay .modal-content { width: 100%; max-width: 560px; margin: 0 auto; position: relative; left: 0; right: 0; transform: none; }
 .modal-overlay .card { margin: 0; }
 </style>
+<script src="/assets/js/modules/ys-select.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initYsSelects(document);
+
+    // Edit modalı açıldığında yeniden init et
+    var editModal = document.getElementById('coupon-edit-modal');
+    if (editModal) {
+        var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(m) {
+                if (m.type === 'attributes' && m.attributeName === 'style') {
+                    var sel = document.getElementById('edit-coupon-discount-type');
+                    if (sel && !sel.classList.contains('ys-select-original')) {
+                        initYsSelects(editModal);
+                    }
+                }
+            });
+        });
+        observer.observe(editModal, { attributes: true });
+    }
+});
+</script>

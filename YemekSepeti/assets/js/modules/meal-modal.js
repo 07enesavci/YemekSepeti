@@ -164,7 +164,12 @@ function createMealModal() {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
+    // Custom select init
+    if (typeof window.initYsSelects === 'function') {
+        window.initYsSelects(document.getElementById('meal-modal'));
+    }
+
     const imageOptionFile = document.getElementById('image-option-file');
     const imageOptionUrl = document.getElementById('image-option-url');
     const imageFileContainer = document.getElementById('image-file-container');

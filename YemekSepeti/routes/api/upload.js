@@ -160,6 +160,62 @@ router.post("/seller/banner", requireRole('seller'), upload.single('banner'), as
     }
 });
 
+// Admin: Herhangi bir satıcının logosunu yükle
+router.post("/admin/seller-logo/:sellerId", requireRole(['admin','super_admin']), upload.single('logo'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: "Logo dosyası yüklenmedi." });
+        const sellerId = parseInt(req.params.sellerId);
+        if (!sellerId) { fs.unlinkSync(req.file.path); return res.status(400).json({ success: false, message: "Geçersiz satıcı ID." }); }
+        const { Seller } = require('../../models');
+        const seller = await Seller.findByPk(sellerId, { attributes: ['id', 'logo_url'] });
+        if (!seller) { fs.unlinkSync(req.file.path); return res.status(404).json({ success: false, message: "Satıcı bulunamadı." }); }
+
+        const oldLogoUrl = seller.logo_url || null;
+        const sellerUploadDir = path.join(sellersDir, sellerId.toString());
+        if (!fs.existsSync(sellerUploadDir)) fs.mkdirSync(sellerUploadDir, { recursive: true });
+
+        const newPath = path.join(sellerUploadDir, req.file.filename);
+        try { fs.renameSync(req.file.path, newPath); } catch (e) {}
+        const fileUrl = `/uploads/sellers/${sellerId}/${req.file.filename}`;
+        await Seller.update({ logo_url: fileUrl }, { where: { id: sellerId } });
+        if (oldLogoUrl && oldLogoUrl !== fileUrl) {
+            try { const p = path.join(__dirname, '../../public', oldLogoUrl); if (fs.existsSync(p)) fs.unlinkSync(p); } catch (e) {}
+        }
+        res.json({ success: true, message: "Logo başarıyla yüklendi.", url: fileUrl });
+    } catch (error) {
+        if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+        res.status(500).json({ success: false, message: "Logo yüklenirken hata oluştu." });
+    }
+});
+
+// Admin: Herhangi bir satıcının bannerını yükle
+router.post("/admin/seller-banner/:sellerId", requireRole(['admin','super_admin']), upload.single('banner'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, message: "Banner dosyası yüklenmedi." });
+        const sellerId = parseInt(req.params.sellerId);
+        if (!sellerId) { fs.unlinkSync(req.file.path); return res.status(400).json({ success: false, message: "Geçersiz satıcı ID." }); }
+        const { Seller } = require('../../models');
+        const seller = await Seller.findByPk(sellerId, { attributes: ['id', 'banner_url'] });
+        if (!seller) { fs.unlinkSync(req.file.path); return res.status(404).json({ success: false, message: "Satıcı bulunamadı." }); }
+
+        const oldBannerUrl = seller.banner_url || null;
+        const sellerUploadDir = path.join(sellersDir, sellerId.toString());
+        if (!fs.existsSync(sellerUploadDir)) fs.mkdirSync(sellerUploadDir, { recursive: true });
+
+        const newPath = path.join(sellerUploadDir, req.file.filename);
+        try { fs.renameSync(req.file.path, newPath); } catch (e) {}
+        const fileUrl = `/uploads/sellers/${sellerId}/${req.file.filename}`;
+        await Seller.update({ banner_url: fileUrl }, { where: { id: sellerId } });
+        if (oldBannerUrl && oldBannerUrl !== fileUrl) {
+            try { const p = path.join(__dirname, '../../public', oldBannerUrl); if (fs.existsSync(p)) fs.unlinkSync(p); } catch (e) {}
+        }
+        res.json({ success: true, message: "Banner başarıyla yüklendi.", url: fileUrl });
+    } catch (error) {
+        if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (e) {} }
+        res.status(500).json({ success: false, message: "Banner yüklenirken hata oluştu." });
+    }
+});
+
 router.post("/meal/image", requireRole('seller'), upload.single('image'), async (req, res) => {
     try {
         if (!req.file) {

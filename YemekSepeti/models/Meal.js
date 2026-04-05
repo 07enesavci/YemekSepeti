@@ -35,6 +35,7 @@ module.exports = (sequelize, DataTypes) => {
         },
         is_approved: {
             type: DataTypes.BOOLEAN,
+            allowNull: false,
             defaultValue: false
         },
         stock_quantity: {
