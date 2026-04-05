@@ -440,6 +440,18 @@ async function loadSellerMenu(sellerId, seller) {
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('seller-name')) {
         loadSellerProfile();
+        
+        // Socket.io ile anlık menü güncellemesi (F5'siz)
+        if (typeof io !== 'undefined') {
+            const socket = io();
+            const currentSellerId = getSellerIdFromUrl();
+            socket.on('menu_updated', (data) => {
+                if (data && data.sellerId && String(data.sellerId) === String(currentSellerId)) {
+                    console.log('🔄 Satıcı paneli üzerinden menü güncellendi, liste yeniden yükleniyor...');
+                    loadSellerProfile(); // Sadece veriyi çeker ve içeriği günceller, sayfa atlamaz.
+                }
+            });
+        }
     }
 });
 

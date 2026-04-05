@@ -189,7 +189,8 @@ async function loadSellers() {
                 <tr class="align-middle">
                     <td>
                         <div style="font-weight: 600; color: var(--text-color); font-size: 1.05rem;">${s.Seller.shop_name}</div>
-                        <div style="font-size: 0.85rem; color: #888;">Katılım: ${new Date(s.created_at).toLocaleDateString('tr-TR')}</div>
+                        <div style="font-size: 0.85rem; color: #666; margin-top: 4px; display: flex; align-items: center; gap: 4px;"><span style="color:#dc2626;">📍</span> ${s.Seller.location && s.Seller.location !== 'Belirtilmedi' ? s.Seller.location : 'Adres belirtilmedi'}</div>
+                        <div style="font-size: 0.85rem; color: #888; margin-top: 4px;">Katılım: ${new Date(s.created_at).toLocaleDateString('tr-TR')}</div>
                     </td>
                     <td>
                         <div><strong>${s.fullname}</strong></div>

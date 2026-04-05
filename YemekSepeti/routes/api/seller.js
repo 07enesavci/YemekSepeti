@@ -6,6 +6,7 @@ const { Seller, Meal, UserFavoriteSeller, Order, sequelize } = require("../../mo
 const { Op } = require("sequelize");
 const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
+const { getCityCoordinates } = require("../../data/turkey-coordinates");
 
 router.use(requireRole('seller'), requireSellerApproved);
 
@@ -134,6 +135,10 @@ router.post("/menu", async (req, res) => {
             console.error('Favori bildirimi hatası:', notifErr);
         }
 
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: shopId });
+        }
+
         res.status(201).json({
             success: true,
             message: "Yemek başarıyla eklendi.",
@@ -233,6 +238,10 @@ router.put("/menu/:id", async (req, res) => {
         const updateQuery = `UPDATE meals SET ${updateFields.join(", ")}, updated_at = NOW() WHERE id = ? AND seller_id = ?`;
         await db.execute(updateQuery, updateValues);
         
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: shopId });
+        }
+
         res.json({ success: true, message: "Yemek başarıyla güncellendi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });
@@ -264,6 +273,11 @@ router.delete("/menu/:id", async (req, res) => {
         }
         
         await db.execute("DELETE FROM meals WHERE id = ? AND seller_id = ?", [mealId, shopId]);
+        
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: shopId });
+        }
+        
         res.json({ success: true, message: "Yemek başarıyla silindi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });
@@ -444,7 +458,7 @@ router.get("/dashboard", async (req, res) => {
 router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
-        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl } = req.body;
+        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -511,6 +525,19 @@ router.put("/profile", async (req, res) => {
         if (location !== undefined) {
             updateFields.push("location = ?");
             updateValues.push(location);
+            // Konumdan otomatik koordinat hesapla
+            const coords = getCityCoordinates(location);
+            if (coords) {
+                updateFields.push("latitude = ?");
+                updateValues.push(coords.lat);
+                updateFields.push("longitude = ?");
+                updateValues.push(coords.lng);
+            }
+        }
+        if (deliveryRadiusKm !== undefined) {
+            const radius = parseInt(deliveryRadiusKm);
+            updateFields.push("delivery_radius_km = ?");
+            updateValues.push(isNaN(radius) || radius < 0 ? 0 : radius);
         }
         if (workingHours !== undefined) {
             let hoursValue = null;
@@ -647,7 +674,10 @@ router.get("/profile", async (req, res) => {
                 location,
                 opening_hours as workingHours,
                 logo_url as logoUrl,
-                banner_url as bannerUrl
+                banner_url as bannerUrl,
+                delivery_radius_km as deliveryRadiusKm,
+                latitude,
+                longitude
             FROM sellers 
             WHERE id = ?`,
             [shopId]
@@ -666,6 +696,7 @@ router.get("/profile", async (req, res) => {
         profileData.location = profileData.location || '';
         profileData.logoUrl = profileData.logoUrl || null;
         profileData.bannerUrl = profileData.bannerUrl || null;
+        profileData.deliveryRadiusKm = parseInt(profileData.deliveryRadiusKm) || 0;
         if (profileData.workingHours === null || profileData.workingHours === undefined) {
             profileData.workingHours = '';
         } else if (typeof profileData.workingHours === 'string') {

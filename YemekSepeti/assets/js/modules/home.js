@@ -3,6 +3,46 @@ var homePageHasMore = true;
 var homePageLoading = false;
 var HOME_PAGE_SIZE = 24;
 
+// Kullanıcı konum bilgisi (Geolocation)
+var userLocation = { lat: null, lng: null };
+
+// Geolocation ile konum al ve localStorage'a kaydet
+function initUserGeolocation() {
+    // Önce localStorage'dan kontrol et
+    try {
+        var saved = localStorage.getItem('ys-user-location');
+        if (saved) {
+            var parsed = JSON.parse(saved);
+            if (parsed.lat && parsed.lng) {
+                userLocation.lat = parsed.lat;
+                userLocation.lng = parsed.lng;
+            }
+        }
+    } catch (e) {}
+    
+    // Tarayıcıdan konum iste
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                userLocation.lat = position.coords.latitude;
+                userLocation.lng = position.coords.longitude;
+                try {
+                    localStorage.setItem('ys-user-location', JSON.stringify(userLocation));
+                } catch (e) {}
+                // Konum güncellendi, restoranları yeniden yükle
+                var grid = document.querySelector('#restaurants-container') || document.querySelector('.featured-grid');
+                if (grid && allRestaurants.length > 0) {
+                    loadRestaurants(false);
+                }
+            },
+            function(error) {
+                console.log('Konum izni reddedildi veya alınamadı:', error.message);
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+        );
+    }
+}
+
 async function loadRestaurants(append) {
     const featuredGrid = document.querySelector('#restaurants-container') || document.querySelector('.featured-grid');
     if (!featuredGrid) return;
@@ -16,7 +56,11 @@ async function loadRestaurants(append) {
     homePageLoading = true;
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const apiUrl = baseUrl + '/api/sellers?limit=' + HOME_PAGE_SIZE + '&offset=' + (append ? homePageOffset : 0);
+        let apiUrl = baseUrl + '/api/sellers?limit=' + HOME_PAGE_SIZE + '&offset=' + (append ? homePageOffset : 0);
+        // Kullanıcı konumunu ekle
+        if (userLocation.lat && userLocation.lng) {
+            apiUrl += '&userLat=' + userLocation.lat + '&userLng=' + userLocation.lng;
+        }
         const response = await fetch(apiUrl);
         if (!response.ok) {
             let msg = 'Restoranlar yüklenemedi (HTTP ' + response.status + ').';
@@ -496,6 +540,7 @@ function displayRestaurants(sellers, append) {
                     <p class="card-text" style="margin: 0 0 0.75rem 0; color: #666; font-size: 0.95rem; line-height: 1.5; min-height: 2.5rem;">${safeDescription}</p>
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; font-size: 0.85rem; color: #888;">
                         <span>📍 ${seller.location || 'Konum belirtilmemiş'}</span>
+                        ${seller.distance !== null && seller.distance !== undefined ? `<span style="background: rgba(59, 130, 246, 0.1); color: #2563eb; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 0.8rem;">📏 ${seller.distance < 1 ? (seller.distance * 1000).toFixed(0) + ' m' : seller.distance.toFixed(1) + ' km'}</span>` : ''}
                     </div>
                     <a href="/buyer/seller-profile/${seller.id}" 
                        class="btn btn-primary btn-full"
@@ -722,6 +767,9 @@ async function loadHeroSlider() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Kullanıcı konumunu başlat
+    initUserGeolocation();
+    
     if (document.querySelector('.featured-grid')) {
         applyQuickFilterFromUrl();
         loadRestaurants();

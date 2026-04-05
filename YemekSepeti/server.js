@@ -341,9 +341,10 @@ try {
         const isDocumentsPage = p === '/register/documents';
         const isLogout = p === '/api/auth/logout';
         const isSubmitDocs = p === '/api/auth/submit-documents' || p === '/api/auth/submit-documents-json';
+        const isAddressApi = p.startsWith('/api/address');
         const isStatic = p.startsWith('/assets') || p.startsWith('/public') || p.startsWith('/uploads') || p.startsWith('/socket.io') || p === '/manifest.json' || p === '/sw.js';
 
-        if (isDocumentsPage || isLogout || isSubmitDocs || isStatic) return next();
+        if (isDocumentsPage || isLogout || isSubmitDocs || isAddressApi || isStatic) return next();
 
         if (p.startsWith('/api/')) {
             return res.status(403).json({ redirect: '/register/documents' });
@@ -368,6 +369,7 @@ try {
 
     // --- API ROUTE'LARI (statik dosyalardan önce; böylece /api/sellers vb. kesin eşleşir) ---
     app.use('/api/auth', require('./routes/api/auth'));
+    app.use('/api/address', require('./routes/api/address'));
     const routeFiles = [
         "/api/sellers", "/api/seller", "/api/orders",
         "/api/admin", "/api/cart", "/api/courier", "/api/buyer", "/api/upload",

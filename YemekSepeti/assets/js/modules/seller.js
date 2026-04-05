@@ -923,6 +923,46 @@ async function loadProfilePage() {
             if (bannerPreview) bannerPreview.src = '';
             if (removeBannerBtn) removeBannerBtn.style.display = 'none';
         }
+        
+        // Teslimat yarıçapı yükle
+        const radiusSlider = document.getElementById('delivery-radius');
+        const radiusLabel = document.getElementById('radius-label');
+        const radiusBadge = document.getElementById('radius-badge');
+        
+        function updateRadiusUI(val) {
+            val = parseInt(val) || 0;
+            if (radiusLabel) {
+                radiusLabel.textContent = val === 0 ? 'Sınırsız' : val + ' km';
+            }
+            if (radiusBadge) {
+                if (val === 0) {
+                    radiusBadge.textContent = 'TÜM TÜRKİYE';
+                    radiusBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+                    radiusBadge.style.color = '#059669';
+                } else if (val <= 50) {
+                    radiusBadge.textContent = 'YAKIN ÇEVRE';
+                    radiusBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+                    radiusBadge.style.color = '#d97706';
+                } else if (val <= 150) {
+                    radiusBadge.textContent = 'BÖLGESEL';
+                    radiusBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+                    radiusBadge.style.color = '#2563eb';
+                } else {
+                    radiusBadge.textContent = 'GENİŞ ALAN';
+                    radiusBadge.style.background = 'rgba(139, 92, 246, 0.15)';
+                    radiusBadge.style.color = '#7c3aed';
+                }
+            }
+        }
+        
+        if (radiusSlider) {
+            radiusSlider.value = profile.deliveryRadiusKm || 0;
+            updateRadiusUI(radiusSlider.value);
+            radiusSlider.addEventListener('input', function() {
+                updateRadiusUI(this.value);
+            });
+        }
+        
         const profileForm = document.getElementById('seller-profile-form');
         
         const logoOptionFile = document.getElementById('logo-option-file');
@@ -991,7 +1031,8 @@ async function loadProfilePage() {
                     shopName: shopNameInput?.value || '',
                     description: descriptionInput?.value || '',
                     location: locationInput?.value || '',
-                    workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined
+                    workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined,
+                    deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined
                 };
                 
                 if (finalLogoUrl !== undefined) profileData.logoUrl = finalLogoUrl;

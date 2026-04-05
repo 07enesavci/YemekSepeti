@@ -94,6 +94,28 @@
                             <input type="text" id="shop-hours" class="form-input" value="Hafta içi 09:00 - 21:00">
                         </div>
                     </div>
+
+                    <!-- Teslimat Yarıçapı -->
+                    <div class="form-group" style="margin-top: 0.5rem;">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                            📍 Teslimat Yarıçapı
+                        </label>
+                        <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1rem;">
+                            Müşterilerinizin sizi görebileceği maksimum mesafeyi belirleyin. <strong>0 = Sınırsız</strong> (Tüm Türkiye'ye açık)
+                        </p>
+                        <div style="background: var(--bg-color, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: 12px; padding: 1.5rem; position: relative;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                                <span id="radius-label" style="font-size: 1.5rem; font-weight: 800; color: var(--primary-color, #dc2626);">Sınırsız</span>
+                                <span id="radius-badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.85rem; border-radius: 20px; letter-spacing: 0.3px;">TÜM TÜRKİYE</span>
+                            </div>
+                            <input type="range" id="delivery-radius" min="0" max="500" step="10" value="0" style="width: 100%; accent-color: var(--primary-color, #dc2626); height: 8px; cursor: pointer;">
+                            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                                <span style="font-size: 0.75rem; color: #94a3b8;">0 (Sınırsız)</span>
+                                <span style="font-size: 0.75rem; color: #94a3b8;">250 km</span>
+                                <span style="font-size: 0.75rem; color: #94a3b8;">500 km</span>
+                            </div>
+                        </div>
+                    </div>
                     
                     <button type="submit" class="btn btn-primary">Profili Güncelle</button>
                     

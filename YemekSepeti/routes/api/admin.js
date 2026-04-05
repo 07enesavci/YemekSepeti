@@ -472,7 +472,7 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
 
         const sql = `
             SELECT 
-                s.id as seller_id, s.shop_name, s.is_open, s.is_active, s.rating, s.total_reviews, s.created_at,
+                s.id as seller_id, s.shop_name, s.location, s.is_open, s.is_active, s.rating, s.total_reviews, s.created_at,
                 u.id as user_id, u.fullname, u.email, u.phone
             FROM sellers s
             JOIN users u ON s.user_id = u.id
@@ -492,6 +492,7 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
             Seller: {
                 id: r.seller_id,
                 shop_name: r.shop_name,
+                location: r.location,
                 is_open: r.is_open,
                 is_active: r.is_active,
                 rating: parseFloat(r.rating) || 0,
@@ -802,7 +803,7 @@ router.get("/reports/chart", async (req, res) => {
 // Tüm satıcıların menülerini listele (filtre: sellerId, search, isAvailable, isApproved)
 router.get("/menu-items", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
-        const { sellerId, search, isAvailable, isApproved } = req.query;
+        const { sellerId, search, isAvailable, isApproved, province, district } = req.query;
 
         let whereClause = {};
         if (sellerId) whereClause.seller_id = parseInt(sellerId);
@@ -818,9 +819,31 @@ router.get("/menu-items", requireRole(['admin','super_admin','support']), async 
             ];
         }
 
+        let sellerWhereClause = {};
+        if (province) {
+            if (district) {
+                // Hem il hem ilçe varsa, arama "ilçe, il" veya herhangi birindeki stringi içerebilir.
+                sellerWhereClause.location = {
+                    [Op.and]: [
+                        { [Op.like]: `%${province}%` },
+                        { [Op.like]: `%${district}%` }
+                    ]
+                };
+            } else {
+                sellerWhereClause.location = { [Op.like]: `%${province}%` };
+            }
+        } else if (district) {
+            sellerWhereClause.location = { [Op.like]: `%${district}%` };
+        }
+
         const meals = await Meal.findAll({
             where: whereClause,
-            include: [{ model: Seller, as: 'seller', attributes: ['id', 'shop_name', 'is_active', 'is_open'] }],
+            include: [{ 
+                model: Seller, 
+                as: 'seller', 
+                attributes: ['id', 'shop_name', 'is_active', 'is_open', 'location'],
+                ...(Object.keys(sellerWhereClause).length > 0 ? { where: sellerWhereClause } : {})
+            }],
             order: [['seller_id', 'ASC'], ['category', 'ASC'], ['name', 'ASC']]
         });
 
@@ -840,13 +863,14 @@ router.get("/menu-items", requireRole(['admin','super_admin','support']), async 
                 id: m.seller.id,
                 shop_name: m.seller.shop_name,
                 is_active: m.seller.is_active,
-                is_open: m.seller.is_open
+                is_open: m.seller.is_open,
+                location: m.seller.location
             } : null
         }));
 
         // Satıcı listesi (filtre dropdown için)
-        const sellersRaw = await Seller.findAll({ attributes: ['id', 'shop_name'], order: [['shop_name', 'ASC']] });
-        const sellersList = sellersRaw.map(s => ({ id: s.id, shop_name: s.shop_name }));
+        const sellersRaw = await Seller.findAll({ attributes: ['id', 'shop_name', 'location'], order: [['shop_name', 'ASC']] });
+        const sellersList = sellersRaw.map(s => ({ id: s.id, shop_name: s.shop_name, location: s.location }));
 
         res.json({ success: true, data: formatted, sellers: sellersList });
     } catch (error) {
@@ -874,6 +898,9 @@ router.put("/menu-items/:id", requireRole(['admin','super_admin','support']), as
         if (stock_quantity !== undefined) updates.stock_quantity = parseInt(stock_quantity);
 
         await meal.update(updates);
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: meal.seller_id });
+        }
         res.json({ success: true, message: "Ürün güncellendi." });
     } catch (error) {
         console.error("Admin menu-item update error:", error);
@@ -889,6 +916,9 @@ router.patch("/menu-items/:id/toggle", requireRole(['admin','super_admin','suppo
         if (!meal) return res.status(404).json({ success: false, message: "Ürün bulunamadı." });
 
         await meal.update({ is_available: !meal.is_available });
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: meal.seller_id });
+        }
         res.json({ success: true, message: meal.is_available ? "Ürün aktif edildi." : "Ürün pasif edildi.", is_available: meal.is_available });
     } catch (error) {
         console.error("Admin menu-item toggle error:", error);
@@ -904,6 +934,9 @@ router.patch("/menu-items/:id/approve", requireRole(['admin','super_admin','supp
         if (!meal) return res.status(404).json({ success: false, message: "Ürün bulunamadı." });
 
         await meal.update({ is_approved: true });
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: meal.seller_id });
+        }
         res.json({ success: true, message: "Ürün onaylandı." });
     } catch (error) {
         console.error("Admin menu-item approve error:", error);
@@ -917,7 +950,11 @@ router.delete("/menu-items/:id", requireRole(['admin','super_admin','support']),
         const mealId = parseInt(req.params.id);
         const meal = await Meal.findByPk(mealId);
         if (!meal) return res.status(404).json({ success: false, message: "Ürün bulunamadı." });
+        const sellerIdForEvent = meal.seller_id;
         await meal.destroy();
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: sellerIdForEvent });
+        }
         res.json({ success: true, message: "Ürün silindi." });
     } catch (error) {
         console.error("Admin menu-item delete error:", error);

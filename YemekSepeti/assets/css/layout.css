@@ -402,7 +402,9 @@
 
 .header-user-menu-item {
     width: 100%;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     text-align: left;
     background: transparent;
     border: 0;
@@ -412,6 +414,7 @@
     border-radius: 10px;
     padding: 10px 12px;
     cursor: pointer;
+    transition: all 0.2s;
 }
 
 .header-user-menu-item:hover {

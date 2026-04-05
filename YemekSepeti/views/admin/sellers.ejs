@@ -2,16 +2,176 @@
 <link rel="stylesheet" href="/assets/css/pages/admin.css">
 <link rel="stylesheet" href="/assets/css/pages/checkout.css">
 <style>
-.doc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-.doc-modal { background: var(--card-bg, #fff); border-radius: 12px; max-width: 900px; width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
-.doc-modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color, #eee); display: flex; justify-content: space-between; align-items: center; }
-.doc-modal-body { padding: 1.25rem; overflow-y: auto; flex: 1; }
-.doc-item { margin-bottom: 1rem; }
-.doc-item label { display: block; font-weight: 600; margin-bottom: 0.35rem; color: var(--text-color, #333); }
-.doc-item a { color: var(--primary-color); text-decoration: underline; }
-.doc-item img { max-width: 100%; max-height: 280px; border: 1px solid #ddd; border-radius: 8px; margin-top: 0.5rem; display: block; }
-.doc-item .no-doc { color: #888; font-style: italic; }
-.btn-doc { margin-right: 0.5rem; margin-bottom: 0.5rem; }
+/* Modern Document Modal CSS */
+.doc-modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1.5rem;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s;
+}
+.doc-modal-overlay.active { opacity: 1; visibility: visible; }
+
+.doc-modal {
+    background: var(--card-bg, #fff);
+    border-radius: 16px;
+    max-width: 1000px; width: 100%; max-height: 90vh;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    border: 1px solid var(--border-color, #e2e8f0);
+    transform: scale(0.95) translateY(10px);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.doc-modal-overlay.active .doc-modal { transform: scale(1) translateY(0); }
+
+.doc-modal-header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(248, 250, 252, 0.05);
+    flex-shrink: 0;
+}
+.doc-modal-header h3 {
+    font-size: 1.4rem; font-weight: 700;
+    color: var(--secondary-color, #1e293b);
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 0;
+}
+.doc-modal-body {
+    padding: 2rem;
+    overflow-y: auto;
+    flex: 1;
+    background: var(--bg-color, #f8fafc);
+}
+
+/* 2x2 Belge Kartları Grid */
+.doc-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+@media (max-width: 768px) { .doc-grid { grid-template-columns: 1fr; } }
+
+/* Her Belge Kartı — flex column yapısı */
+.doc-item {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+.doc-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 20px -5px rgba(0,0,0,0.08);
+    border-color: rgba(220,38,38,0.3);
+}
+
+/* Kart Başlığı */
+.doc-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px dashed var(--border-color, #cbd5e1);
+    flex-shrink: 0;
+}
+.doc-item-title {
+    font-weight: 700;
+    color: var(--secondary-color, #1e293b);
+    font-size: 1rem;
+    margin: 0;
+    line-height: 1.3;
+}
+.doc-item-status {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 800;
+    padding: 0.3rem 0.65rem;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.doc-status-ok { background: rgba(16, 185, 129, 0.15); color: #059669; }
+.doc-status-none { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+
+/* Görsel Alanı */
+.doc-image-wrap {
+    width: 100%;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border-color, #e2e8f0);
+    flex-shrink: 0;
+}
+.doc-image-wrap img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    padding: 0.35rem;
+    transition: transform 0.3s;
+}
+.doc-item:hover .doc-image-wrap img { transform: scale(1.03); }
+
+/* Tam Boyut Aç Butonu */
+.doc-item a.view-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--primary-color, #dc2626);
+    color: white;
+    padding: 0.65rem 1.25rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    width: 100%;
+    margin-top: 1rem;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+.doc-item a.view-link:hover {
+    background: #b91c1c;
+    box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3);
+}
+
+/* Boş/Eksik Belge Durumu */
+.doc-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 2rem 1rem;
+    color: #94a3b8;
+}
+.doc-empty-state span.icon {
+    font-size: 3rem;
+    margin-bottom: 0.75rem;
+    filter: grayscale(1);
+    opacity: 0.6;
+}
+
+/* Karanlık Tema */
+:root[data-theme="dark"] .doc-image-wrap { background: #0f172a; }
+:root[data-theme="dark"] .doc-empty-state { color: #64748b; }
+:root[data-theme="dark"] .doc-item-title { color: #e2e8f0; }
+:root[data-theme="dark"] .doc-item { background: var(--card-bg); }
 </style>
 
 <div class="panel-layout">
@@ -31,6 +191,7 @@
                         <thead>
                             <tr>
                                 <th>Mağaza Bilgisi</th>
+                                <th>Mağaza Adresi</th>
                                 <th>E-posta Adresi</th>
                                 <th>Belgeler</th>
                                 <th class="text-end">İşlemler</th>
@@ -38,7 +199,7 @@
                         </thead>
                         <tbody id="sellers-tbody">
                             <tr>
-                                <td colspan="4" class="text-center py-4">Veriler yükleniyor...</td>
+                                <td colspan="5" class="text-center py-4">Veriler yükleniyor...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -73,34 +234,76 @@
             { key: 'activity_cert', label: 'Faaliyet Belgesi / Esnaf Odası Kaydı' },
             { key: 'business_license', label: 'İşyeri Ruhsatı' }
         ];
+        
         var user = seller.user || seller.User;
         var email = user ? user.email : '';
-        var html = '<p style="margin-bottom: 1rem;"><strong>' + (seller.shop_name || '') + '</strong> – ' + email + '</p>';
+        
+        // Info Box
+        var html = '<div style="margin-bottom: 1.5rem; background: var(--bg-color, #f1f5f9); padding: 1.25rem 1.5rem; border-radius: 12px; border: 1px solid var(--border-color, #e2e8f0); display: flex; justify-content: space-between; align-items: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">';
+        html += '<div><h4 style="margin: 0 0 0.4rem; color: var(--primary-color); font-size: 1.15rem;">' + (seller.shop_name || '') + '</h4>';
+        html += '<div style="color: #64748b; font-size: 0.95rem; font-weight: 500;">💌 ' + email + '</div></div>';
+        html += '<div style="text-align: right;"><span style="display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 0.2rem;">Başvuru Tarihi</span><strong style="color: var(--secondary-color, #1e293b); font-size: 1.05rem;">' + (seller.created_at ? new Date(seller.created_at).toLocaleDateString('tr-TR') : '-') + '</strong></div>';
+        html += '</div>';
+
+        // Grid Container
+        html += '<div class="doc-grid">';
+        
         docs.forEach(function(d) {
             var path = seller[d.key];
             var url = path ? (path.indexOf('http') === 0 ? path : (path.indexOf('/') === 0 ? base + path : base + '/' + path)) : null;
+            
             html += '<div class="doc-item">';
-            html += '<label>' + d.label + '</label>';
+            
+            // Header
+            html += '<div class="doc-item-header">';
+            html += '<h5 class="doc-item-title">' + d.label + '</h5>';
             if (url) {
-                html += '<a href="' + url + '" target="_blank" rel="noopener">Belgeyi yeni sekmede aç</a>';
-                var ext = (path.split('.').pop() || '').split('?')[0].toLowerCase();
-                if (['jpg','jpeg','png','gif','webp'].indexOf(ext) !== -1) {
-                    html += '<img src="' + url + '" alt="' + d.label + '" loading="lazy">';
-                }
+                html += '<span class="doc-item-status doc-status-ok">✔ Yüklendi</span>';
             } else {
-                html += '<span class="no-doc">Yüklenmemiş</span>';
+                html += '<span class="doc-item-status doc-status-none">Eksik</span>';
             }
-            html += '</div>';
+            html += '</div>'; // close header
+            
+            // İçerik — doğrudan doc-item'ın çocuğu (sarmalayıcı yok)
+            if (url) {
+                var ext = (path.split('.').pop() || '').split('?')[0].toLowerCase();
+                
+                if (['jpg','jpeg','png','gif','webp'].indexOf(ext) !== -1) {
+                    html += '<div class="doc-image-wrap"><img src="' + url + '" alt="' + d.label + '" loading="lazy"></div>';
+                } else if (ext === 'pdf') {
+                    html += '<div class="doc-empty-state"><span class="icon">📄</span> <strong style="font-size: 1.1rem; margin-bottom: 0.2rem;">PDF Belgesi</strong><span style="font-size:0.85rem;">İncelemek için tam boyut açın</span></div>';
+                } else {
+                    html += '<div class="doc-empty-state"><span class="icon">📎</span> <strong style="font-size: 1.1rem; margin-bottom: 0.2rem;">Dosya Eki</strong><span style="font-size:0.85rem;">İndirmek için tıklayın</span></div>';
+                }
+                
+                html += '<a href="' + url + '" class="view-link" target="_blank" rel="noopener">🔍 Tam Boyut Aç</a>';
+            } else {
+                html += '<div class="doc-empty-state"><span class="icon">📁</span> <span>Satıcı bu belgeyi yüklememiş.</span></div>';
+            }
+            
+            html += '</div>'; // close doc-item
         });
+        
+        html += '</div>'; // close doc-grid
+        
         body.innerHTML = html;
-        document.getElementById('doc-modal-overlay').style.display = 'flex';
+        var overlay = document.getElementById('doc-modal-overlay');
+        overlay.style.display = 'flex'; // Make flex visible to allow transition
+        // trigger reflow
+        void overlay.offsetWidth;
+        overlay.classList.add('active');
     }
 
     document.getElementById('doc-modal-close').onclick = function() {
-        document.getElementById('doc-modal-overlay').style.display = 'none';
+        var overlay = document.getElementById('doc-modal-overlay');
+        overlay.classList.remove('active');
+        setTimeout(function() { overlay.style.display = 'none'; }, 300);
     };
     document.getElementById('doc-modal-overlay').onclick = function(e) {
-        if (e.target === this) this.style.display = 'none';
+        if (e.target === this) {
+            this.classList.remove('active');
+            setTimeout(function() { e.target.style.display = 'none'; }, 300);
+        }
     };
 
     async function loadPendingSellers() {
@@ -111,16 +314,19 @@
 
             if (!result.success || !result.data || result.data.length === 0) {
                 pendingSellersList = [];
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Onay bekleyen başvuru bulunmamaktadır.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Onay bekleyen başvuru bulunmamaktadır.</td></tr>';
                 return;
             }
 
             pendingSellersList = result.data;
             tbody.innerHTML = result.data.map(function(s) {
                 var hasDocs = !!(s.tax_plate || s.id_card || s.activity_cert || s.business_license);
+                var locationText = s.location && s.location !== 'Belirtilmedi' ? s.location : '<span class="text-muted">Adres belirtilmedi</span>';
+                
                 return '<tr class="align-middle">' +
                     '<td><div style="font-weight: 600; color: var(--primary-color);">' + (s.shop_name || '-') + '</div>' +
                     '<small style="color: #888;">Başvuru Tarihi: ' + (s.created_at ? new Date(s.created_at).toLocaleDateString('tr-TR') : '-') + '</small></td>' +
+                    '<td><div style="display: flex; align-items: center; gap: 0.35rem;"><span style="font-size: 1.1rem; color:#dc2626;">📍</span> <span>' + locationText + '</span></div></td>' +
                     '<td>' + ((s.user || s.User) ? (s.user || s.User).email : 'E-posta bulunamadı') + '</td>' +
                     '<td>' + (hasDocs
                         ? '<button type="button" class="btn btn-secondary btn-sm btn-doc" data-action="view-docs" data-seller-id="' + s.id + '">Belgeleri Görüntüle</button>'
@@ -131,7 +337,7 @@
             }).join('');
         } catch (err) {
             console.error("Yükleme hatası:", err);
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-4">Veritabanı bağlantı hatası!</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Veritabanı bağlantı hatası!</td></tr>';
         }
     }
 

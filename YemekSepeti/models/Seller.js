@@ -71,6 +71,23 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.DECIMAL(10, 2),
             defaultValue: 50.00
         },
+        // --- TESLİMAT YARICAPI ---
+        delivery_radius_km: {
+            type: DataTypes.INTEGER,
+            defaultValue: 0,
+            comment: "Teslimat yarıçapı (km). 0 = sınırsız"
+        },
+        latitude: {
+            type: DataTypes.DECIMAL(10, 8),
+            allowNull: true,
+            comment: "Satıcı konum enlem"
+        },
+        longitude: {
+            type: DataTypes.DECIMAL(11, 8),
+            allowNull: true,
+            comment: "Satıcı konum boylam"
+        },
+        // --------------------------
         is_active: {
             type: DataTypes.BOOLEAN,
             defaultValue: false // Belgeler onaylanana kadar varsayılan olarak kapalı (false) olması daha güvenlidir

@@ -6,7 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const db = require("../../config/database");
-const { User, EmailVerificationCode, Seller, Courier } = require("../../models");
+const { User, EmailVerificationCode, Seller, Courier, Address } = require("../../models");
 const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
 const { body, validationResult } = require('express-validator');
@@ -265,16 +265,38 @@ router.post("/submit-documents", (req, res, next) => {
             if (!taxPlate || !idCard || !activityCert || !businessLicense) {
                 return res.status(400).json({ success: false, message: "Satıcı için 4 belge zorunludur." });
             }
+
+            // Adres bilgisi (multipart endpoint için body'den alıyoruz)
+            const addrCity = (req.body && req.body.city) || '';
+            const addrDistrict = (req.body && req.body.district) || '';
+            const addrNeighborhood = (req.body && req.body.neighborhood) || '';
+            const addrFull = (req.body && req.body.full_address) || '';
+            const locationText = (addrDistrict && addrCity) ? `${addrDistrict}, ${addrCity}` : 'Belirtilmedi';
+
             const seller = await Seller.create({
                 user_id: userId,
                 shop_name: user.fullname + "'nın Mutfağı",
-                location: 'Belirtilmedi',
+                location: locationText,
                 is_active: false,
                 tax_plate: taxPlate,
                 id_card: idCard,
                 activity_cert: activityCert,
                 business_license: businessLicense
             });
+
+            // Adres kaydı oluştur
+            if (addrCity && addrFull) {
+                const fullAddressText = [addrNeighborhood, addrFull].filter(Boolean).join(', ');
+                await Address.create({
+                    user_id: userId,
+                    title: 'İşyeri Adresi',
+                    full_address: fullAddressText,
+                    district: addrDistrict || null,
+                    city: addrCity,
+                    is_default: true
+                });
+            }
+
             req.session.user.sellerId = seller.id;
             req.session.user.sellerApproved = false;
             console.log("[submit-documents] Satıcı belgeleri kaydedildi, userId:", req.session.user.id);
@@ -357,16 +379,39 @@ router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValid
             if (existing) return res.status(400).json({ success: false, message: "Belgeler zaten gönderildi." });
             const user = await User.findByPk(userId);
             if (!user) return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+
+            // Adres bilgisi
+            const addr = (req.body && req.body.address) || {};
+            const addrCity = (addr.city || '').trim();
+            const addrDistrict = (addr.district || '').trim();
+            const addrNeighborhood = (addr.neighborhood || '').trim();
+            const addrFull = (addr.full_address || '').trim();
+            const locationText = (addrDistrict && addrCity) ? `${addrDistrict}, ${addrCity}` : 'Belirtilmedi';
+
             const seller = await Seller.create({
                 user_id: userId,
                 shop_name: user.fullname + "'nın Mutfağı",
-                location: 'Belirtilmedi',
+                location: locationText,
                 is_active: false,
                 tax_plate: saved.taxPlate,
                 id_card: saved.idCard,
                 activity_cert: saved.activityCert,
                 business_license: saved.businessLicense
             });
+
+            // Adres kaydı oluştur
+            if (addrCity && addrFull) {
+                const fullAddressText = [addrNeighborhood, addrFull].filter(Boolean).join(', ');
+                await Address.create({
+                    user_id: userId,
+                    title: 'İşyeri Adresi',
+                    full_address: fullAddressText,
+                    district: addrDistrict || null,
+                    city: addrCity,
+                    is_default: true
+                });
+            }
+
             req.session.user.sellerId = seller.id;
             req.session.user.sellerApproved = false;
             return res.status(201).json({ success: true, redirectUrl: '/seller/pending-approval' });
