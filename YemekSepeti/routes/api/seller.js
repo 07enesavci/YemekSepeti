@@ -24,7 +24,7 @@ router.get("/menu", async (req, res) => {
         }
         const meals = await Meal.findAll({
             where: { seller_id: seller.id },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available'],
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
         
@@ -42,7 +42,8 @@ router.get("/menu", async (req, res) => {
                 description: meal.description || "",
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
-                isAvailable: meal.is_available
+                isAvailable: meal.is_available,
+                isApproved: meal.is_approved
             };
         });
         
@@ -105,8 +106,8 @@ router.post("/menu", async (req, res) => {
 
         const shopId = sellerQuery[0].id;
         const result = await db.execute(
-            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, false, NOW(), NOW())`,
             [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool]
         );
 
@@ -140,7 +141,8 @@ router.post("/menu", async (req, res) => {
                 id: insertId,
                 category, name, description, price: priceNum,
                 imageUrl: finalImageUrl,
-                isAvailable: isAvailableBool
+                isAvailable: isAvailableBool,
+                isApproved: false
             }
         });
     } catch (error) {

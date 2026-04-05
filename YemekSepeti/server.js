@@ -524,6 +524,7 @@ try {
     app.get("/courier/:id/available", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/available", { title: "Müsait Siparişler", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/history", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/profile", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/reports", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/reports", { title: "Raporlar", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
 
     // ID'siz kurye URL'leri için otomatik yönlendirme (F5 / manuel URL ihtiyacını azaltır)
     app.get("/courier/dashboard", requireRole('courier'), requireCourierApproved, (req, res) => {
@@ -546,12 +547,20 @@ try {
         if (!courierId) return res.redirect("/");
         return res.redirect(`/courier/${courierId}/profile`);
     });
+    app.get("/courier/reports", requireRole('courier'), requireCourierApproved, (req, res) => {
+        const courierId = req.session?.user?.courierId || req.session?.user?.id;
+        if (!courierId) return res.redirect("/");
+        return res.redirect(`/courier/${courierId}/reports`);
+    });
 
     // --- ADMIN ROUTE'LARI ---
     app.get("/admin/users", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/coupons", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/sellers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/sellers", { title: "Satıcı Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/all-sellers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/all-sellers", { title: "Tüm Satıcılar", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/couriers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/couriers", { title: "Kurye Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/all-couriers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/all-couriers", { title: "Tüm Kuryeler", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/menu-control", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/menu-control", { title: "Menü Kontrol", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/reports", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/reports", { title: "Raporlar", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---

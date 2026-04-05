@@ -139,15 +139,20 @@ function createMealCardHTML(meal) {
                 <span>${meal.category}</span>
             </div>
             <div class="menu-item-status">
-                <span class="status-dot ${statusClass}">${statusText}</span>
+                ${meal.isApproved === false ? 
+                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' : 
+                    `<span class="status-dot ${statusClass}">${statusText}</span>`
+                }
             </div>
             <div class="menu-item-price">
                 ${parseFloat(meal.price || 0).toFixed(2)} TL
             </div>
             <div class="menu-item-actions">
+                ${meal.isApproved !== false ? `
                 <button class="btn ${meal.isAvailable ? 'btn-secondary' : 'btn-primary'} btn-sm toggle-meal-btn" data-meal-id="${meal.id}" data-available="${meal.isAvailable}">
                     ${meal.isAvailable ? 'Tükendi Yap' : 'Satışa Aç'}
                 </button>
+                ` : ''}
                 <button class="btn btn-secondary btn-sm edit-meal-btn" data-meal-id="${meal.id}">Düzenle</button>
                 <button class="btn btn-danger btn-sm delete-meal-btn" data-meal-id="${meal.id}">Sil</button>
             </div>

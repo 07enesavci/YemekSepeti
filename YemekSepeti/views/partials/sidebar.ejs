@@ -76,6 +76,11 @@
                         <span>👤</span> Profilim
                     </a>
                 </li>
+                <li>
+                    <a href="/courier/<%= courierId %>/reports" class="<%= title === 'Raporlar' ? 'active' : '' %>">
+                        <span>📈</span> Raporlar
+                    </a>
+                </li>
 
             <% } else if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
                 <li>
@@ -89,8 +94,23 @@
                     </a>
                 </li>
                 <li>
+                    <a href="/admin/all-sellers" class="<%= title === 'Tüm Satıcılar' ? 'active' : '' %>">
+                        <span>🛍️</span> Tüm Satıcılar
+                    </a>
+                </li>
+                <li>
                     <a href="/admin/couriers" class="<%= title === 'Kurye Onayları' ? 'active' : '' %>">
                         <span>🛵</span> Kurye Onayları
+                    </a>
+                </li>
+                <li>
+                    <a href="/admin/all-couriers" class="<%= title === 'Tüm Kuryeler' ? 'active' : '' %>">
+                        <span>📦</span> Tüm Kuryeler
+                    </a>
+                </li>
+                <li>
+                    <a href="/admin/menu-control" class="<%= title === 'Menü Kontrol' ? 'active' : '' %>">
+                        <span>🍽️</span> Menü Kontrol
                     </a>
                 </li>
                 <li>

@@ -4,6 +4,7 @@ const { Sequelize } = require('sequelize');
 const { requireAuth, requireRole } = require('../../middleware/auth');
 const { handleValidationErrors, createReviewValidation } = require('../../middleware/validate');
 const { Review, Order, User, Seller } = require('../../models');
+const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
 
 // Satıcıya ait yorumları listele (herkese açık)
 router.get('/seller/:sellerId', async (req, res) => {
@@ -12,7 +13,7 @@ router.get('/seller/:sellerId', async (req, res) => {
         const limit = Math.min(parseInt(req.query.limit) || 20, 50);
         const reviews = await Review.findAll({
             where: { seller_id: sellerId, is_visible: true },
-            include: [{ model: User, as: 'user', attributes: ['fullname'] }],
+            include: [{ model: User, as: 'user', attributes: ['fullname'], where: { is_active: true } }],
             order: [['created_at', 'DESC']],
             limit,
             attributes: ['id', 'rating', 'comment', 'created_at']
@@ -26,7 +27,8 @@ router.get('/seller/:sellerId', async (req, res) => {
         }));
         const avgResult = await Review.findOne({
             where: { seller_id: sellerId, is_visible: true },
-            attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
+            include: [{ model: User, as: 'user', attributes: [], where: { is_active: true } }],
+            attributes: [[Sequelize.fn('AVG', Sequelize.col('Review.rating')), 'avg']],
             raw: true
         });
         const averageRating = avgResult && avgResult.avg != null ? parseFloat(Number(avgResult.avg).toFixed(2)) : 0;
@@ -58,14 +60,7 @@ router.post('/', requireAuth, requireRole('buyer'), createReviewValidation, hand
         });
         const seller = await Seller.findByPk(order.seller_id);
         if (seller) {
-            const count = await Review.count({ where: { seller_id: seller.id, is_visible: true } });
-            const avgRow = await Review.findOne({
-                where: { seller_id: seller.id, is_visible: true },
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
-                raw: true
-            });
-            const newAvg = avgRow && avgRow.avg != null ? parseFloat(Number(avgRow.avg).toFixed(2)) : 0;
-            await seller.update({ rating: newAvg, total_reviews: count });
+            await recalculateSellerRatings([seller.id]);
         }
         res.status(201).json({ success: true, review: { id: review.id, rating: review.rating, comment: review.comment } });
     } catch (err) {

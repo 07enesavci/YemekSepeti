@@ -1,0 +1,345 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+
+<style>
+.actions-bar {
+    display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem;
+    background: var(--card-bg, #fff); padding: 1.5rem; border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+.actions-bar .form-group { margin: 0; min-width: 200px; flex: 1; }
+.actions-bar label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+.actions-bar input, .actions-bar select {
+    width: 100%; padding: 0.75rem; border: 1px solid var(--border-color, #eee); border-radius: 8px;
+}
+.actions-bar button { height: auto; align-self: flex-end; padding: 0.75rem 1.5rem; }
+
+.status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; display: inline-block; }
+.status-open { background-color: rgba(16, 185, 129, 0.15); color: #10B981; }
+.status-closed { background-color: rgba(239, 68, 68, 0.15); color: #E74C3C; }
+
+/* Modal CSS */
+.stats-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 1.5rem; }
+.stats-modal { background: var(--card-bg, #fff); border-radius: 16px; width: 100%; max-width: 900px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+.stats-modal-header { padding: 1.5rem; border-bottom: 1px solid var(--border-color, #eee); display: flex; justify-content: space-between; align-items: center; }
+.stats-modal-header h3 { margin: 0; font-size: 1.4rem; }
+.stats-modal-body { padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.stat-box { background: rgba(0,0,0,0.02); border: 1px solid var(--border-color, #eee); padding: 1rem; border-radius: 12px; text-align: center; }
+.stat-box h4 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #666; }
+.stat-box .value { font-size: 1.5rem; font-weight: bold; color: var(--primary-color); }
+
+.recent-orders-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+.recent-orders-table th, .recent-orders-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color, #eee); font-size: 0.9rem; }
+.recent-orders-table th { background: rgba(0,0,0,0.03); font-weight: 600; }
+</style>
+
+<div class="panel-layout">
+    <%- include('../partials/sidebar') %>
+    <main class="panel-content">
+        <h1 class="panel-title">Tüm Satıcılar</h1>
+        <p class="panel-subtitle">Sistemdeki tüm lokanta ve mağazaları görüntüleyip satış özetlerini inceleyebilirsiniz.</p>
+
+        <form id="filter-form" class="actions-bar">
+            <div class="form-group">
+                <label>Mağaza Durumu</label>
+                <select id="filter-status">
+                    <option value="all">Farketmez</option>
+                    <option value="open">Sadece Açık Olanlar</option>
+                    <option value="closed">Sadece Kapalı / Pasif Olanlar</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Mağaza Ara (İsim veya Yetkili)</label>
+                <input type="text" id="filter-search" placeholder="örn. Ev Lezzetleri">
+            </div>
+            <button type="submit" class="btn btn-primary">Filtrele</button>
+        </form>
+
+        <div class="card">
+            <div class="card-content">
+                <div class="table-responsive">
+                    <table class="panel-table">
+                        <thead>
+                            <tr>
+                                <th>Mağaza Bilgisi</th>
+                                <th>İletişim & Yetkili</th>
+                                <th>Müşteri Puanı</th>
+                                <th>Durum ve Aktiflik</th>
+                                <th class="text-end">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sellers-tbody">
+                            <tr><td colspan="5" class="text-center py-4">Veriler yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal -->
+<div id="stats-modal-overlay" class="stats-modal-overlay">
+    <div class="stats-modal">
+        <div class="stats-modal-header">
+            <h3 id="modal-seller-name">Mağaza Detayları</h3>
+            <button type="button" id="modal-close" class="btn btn-secondary btn-sm">Kapat</button>
+        </div>
+        <div class="stats-modal-body">
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 0.5rem; padding: 1rem; background: rgba(0,0,0,0.02); border-radius: 10px; border: 1px solid var(--border-color, #eee);">
+                <div style="flex: 1; min-width: 150px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.85rem;">Başlangıç Tarihi</label>
+                    <input type="date" id="modal-start-date" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color, #ddd); border-radius: 8px;">
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.85rem;">Bitiş Tarihi</label>
+                    <input type="date" id="modal-end-date" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color, #ddd); border-radius: 8px;">
+                </div>
+                <button type="button" id="modal-filter-btn" class="btn btn-primary btn-sm" style="padding: 0.6rem 1.2rem; height: fit-content;">📊 Filtrele</button>
+                <button type="button" id="modal-clear-filter-btn" class="btn btn-secondary btn-sm" style="padding: 0.6rem 1.2rem; height: fit-content;">Tümü</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <h4>✅ Teslim Edilen</h4>
+                    <div class="value" id="modal-stat-delivered">0</div>
+                </div>
+                <div class="stat-box">
+                    <h4>❌ İptal Edilen</h4>
+                    <div class="value" id="modal-stat-cancelled">0</div>
+                </div>
+                <div class="stat-box">
+                    <h4>🚀 Teslimatta / Hazırlanıyor</h4>
+                    <div class="value" id="modal-stat-active">0</div>
+                </div>
+                <div class="stat-box" style="background: rgba(16, 185, 129, 0.05);">
+                    <h4>💰 Toplam Satış Ciro</h4>
+                    <div class="value" id="modal-stat-revenue" style="color: #10B981;">0.00 TL</div>
+                </div>
+            </div>
+            <div>
+                <h4 id="modal-orders-title" style="margin-bottom: 0.5rem; font-size: 1.1rem; border-bottom: 2px solid #eee; padding-bottom: 5px;">📜 Sipariş Geçmişi</h4>
+                <table class="recent-orders-table">
+                    <thead>
+                        <tr>
+                            <th>Sipariş No</th>
+                            <th>Tarih</th>
+                            <th>Tutar</th>
+                            <th>Durum</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-recent-orders">
+                        <tr><td colspan="4" class="text-center py-3">Veri yok.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var baseUrl = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '') || '';
+
+const statusFormat = {
+    'pending': '⏳ Bekliyor',
+    'confirmed': '✅ Onaylandı',
+    'preparing': '🍳 Hazırlanıyor',
+    'ready': '📦 Hazır',
+    'on_delivery': '🛵 Dağıtımda',
+    'delivered': '🎉 Teslim Edildi',
+    'cancelled': '❌ İptal'
+};
+
+async function loadSellers() {
+    const status = document.getElementById('filter-status').value;
+    const search = document.getElementById('filter-search').value.trim();
+    
+    const tbody = document.getElementById('sellers-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Yükleniyor...</td></tr>';
+    
+    let queryParams = new URLSearchParams();
+    if(status && status !== 'all') queryParams.append('is_open', status);
+    if(search) queryParams.append('search', search);
+
+    try {
+        const res = await fetch(`${baseUrl}/api/admin/all-sellers?${queryParams.toString()}`, { credentials: 'include' });
+        const result = await res.json();
+        
+        if(!result.success || !result.data || result.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Arama kriterlerine uygun mağaza bulunamadı.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        result.data.forEach(s => {
+            const isApproved = s.Seller.is_active;
+            const isOpen = s.Seller.is_open;
+            
+            const approvalHtml = isApproved 
+                ? '<span style="color:#10B981; font-size:0.85rem; font-weight:bold;">✔ Onaylı Mağaza</span>' 
+                : '<span style="color:#E74C3C; font-size:0.85rem; font-weight:bold;">⏳ Onay Bekliyor / Pasif</span>';
+
+            const statusHtml = isOpen 
+                ? '<span class="status-badge status-open">Sipariş Alıyor (Açık)</span>' 
+                : '<span class="status-badge status-closed">Kapalı</span>';
+
+            const rating = s.Seller.rating > 0 ? `⭐ ${s.Seller.rating} (${s.Seller.total_reviews} Değerlendirme)` : 'Henüz puan yok';
+
+            html += `
+                <tr class="align-middle">
+                    <td>
+                        <div style="font-weight: 600; color: var(--text-color); font-size: 1.05rem;">${s.Seller.shop_name}</div>
+                        <div style="font-size: 0.85rem; color: #888;">Katılım: ${new Date(s.created_at).toLocaleDateString('tr-TR')}</div>
+                    </td>
+                    <td>
+                        <div><strong>${s.fullname}</strong></div>
+                        <div style="color: #666; font-size: 0.85rem;">${s.email}</div>
+                        <div style="color: #666; font-size: 0.85rem;">${s.phone || 'Telefon yok'}</div>
+                    </td>
+                    <td>
+                        <div style="font-weight: bold; color: #F59E0B;">${rating}</div>
+                    </td>
+                    <td>
+                        <div style="margin-bottom: 4px;">${approvalHtml}</div>
+                        <div>${statusHtml}</div>
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-outline-primary btn-sm btn-details" data-id="${s.id}">Detay / İstatistikler</button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+        
+    } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Sunucu hatası: ${e.message}</td></tr>`;
+    }
+}
+
+var currentModalSellerId = null;
+
+async function openDetailsModal(id, startDate, endDate, showAll) {
+    currentModalSellerId = id;
+    document.getElementById('stats-modal-overlay').style.display = 'flex';
+    document.getElementById('modal-seller-name').innerText = 'Yükleniyor...';
+    
+    // Reset values
+    document.getElementById('modal-stat-delivered').innerText = '...';
+    document.getElementById('modal-stat-cancelled').innerText = '...';
+    document.getElementById('modal-stat-active').innerText = '...';
+    document.getElementById('modal-stat-revenue').innerText = '...';
+    document.getElementById('modal-recent-orders').innerHTML = '<tr><td colspan="4" class="text-center py-3">Yükleniyor...</td></tr>';
+
+    // Set default dates if not provided and not showAll (son 30 gün)
+    if (!showAll && !startDate && !endDate) {
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        startDate = thirtyDaysAgo.toISOString().slice(0, 10);
+        endDate = now.toISOString().slice(0, 10);
+    }
+
+    document.getElementById('modal-start-date').value = startDate || '';
+    document.getElementById('modal-end-date').value = endDate || '';
+
+    let queryParams = new URLSearchParams();
+    if (startDate) queryParams.append('startDate', startDate);
+    if (endDate) queryParams.append('endDate', endDate);
+
+    try {
+        const res = await fetch(`${baseUrl}/api/admin/seller-stats/${id}?${queryParams.toString()}`, { credentials: 'include' });
+        const result = await res.json();
+        
+        if(!result.success) {
+            alert(result.message || 'Hata oluştu');
+            document.getElementById('stats-modal-overlay').style.display = 'none';
+            return;
+        }
+
+        const data = result.data;
+        document.getElementById('modal-seller-name').innerText = data.user.shop_name + " Satış Raporu";
+        document.getElementById('modal-stat-delivered').innerText = data.stats.totalDelivered;
+        document.getElementById('modal-stat-cancelled').innerText = data.stats.totalCancelled;
+        document.getElementById('modal-stat-active').innerText = data.stats.totalActive;
+        document.getElementById('modal-stat-revenue').innerText = data.stats.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) + " TL";
+
+        // Tarih aralığı başlığı
+        const titleEl = document.getElementById('modal-orders-title');
+        if (startDate && endDate) {
+            const sd = new Date(startDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+            const ed = new Date(endDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+            titleEl.textContent = `📜 Sipariş Geçmişi (${sd} – ${ed}) — ${data.recentOrders?.length || 0} sipariş`;
+        } else {
+            titleEl.textContent = `📜 Sipariş Geçmişi (Tüm Zamanlar) — ${data.recentOrders?.length || 0} sipariş`;
+        }
+
+        let ordersHtml = '';
+        if(data.recentOrders && data.recentOrders.length > 0) {
+            data.recentOrders.forEach(o => {
+                ordersHtml += `
+                    <tr>
+                        <td><strong>#${o.order_number}</strong></td>
+                        <td>${new Date(o.created_at).toLocaleString('tr-TR')}</td>
+                        <td><strong style="color:var(--primary-color);">${parseFloat(o.total_amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</strong></td>
+                        <td>${statusFormat[o.status] || o.status}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            ordersHtml = '<tr><td colspan="4" class="text-center py-3 text-muted">Seçilen tarih aralığında sipariş kaydı bulunmuyor.</td></tr>';
+        }
+        document.getElementById('modal-recent-orders').innerHTML = ordersHtml;
+        
+    } catch(e) {
+        alert('Sunucu hatası: ' + e.message);
+        document.getElementById('stats-modal-overlay').style.display = 'none';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadSellers();
+
+    document.getElementById('filter-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        loadSellers();
+    });
+
+    document.getElementById('sellers-tbody').addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-details');
+        if(btn) {
+            const id = btn.getAttribute('data-id');
+            openDetailsModal(id);
+        }
+    });
+
+    document.getElementById('modal-close').addEventListener('click', () => {
+        document.getElementById('stats-modal-overlay').style.display = 'none';
+    });
+    document.getElementById('stats-modal-overlay').addEventListener('click', (e) => {
+        if(e.target === document.getElementById('stats-modal-overlay')) {
+            document.getElementById('stats-modal-overlay').style.display = 'none';
+        }
+    });
+
+    // Modal tarih filtresi
+    document.getElementById('modal-filter-btn').addEventListener('click', () => {
+        if (!currentModalSellerId) return;
+        const sd = document.getElementById('modal-start-date').value;
+        const ed = document.getElementById('modal-end-date').value;
+        if (!sd || !ed) {
+            alert('Lütfen başlangıç ve bitiş tarihlerini seçin.');
+            return;
+        }
+        if (new Date(sd) > new Date(ed)) {
+            alert('Başlangıç tarihi bitiş tarihinden sonra olamaz.');
+            return;
+        }
+        openDetailsModal(currentModalSellerId, sd, ed);
+    });
+
+    document.getElementById('modal-clear-filter-btn').addEventListener('click', () => {
+        if (!currentModalSellerId) return;
+        openDetailsModal(currentModalSellerId, null, null, true);
+    });
+});
+</script>

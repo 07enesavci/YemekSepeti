@@ -1,5 +1,5 @@
 const { Op, Sequelize } = require('sequelize');
-const { Review, Seller } = require('../models');
+const { Review, Seller, User } = require('../models');
 
 async function recalculateSellerRatings(sellerIds = [], options = {}) {
     const normalizedSellerIds = [...new Set(
@@ -24,10 +24,16 @@ async function recalculateSellerRatings(sellerIds = [], options = {}) {
             seller_id: { [Op.in]: normalizedSellerIds },
             is_visible: true
         },
+        include: [{
+            model: User,
+            as: 'user',
+            attributes: [],
+            where: { is_active: true }
+        }],
         attributes: [
             'seller_id',
-            [Sequelize.fn('COUNT', Sequelize.col('id')), 'review_count'],
-            [Sequelize.fn('AVG', Sequelize.col('rating')), 'avg_rating']
+            [Sequelize.fn('COUNT', Sequelize.col('Review.id')), 'review_count'],
+            [Sequelize.fn('AVG', Sequelize.col('Review.rating')), 'avg_rating']
         ],
         group: ['seller_id'],
         raw: true,

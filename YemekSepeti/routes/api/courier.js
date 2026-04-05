@@ -9,23 +9,34 @@ const { Op, Sequelize, QueryTypes } = require("sequelize");
 const { sequelize } = require("../../config/database");
 const { createNotification } = require("../../lib/notificationHelper");
 
+function getDistance(lat1, lon1, lat2, lon2) {
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 0.5 - Math.cos(dLat)/2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * (1 - Math.cos(dLon)) / 2;
+    return R * 2 * Math.asin(Math.sqrt(a));
+}
+
 router.get("/available", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
 
-        // courier_status kolonunu raw SQL ile çek (Sequelize model tanımı gerektirmez)
         let courierStatus = 'online';
+        let courierLat = null;
+        let courierLng = null;
         try {
             const statusRes = await sequelize.query(
-                "SELECT courier_status FROM users WHERE id = ?",
+                "SELECT courier_status, last_latitude, last_longitude FROM users WHERE id = ?",
                 { replacements: [courierId], type: QueryTypes.SELECT }
             );
-            if (statusRes.length > 0 && statusRes[0].courier_status) {
-                courierStatus = statusRes[0].courier_status;
+            if (statusRes.length > 0) {
+                if (statusRes[0].courier_status) courierStatus = statusRes[0].courier_status;
+                if (statusRes[0].last_latitude) courierLat = parseFloat(statusRes[0].last_latitude);
+                if (statusRes[0].last_longitude) courierLng = parseFloat(statusRes[0].last_longitude);
             }
         } catch (statusErr) {
-            // kolon yoksa varsayılan 'online' kullan
-            console.warn('courier_status kolonu okunamadı, varsayılan online:', statusErr.message);
+            console.warn('courier attributes okunamadı:', statusErr.message);
         }
 
         if (courierStatus === 'offline') {
@@ -67,7 +78,17 @@ router.get("/available", async (req, res) => {
             order: [['created_at', 'DESC']]
         });
 
-        const formattedTasks = tasks.map(task => {
+        const formattedTasks = [];
+        tasks.forEach(task => {
+            let taskDistance = null;
+            if (courierLat !== null && courierLng !== null && task.address && task.address.latitude && task.address.longitude) {
+                taskDistance = getDistance(courierLat, courierLng, parseFloat(task.address.latitude), parseFloat(task.address.longitude));
+            }
+
+            if (taskDistance !== null && taskDistance > 15) {
+                return;
+            }
+
             const deliveryLocation = task.address
                 ? `${task.address.district || ''}, ${task.address.city || ''}`.replace(/^,\s*|,\s*$/g, '')
                 : 'Adres bilgisi yok';
@@ -77,7 +98,7 @@ router.get("/available", async (req, res) => {
                 ? `${task.buyer.fullname || 'Müşteri'} (${phoneStr.substring(0, 3)}***)`
                 : 'Müşteri';
 
-            return {
+            formattedTasks.push({
                 id: task.id,
                 orderNumber: task.order_number || `SIP-${task.id}`,
                 pickup: task.seller?.shop_name || 'Restoran',
@@ -89,14 +110,15 @@ router.get("/available", async (req, res) => {
                 customer: customerName,
                 payout: parseFloat(task.delivery_fee) || 25.00,
                 estimatedTime: task.estimated_delivery_time || '30 dakika',
-                createdAt: task.created_at
-            };
+                createdAt: task.created_at,
+                distanceKm: taskDistance
+            });
         });
 
         res.json({
             success: true,
             tasks: formattedTasks,
-            message: formattedTasks.length === 0 ? "Henüz aktif görev bulunmamaktadır." : null
+            message: formattedTasks.length === 0 ? "Henüz aktif veya yakınınızda (15km) görev bulunmamaktadır." : null
         });
     } catch (error) {
         console.error('AVAILABLE ENDPOINT HATA:', error);
@@ -113,7 +135,7 @@ router.post("/tasks/:id/accept", async (req, res) => {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id || req.session.user.courierId;
         const orderRecord = await Order.findByPk(orderId, {
-            attributes: ['id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time'],
+            attributes: ['id', 'user_id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time'],
             include: [
                 { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
                 { model: Address, as: 'address', attributes: ['district', 'city'], required: false }
@@ -134,7 +156,16 @@ router.post("/tasks/:id/accept", async (req, res) => {
 
         const t = await sequelize.transaction();
         try {
-            await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId }, transaction: t });
+            const [updatedRows] = await Order.update(
+                { courier_id: courierId }, 
+                { where: { id: orderId, courier_id: null, status: 'ready' }, transaction: t }
+            );
+
+            if (updatedRows === 0) {
+                await t.rollback();
+                return res.status(400).json({ success: false, message: "Bu sipariş başkası tarafından alınmış veya artık havuzda değil." });
+            }
+
             const pickup = orderRecord.seller?.shop_name || 'Restoran';
             const deliveryLoc = orderRecord.address
                 ? `${orderRecord.address.district || ''}, ${orderRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '')
@@ -151,6 +182,17 @@ router.post("/tasks/:id/accept", async (req, res) => {
             }, { transaction: t });
 
             await t.commit();
+            
+            if (global.io) {
+                global.io.emit('order_pool_removed', { orderId: orderId });
+                if (orderRecord.user_id) {
+                    global.io.to(`buyer-${orderRecord.user_id}`).emit('order_status_updated', {
+                        orderId: orderId,
+                        status: 'ready',
+                        message: 'Kurye atandı, teslim almak için restorana gidiyor.'
+                    });
+                }
+            }
         } catch (err) {
             await t.rollback();
             console.error('GÖREV KABUL HATA:', err);
@@ -359,7 +401,7 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
         );
         
         await Order.update(
-            { status: 'on_delivery' },
+            { status: 'ready' },
             { where: { id: task.order_id } }
         );
 
@@ -368,8 +410,9 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
             if (orderInfo && global.io) {
                 global.io.to(`buyer-${orderInfo.user_id}`).emit('order_status_updated', {
                     orderId: task.order_id,
-                    status: 'on_delivery',
-                    orderNumber: orderInfo.order_number
+                    status: 'ready',
+                    orderNumber: orderInfo.order_number,
+                    message: 'Kurye atandı, teslim almak için restorana gidiyor.'
                 });
             }
         } catch(e) {}
@@ -491,66 +534,6 @@ router.put("/tasks/:id/reject-assigned", async (req, res) => {
     }
 });
 
-// Geçmiş veya aktif bir siparişin detayı (sadece bu kuryeye ait)
-router.get("/tasks/:id", async (req, res) => {
-    try {
-        const orderId = parseInt(req.params.id);
-        const courierId = req.session.user.id || req.session.user.courierId;
-        if (!courierId || isNaN(orderId)) return res.status(400).json({ success: false, message: "Geçersiz istek." });
-
-        const order = await Order.findOne({
-            where: { id: orderId, courier_id: courierId },
-            include: [
-                { model: Seller, as: 'seller', attributes: ['id', 'shop_name', 'location'], required: false },
-                { model: Address, as: 'address', attributes: ['district', 'city', 'full_address', 'latitude', 'longitude'], required: false },
-                { model: User, as: 'buyer', attributes: ['fullname', 'phone'], required: false },
-                { model: CourierTask, as: 'courierTask', attributes: ['delivered_at', 'actual_payout', 'picked_up_at'], required: false },
-                { model: OrderItem, as: 'items', attributes: ['meal_name', 'quantity', 'meal_price', 'subtotal'], required: false }
-            ],
-            attributes: ['id', 'order_number', 'status', 'subtotal', 'delivery_fee', 'discount_amount', 'total_amount', 'created_at', 'payment_method']
-        });
-
-        if (!order) return res.status(404).json({ success: false, message: "Sipariş bulunamadı veya bu size ait değil." });
-
-        const phoneStr = order.buyer?.phone || '';
-        const customerPhone = phoneStr.length >= 3 ? phoneStr.substring(0, 3) + '***' + phoneStr.slice(-2) : '***';
-        const detail = {
-            id: order.id,
-            orderNumber: order.order_number || `SIP-${order.id}`,
-            status: order.status,
-            createdAt: order.created_at,
-            pickup: order.seller ? { name: order.seller.shop_name, address: order.seller.location } : null,
-            dropoff: order.address ? {
-                district: order.address.district,
-                city: order.address.city,
-                fullAddress: order.address.full_address,
-                latitude: order.address.latitude,
-                longitude: order.address.longitude
-            } : null,
-            customer: order.buyer ? { fullname: order.buyer.fullname, phone: customerPhone } : null,
-            items: (order.items || []).map(i => ({
-                meal_name: i.meal_name,
-                quantity: i.quantity,
-                meal_price: parseFloat(i.meal_price) || 0,
-                subtotal: parseFloat(i.subtotal) || 0
-            })),
-            subtotal: parseFloat(order.subtotal) || 0,
-            deliveryFee: parseFloat(order.delivery_fee) || 0,
-            discountAmount: parseFloat(order.discount_amount) || 0,
-            totalAmount: parseFloat(order.total_amount) || 0,
-            paymentMethod: order.payment_method,
-            deliveredAt: order.courierTask?.delivered_at || null,
-            pickedUpAt: order.courierTask?.picked_up_at || null,
-            payout: parseFloat(order.courierTask?.actual_payout || order.delivery_fee) || 0
-        };
-
-        res.json({ success: true, task: detail });
-    } catch (error) {
-        console.error('TASK DETAIL HATA:', error);
-        res.status(500).json({ success: false, message: "Detay yüklenirken hata oluştu.", error: error.message });
-    }
-});
-
 router.get("/tasks/history", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
@@ -622,6 +605,68 @@ router.get("/tasks/history", async (req, res) => {
     }
 });
 
+// Geçmiş veya aktif bir siparişin detayı (sadece bu kuryeye ait)
+router.get("/tasks/:id", async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const courierId = req.session.user.id || req.session.user.courierId;
+        if (!courierId || isNaN(orderId)) return res.status(400).json({ success: false, message: "Geçersiz istek." });
+
+        const order = await Order.findOne({
+            where: { id: orderId, courier_id: courierId },
+            include: [
+                { model: Seller, as: 'seller', attributes: ['id', 'shop_name', 'location'], required: false },
+                { model: Address, as: 'address', attributes: ['district', 'city', 'full_address', 'latitude', 'longitude'], required: false },
+                { model: User, as: 'buyer', attributes: ['fullname', 'phone'], required: false },
+                { model: CourierTask, as: 'courierTask', attributes: ['delivered_at', 'actual_payout', 'picked_up_at'], required: false },
+                { model: OrderItem, as: 'items', attributes: ['meal_name', 'quantity', 'meal_price', 'subtotal'], required: false }
+            ],
+            attributes: ['id', 'order_number', 'status', 'subtotal', 'delivery_fee', 'discount_amount', 'total_amount', 'created_at', 'payment_method']
+        });
+
+        if (!order) return res.status(404).json({ success: false, message: "Sipariş bulunamadı veya bu size ait değil." });
+
+        const phoneStr = order.buyer?.phone || '';
+        const customerPhone = phoneStr.length >= 3 ? phoneStr.substring(0, 3) + '***' + phoneStr.slice(-2) : '***';
+        const detail = {
+            id: order.id,
+            orderNumber: order.order_number || `SIP-${order.id}`,
+            status: order.status,
+            createdAt: order.created_at,
+            pickup: order.seller ? { name: order.seller.shop_name, address: order.seller.location } : null,
+            dropoff: order.address ? {
+                district: order.address.district,
+                city: order.address.city,
+                fullAddress: order.address.full_address,
+                latitude: order.address.latitude,
+                longitude: order.address.longitude
+            } : null,
+            customer: order.buyer ? { fullname: order.buyer.fullname, phone: customerPhone } : null,
+            items: (order.items || []).map(i => ({
+                meal_name: i.meal_name,
+                quantity: i.quantity,
+                meal_price: parseFloat(i.meal_price) || 0,
+                subtotal: parseFloat(i.subtotal) || 0
+            })),
+            subtotal: parseFloat(order.subtotal) || 0,
+            deliveryFee: parseFloat(order.delivery_fee) || 0,
+            discountAmount: parseFloat(order.discount_amount) || 0,
+            totalAmount: parseFloat(order.total_amount) || 0,
+            paymentMethod: order.payment_method,
+            deliveredAt: order.courierTask?.delivered_at || null,
+            pickedUpAt: order.courierTask?.picked_up_at || null,
+            payout: parseFloat(order.courierTask?.actual_payout || order.delivery_fee) || 0
+        };
+
+        res.json({ success: true, task: detail });
+    } catch (error) {
+        console.error('TASK DETAIL HATA:', error);
+        res.status(500).json({ success: false, message: "Detay yüklenirken hata oluştu.", error: error.message });
+    }
+});
+
+
+
 router.get("/earnings", async (req, res) => {
     try {
         const courierId = req.session.user.id || req.session.user.courierId;
@@ -671,6 +716,44 @@ router.get("/earnings", async (req, res) => {
             period: req.query.period || 'month',
             stats: { totalDeliveries: 0, totalEarnings: 0, avgEarningsPerDelivery: 0 }
         });
+    }
+});
+
+router.get("/reports/shops", async (req, res) => {
+    try {
+        const courierId = req.session.user.id || req.session.user.courierId;
+        if (!courierId) return res.status(400).json({ success: false, message: "Kurye oturumu bulunamadı." });
+
+        const { startDate, endDate } = req.query;
+
+        let dateFilter = "";
+        let replacements = [courierId];
+
+        if (startDate && endDate) {
+            dateFilter = " AND o.created_at >= ? AND o.created_at <= ?";
+            replacements.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+        }
+
+        const query = `
+            SELECT 
+                s.shop_name,
+                COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as delivered_count,
+                COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) as cancelled_count,
+                COUNT(o.id) as total_tasks
+            FROM orders o
+            LEFT JOIN sellers s ON o.seller_id = s.id
+            WHERE o.courier_id = ?
+            ${dateFilter}
+            GROUP BY s.id, s.shop_name
+            ORDER BY total_tasks DESC
+        `;
+
+        const resultsArray = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+
+        res.json({ success: true, data: resultsArray });
+    } catch (error) {
+        console.error('REPORTS SHOPS HATA:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 
@@ -810,4 +893,77 @@ router.options("/profile", (req, res) => {
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.sendStatus(200);
 });
+
+router.put("/location", async (req, res) => {
+    try {
+        const courierId = req.session.user?.id || req.session.user?.courierId;
+        if (!courierId) return res.status(401).json({ success: false, message: "Oturum bulunamadı." });
+        
+        const { latitude, longitude } = req.body;
+        if (!latitude || !longitude) return res.status(400).json({ success: false, message: "Koordinatlar eksik." });
+
+        try {
+            await db.execute(`UPDATE users SET last_latitude = ?, last_longitude = ? WHERE id = ?`, [latitude, longitude, courierId]);
+        } catch (dbError) {
+            if (dbError.code === 'ER_BAD_FIELD_ERROR') {
+                try {
+                    await db.execute("ALTER TABLE users ADD COLUMN last_latitude DECIMAL(10,8) NULL, ADD COLUMN last_longitude DECIMAL(11,8) NULL");
+                    await db.execute(`UPDATE users SET last_latitude = ?, last_longitude = ? WHERE id = ?`, [latitude, longitude, courierId]);
+                } catch (alterErr) {
+                    console.error('Konum DB update/alter hatası:', alterErr);
+                    return res.status(500).json({ success: false, message: "Sütunlar oluşturulamadı." });
+                }
+            } else {
+                throw dbError;
+            }
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('IDLE LOCATION UPDATE HATA:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
+router.get("/reports/shops", requireRole('courier'), async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const courier = await Courier.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı" });
+        
+        let dateFilter = "";
+        const replacements = { courierId: courier.id };
+        
+        if (req.query.startDate && req.query.endDate) {
+            dateFilter = "AND t.created_at BETWEEN :startDate AND :endDate";
+            replacements.startDate = req.query.startDate + " 00:00:00";
+            replacements.endDate = req.query.endDate + " 23:59:59";
+        }
+
+        const query = `
+            SELECT 
+                s.shop_name,
+                COUNT(CASE WHEN t.status = 'delivered' THEN 1 END) as delivered_count,
+                COUNT(CASE WHEN t.status = 'cancelled' THEN 1 END) as cancelled_count,
+                COUNT(t.id) as total_tasks
+            FROM courier_tasks t
+            JOIN orders o ON t.order_id = o.id
+            JOIN sellers s ON o.seller_id = s.id
+            WHERE t.courier_id = :courierId
+            ${dateFilter}
+            GROUP BY s.id, s.shop_name
+            ORDER BY delivered_count DESC
+        `;
+
+        const results = await sequelize.query(query, {
+            replacements,
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        res.json({ success: true, data: results });
+    } catch (error) {
+        console.error("Rapor hatası:", error);
+        res.status(500).json({ success: false, message: "Rapor alınamadı." });
+    }
+});
+
 module.exports = router;

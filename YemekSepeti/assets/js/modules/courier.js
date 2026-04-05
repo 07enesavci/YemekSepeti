@@ -364,6 +364,10 @@ function initializeProfilePage() {
 
 
 function createOrderCardHTML(order) {
+    const distanceBadge = order.distanceKm !== undefined && order.distanceKm !== null 
+        ? `<div style="display:inline-block; margin-top:6px; background:#e0f7fa; color:#00796b; padding:4px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold;">🛵 Size ${parseFloat(order.distanceKm).toFixed(1)} km mesafede</div>`
+        : '';
+
     return `
         <div class="card available-order-card" data-order-id="${order.id}">
             <div class="order-route">
@@ -374,6 +378,7 @@ function createOrderCardHTML(order) {
                 <div class="route-point" style="border-left: 3px solid #E74C3C; padding-left: 10px; margin-top: 8px;">
                     <strong>📍 Teslim:</strong> ${order.dropoffFullAddress || order.dropoff || 'Belirtilmemiş'}
                 </div>
+                ${distanceBadge}
             </div>
             <div id="available-map-${order.id}" class="available-order-map" style="height: 0; overflow: hidden; transition: height 0.3s ease; border-radius: 8px; margin: 8px 0;"></div>
             <div class="order-payout">
@@ -547,7 +552,8 @@ async function loadAvailableOrders() {
                 dropoffFullAddress: task.dropoffFullAddress || task.dropoff,
                 dropoffLat: task.dropoffLat || null,
                 dropoffLng: task.dropoffLng || null,
-                payout: task.payout
+                payout: task.payout,
+                distanceKm: task.distanceKm
             });
             ordersListContainer.insertAdjacentHTML('beforeend', orderHTML);
         });
@@ -657,6 +663,7 @@ let courierSocket = null;
 let lastRenderedActiveTaskKey = null;
 let lastRenderedDashboardMode = null;
 let courierLocationInterval = null;
+let idleCourierLocationInterval = null;
 let hasShownGeoPermissionWarning = false;
 
 async function resolveCourierSocketUserId() {
@@ -754,6 +761,35 @@ async function connectCourierSocket() {
             }
         });
 
+        courierSocket.on('order_pool_removed', (payload) => {
+            const path = window.location.pathname || '';
+            if (path.includes('/courier/available') || path.endsWith('/available')) {
+                const orderId = payload && payload.orderId ? payload.orderId : null;
+                if (orderId) {
+                    const card = document.querySelector(`.available-order-card[data-order-id="${orderId}"]`);
+                    if (card) {
+                        card.style.transition = 'all 0.3s ease';
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            if (card) card.remove();
+                            const container = document.querySelector('.available-orders-list');
+                            if (container && container.children.length === 0) {
+                                loadAvailableOrders();
+                            }
+                        }, 300);
+                    }
+                }
+            }
+        });
+
+        courierSocket.on('order_pool_added', (payload) => {
+            const path = window.location.pathname || '';
+            if (path.includes('/courier/available') || path.endsWith('/available')) {
+                loadAvailableOrders();
+            }
+        });
+
         courierSocket.on('disconnect', () => {
             courierSocket = null;
             setTimeout(() => connectCourierSocket(), 1500);
@@ -795,6 +831,10 @@ function clearCourierAutoRefresh() {
         clearInterval(courierLocationInterval);
         courierLocationInterval = null;
     }
+    if (idleCourierLocationInterval) {
+        clearInterval(idleCourierLocationInterval);
+        idleCourierLocationInterval = null;
+    }
 }
 
 function setupCourierAutoRefresh(mode) {
@@ -817,6 +857,22 @@ function setupCourierAutoRefresh(mode) {
             loadAvailableOrders();
         }, refreshMs);
     }
+
+    const postIdleLocation = async () => {
+        if (document.hidden) return;
+        const pos = await getCourierCurrentPosition();
+        if (pos && pos[0] != null && pos[1] != null) {
+            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            fetch(`${baseUrl}/api/courier/location`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude: pos[0], longitude: pos[1] })
+            }).catch(e => {});
+        }
+    };
+    idleCourierLocationInterval = setInterval(postIdleLocation, 25000);
+    setTimeout(postIdleLocation, 2000);
 }
 
 function playCourierTaskSound() {

@@ -150,7 +150,7 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
         const { Meal } = require("../../models");
 
         const meals = await Meal.findAll({
-            where: { seller_id: sellerId },
+            where: { seller_id: sellerId, is_approved: true },
             attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });

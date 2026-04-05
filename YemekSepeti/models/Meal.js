@@ -33,6 +33,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.BOOLEAN,
             defaultValue: true
         },
+        is_approved: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false
+        },
         stock_quantity: {
             type: DataTypes.INTEGER,
             defaultValue: -1 // -1 = sınırsız
