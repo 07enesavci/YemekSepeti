@@ -1,0 +1,175 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/courier-dashboard.css">
+
+<style>
+.reports-filter {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.reports-filter label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.reports-filter input {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+.reports-table-container {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    overflow-x: auto;
+}
+
+.reports-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.reports-table th, .reports-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.reports-table th {
+    background: var(--bg-color);
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.reports-table tr:hover {
+    background: rgba(0,0,0,0.02);
+}
+
+.badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.badge-success { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+.badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+</style>
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        <h1 class="panel-title">Dükkan Raporları</h1>
+        <p class="panel-subtitle">Hangi dükkandan kaç adet sipariş taşıdığınıza dair istatistikler.</p>
+
+        <form id="report-filter-form" class="reports-filter">
+            <div>
+                <label>Başlangıç Tarihi</label>
+                <input type="date" id="start-date" required>
+            </div>
+            <div>
+                <label>Bitiş Tarihi</label>
+                <input type="date" id="end-date" required>
+            </div>
+            <div>
+                <button type="submit" class="btn btn-primary">Filtrele</button>
+            </div>
+        </form>
+
+        <div class="reports-table-container">
+            <table class="reports-table">
+                <thead>
+                    <tr>
+                        <th>Dükkan / Restoran Adı</th>
+                        <th>Başarılı Teslimat</th>
+                        <th>İptal Edilen</th>
+                        <th>Toplam İşlem</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-table-body">
+                    <tr>
+                        <td colspan="4" style="text-align: center;">Yükleniyor...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const tableBody = document.getElementById('reports-table-body');
+    const filterForm = document.getElementById('report-filter-form');
+    const startDateInput = document.getElementById('start-date');
+    const endDateInput = document.getElementById('end-date');
+
+    // Default: Son 7 gün
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
+    endDateInput.value = today.toISOString().split('T')[0];
+
+    async function loadReports(startDate, endDate) {
+        tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Veriler yükleniyor...</td></tr>';
+        try {
+            const queryParams = new URLSearchParams();
+            if (startDate) queryParams.append('startDate', startDate);
+            if (endDate) queryParams.append('endDate', endDate);
+
+            const res = await fetch(`/api/courier/reports/shops?${queryParams.toString()}`);
+            const json = await res.json();
+
+            if (!json.success) {
+                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">${json.message || 'Hata oluştu'}</td></tr>`;
+                return;
+            }
+
+            if (!json.data || json.data.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Bu tarih aralığında veri bulunamadı.</td></tr>`;
+                return;
+            }
+
+            tableBody.innerHTML = '';
+            json.data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: 600;">${row.shop_name || 'Bilinmiyor'}</td>
+                    <td><span class="badge badge-success">${row.delivered_count} İşlem</span></td>
+                    <td><span class="badge badge-danger">${row.cancelled_count} İptal</span></td>
+                    <td style="font-weight: bold;">${row.total_tasks}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        } catch (error) {
+            console.error('Rapor yükleme hatası:', error);
+            tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">Veriler çekilirken bir hata oluştu.</td></tr>`;
+        }
+    }
+
+    // İlk yükleme
+    loadReports(startDateInput.value, endDateInput.value);
+
+    // Filtre form submit
+    filterForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        loadReports(startDateInput.value, endDateInput.value);
+    });
+});
+</script>

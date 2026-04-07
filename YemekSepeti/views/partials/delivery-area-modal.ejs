@@ -1,0 +1,59 @@
+<div id="delivery-area-overlay" class="delivery-area-overlay" hidden aria-hidden="true">
+    <div
+        class="delivery-area-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delivery-area-title"
+        aria-describedby="delivery-area-desc"
+    >
+        <div id="delivery-step-buyer" class="delivery-step-buyer" hidden>
+            <h2 id="delivery-buyer-title" class="delivery-area-title">Nereye sipariş vereceksiniz?</h2>
+            <p class="delivery-area-desc">Kayıtlı adresinizi seçin veya yeni teslimat adresi girin.</p>
+            <div id="delivery-buyer-list" class="delivery-buyer-list" role="list"></div>
+            <p id="delivery-buyer-loading" class="delivery-area-muted" hidden>Adresler yükleniyor…</p>
+            <p id="delivery-buyer-error" class="delivery-area-error" role="alert" hidden></p>
+            <div class="delivery-buyer-actions">
+                <button type="button" class="btn btn-secondary" id="delivery-buyer-use-guest" hidden>
+                    Misafirde girdiğim adresi kullan
+                </button>
+                <button type="button" class="btn btn-primary" id="delivery-buyer-new-btn">Yeni adres gir</button>
+            </div>
+        </div>
+
+        <div id="delivery-step-form">
+            <h2 id="delivery-area-title" class="delivery-area-title">Teslimat konumunuz</h2>
+            <p id="delivery-area-desc" class="delivery-area-desc">
+                Siparişin doğru adrese gelmesi için bilgileri girin. İsterseniz anlık konumu kullanın, isterseniz elle yazın.
+            </p>
+            <form id="delivery-area-form" class="delivery-area-form" novalidate>
+                <div class="form-group">
+                    <label for="delivery-il" class="form-label">İl</label>
+                    <select id="delivery-il" class="form-input" required>
+                        <option value="">İl seçin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="delivery-ilce" class="form-label">İlçe</label>
+                    <select id="delivery-ilce" class="form-input" required disabled>
+                        <option value="">Önce il seçin</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="delivery-mahalle" class="form-label">Mahalle</label>
+                    <input type="text" id="delivery-mahalle" class="form-input" autocomplete="address-level3" placeholder="Mahalle adı" required maxlength="120">
+                </div>
+                <div class="form-group">
+                    <label for="delivery-cadde" class="form-label">Cadde / sokak</label>
+                    <input type="text" id="delivery-cadde" class="form-input" autocomplete="street-address" placeholder="Cadde veya sokak" required maxlength="120">
+                </div>
+                <p id="delivery-area-error" class="delivery-area-error" role="alert" hidden></p>
+                <div class="delivery-area-gps-row">
+                    <button type="button" class="btn btn-secondary delivery-area-gps-btn" id="delivery-use-gps-btn">
+                        📍 Anlık konumumu kullan
+                    </button>
+                </div>
+                <button type="submit" class="btn btn-primary delivery-area-submit" id="delivery-area-submit">Devam et</button>
+            </form>
+        </div>
+    </div>
+</div>

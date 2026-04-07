@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 — Sayfa Bulunamadı | Ev Lezzetleri</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { min-height: 100vh; font-family: 'Poppins', system-ui, sans-serif; }
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFFAF6;
+  position: relative;
+  overflow: hidden;
+  padding: 2rem 1rem;
+}
+
+/* warm ambient glows */
+body::before {
+  content: '';
+  position: fixed; top: -20%; right: -15%;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(255,107,53,.11) 0%, transparent 68%);
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed; bottom: -20%; left: -15%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(229,62,62,.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── layout ── */
+.wrapper {
+  position: relative; z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(2rem, 5vw, 5rem);
+  max-width: 1000px;
+  width: 100%;
+}
+
+.left {
+  flex: 0 0 auto;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.error-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: rgba(255,107,53,.1);
+  color: #FF6B35;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: .35rem .9rem;
+  border-radius: 50px;
+  margin-bottom: 1.1rem;
+  width: fit-content;
+}
+.error-badge .dot {
+  width: 6px; height: 6px;
+  background: #FF6B35;
+  border-radius: 50%;
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+.error-code {
+  font-size: clamp(5.5rem, 12vw, 8.5rem);
+  font-weight: 900;
+  line-height: .9;
+  background: linear-gradient(135deg, #FF6B35 0%, #E53E3E 60%, #C41F1F 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+  animation: gradShift 5s ease infinite;
+}
+
+h1.headline {
+  font-size: clamp(1.35rem, 3.5vw, 1.9rem);
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.25;
+  margin-bottom: .9rem;
+}
+
+p.subtext {
+  font-size: clamp(.85rem, 1.8vw, .97rem);
+  color: #6B7280;
+  line-height: 1.75;
+  margin-bottom: 2rem;
+}
+p.subtext strong { color: #374151; font-weight: 600; }
+
+.actions { display: flex; flex-wrap: wrap; gap: .8rem; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .72rem 1.6rem;
+  border-radius: 50px;
+  font-family: inherit;
+  font-size: .9rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s;
+  letter-spacing: .01em;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #FF6B35, #E53E3E);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(255, 107, 53, 0.35);
+  padding: 0.9rem 3.5rem;
+  font-size: 1rem;
+}
+.btn-primary:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 32px rgba(255, 107, 53, 0.45); }
+
+.btn-secondary {
+  background: #fff;
+  color: #374151;
+  box-shadow: 0 2px 0 #E5E7EB, 0 4px 12px rgba(0,0,0,.06);
+  border: 1.5px solid #E5E7EB;
+}
+.btn-secondary:hover { transform: translateY(-2px); border-color: #FF6B35; color: #FF6B35; box-shadow: 0 6px 16px rgba(255,107,53,.15); }
+
+/* right panel */
+.right { flex: 0 0 auto; width: clamp(280px, 44vw, 460px); }
+.right svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+/* ══════════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════════ */
+
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50%     { opacity: .3; }
+}
+
+@keyframes gradShift {
+  0%,100% { background-position: 0% 50%; }
+  50%     { background-position: 100% 50%; }
+}
+
+/* ── Delivery box: gentle float ── */
+@keyframes boxFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+#delivery-box { animation: boxFloat 3.6s ease-in-out infinite; }
+
+/* ── Food items: up/down float with rotation ── */
+@keyframes floatFood {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-12px) rotate(4deg); }
+}
+#pizza  { animation: floatFood 4.0s ease-in-out infinite; }
+#burger { animation: floatFood 3.8s ease-in-out infinite; animation-delay: 0.5s; }
+#fries  { animation: floatFood 4.4s ease-in-out infinite; animation-delay: 1.0s; }
+#ramen  { animation: floatFood 3.5s ease-in-out infinite; animation-delay: 0.25s; }
+
+/* sparkle stars */
+@keyframes sparkle {
+  0%,100% { transform: scale(1);  opacity: 1;  }
+  50%     { transform: scale(.4); opacity: .15; }
+}
+.sp { animation: sparkle 1.6s ease-in-out infinite; }
+.sp:nth-child(1) { animation-delay: 0s;   }
+.sp:nth-child(2) { animation-delay: .4s;  }
+.sp:nth-child(3) { animation-delay: .8s;  }
+.sp:nth-child(4) { animation-delay: 1.2s; }
+.sp:nth-child(5) { animation-delay: .6s;  }
+.sp:nth-child(6) { animation-delay: 1.0s; }
+
+/* question marks rise & fade */
+@keyframes qFloat {
+  0%   { transform: translateY(0px)   rotate(-6deg); opacity: .85; }
+  100% { transform: translateY(-52px) rotate(10deg); opacity: 0;   }
+}
+.qm { animation: qFloat 2.8s ease-in infinite; }
+.qm:nth-child(2) { animation-delay: .95s; }
+.qm:nth-child(3) { animation-delay: 1.9s;  }
+
+/* ramen steam */
+@keyframes steam {
+  0%   { transform: translateY(0px) scaleX(1);  opacity: .5; }
+  100% { transform: translateY(-16px) scaleX(.4); opacity: 0;  }
+}
+.stm { animation: steam 2s ease-out infinite; }
+.stm:nth-child(2) { animation-delay: .75s; }
+
+/* responsive */
+@media (max-width: 700px) {
+  .wrapper { flex-direction: column-reverse; text-align: center; gap: 1.5rem; }
+  .left { align-items: center; max-width: 100%; }
+  .error-badge { margin-inline: auto; }
+  .right { width: min(320px, 90vw); }
+  .actions { justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+  <!-- ══ LEFT: TEXT ══ -->
+  <div class="left">
+    <span class="error-badge"><span class="dot"></span>Hata 404</span>
+    <div class="error-code">404</div>
+    <h1 class="headline">Siparişin Yolda<br>Kayboldu!</h1>
+    <p class="subtext">
+      Aradığın sayfayı bir türlü bulamadık.<br>
+      Belki kuryemiz yanlış sokağa saptı,<br>
+      belki aşçımız bu sayfayı menüden kaldırdı.<br><br>
+      <strong>Ana sayfaya dönüp acıkmaya devam edebilirsin.</strong>
+    </p>
+    <div class="actions">
+      <a href="/" class="btn btn-primary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Ana Sayfaya Dön
+      </a>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT: ILLUSTRATION ══ -->
+  <div class="right">
+    <!--
+      viewBox: 0 0 500 400
+      Box body: x=188-312, y=236-322  (center ~250, 259)
+      Box lid:  y=196-236
+
+      Food items tightly around the box:
+        pizza  → translate(320, 170)  upper-right, near lid
+        burger → translate(180, 170)  upper-left,  near lid
+        fries  → translate(340, 262)  right side of box
+        ramen  → translate(160, 262)  left side of box
+
+      Animations: translateY(-5px) only — no rotation, no transform-box tricks.
+    -->
+    <svg viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <radialGradient id="blobRG" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stop-color="#FF6B35" stop-opacity=".12"/>
+          <stop offset="100%" stop-color="#FF6B35" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="crustG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#E8A84A"/>
+          <stop offset="100%" stop-color="#C07C28"/>
+        </linearGradient>
+        <linearGradient id="boxBodyG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="#FF7F50"/>
+          <stop offset="100%" stop-color="#E53E3E"/>
+        </linearGradient>
+        <linearGradient id="boxLidG" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%"   stop-color="#FF6B35"/>
+          <stop offset="100%" stop-color="#FF9A6C"/>
+        </linearGradient>
+        <radialGradient id="bunG" cx="35%" cy="30%" r="70%">
+          <stop offset="0%"   stop-color="#FFB87A"/>
+          <stop offset="100%" stop-color="#E07040"/>
+        </radialGradient>
+        <filter id="boxShadow" x="-25%" y="-25%" width="150%" height="150%">
+          <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#FF6B35" flood-opacity=".22"/>
+        </filter>
+        <filter id="foodShadow" x="-30%" y="-20%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="rgba(0,0,0,.16)"/>
+        </filter>
+      </defs>
+
+      <!-- ambient blob centered on the whole group -->
+      <circle cx="250" cy="245" r="168" fill="url(#blobRG)"/>
+
+      <!-- ══════════════════════════════════
+           PIZZA SLICE — translate(320, 170)
+           upper-right, adjacent to box lid
+      ══════════════════════════════════ -->
+      <g id="pizza-container" transform="translate(320,170)" filter="url(#foodShadow)">
+        <g id="pizza">
+          <g transform="scale(0.82)">
+            <path d="M 0 -8 Q 30 -8 40 24 L 0 72 L -40 24 Q -30 -8 0 -8 Z" fill="url(#crustG)"/>
+            <path d="M 0 -2 Q 24 -2 32 24 L 0 64 L -32 24 Q -24 -2 0 -2 Z" fill="#C62828"/>
+            <path d="M 0 5 Q 18 5 25 26 L 0 57 L -25 26 Q -18 5 0 5 Z" fill="#F5D547"/>
+            <ellipse cx="-6" cy="28" rx="9"  ry="6" fill="#ECC530" opacity=".7"/>
+            <ellipse cx="9"  cy="36" rx="7"  ry="5" fill="#ECC530" opacity=".7"/>
+            <circle cx="0"   cy="25" r="8"   fill="#9B1515"/>
+            <circle cx="0"   cy="25" r="5"   fill="#B71C1C"/>
+            <circle cx="-12" cy="42" r="7"   fill="#9B1515"/>
+            <circle cx="-12" cy="42" r="4.5" fill="#B71C1C"/>
+            <circle cx="12"  cy="42" r="7"   fill="#9B1515"/>
+            <circle cx="12"  cy="42" r="4.5" fill="#B71C1C"/>
+            <circle cx="6"   cy="17" r="2"   fill="#388E3C"/>
+            <circle cx="-9"  cy="32" r="2"   fill="#388E3C"/>
+          </g>
+        </g>
+      </g>
+
+      <!-- ══════════════════════════════════
+           BURGER — translate(180, 170)
+           upper-left, adjacent to box lid
+      ══════════════════════════════════ -->
+      <g id="burger-container" transform="translate(180,170)" filter="url(#foodShadow)">
+        <g id="burger">
+          <g transform="scale(0.78)">
+            <ellipse cx="0" cy="26"  rx="34" ry="11" fill="url(#bunG)"/>
+            <ellipse cx="0" cy="30"  rx="34" ry="9"  fill="#D4652A"/>
+            <path d="M -36 16 Q 0 21 36 16 L 38 22 Q 0 27 -38 22 Z" fill="#FFC107"/>
+            <ellipse cx="0" cy="11" rx="33" ry="10" fill="#5D4037"/>
+            <ellipse cx="0" cy="8"  rx="30" ry="7"  fill="#795548"/>
+            <ellipse cx="0" cy="1"  rx="30" ry="7"  fill="#EF5350"/>
+            <ellipse cx="0" cy="1"  rx="24" ry="5"  fill="#EF9A9A" opacity=".5"/>
+            <path d="M -34 -8 Q -20 -17 -5 -8 Q 8 1 22 -8 Q 34 -17 38 -9
+                     L 36 -4 Q 22 -12 8 -4 Q -6 5 -20 -4 Q -34 -12 -36 -4 Z"
+                  fill="#66BB6A"/>
+            <ellipse cx="0" cy="-19" rx="32" ry="10" fill="url(#bunG)"/>
+            <ellipse cx="0" cy="-27" rx="27" ry="14" fill="#FFB347"/>
+            <ellipse cx="0" cy="-33" rx="24" ry="10" fill="url(#bunG)"/>
+            <ellipse cx="-12" cy="-40" rx="3.5" ry="2" fill="rgba(255,255,255,.55)" transform="rotate(20 -12 -40)"/>
+            <ellipse cx="4"   cy="-41" rx="3.5" ry="2" fill="rgba(255,255,255,.55)" transform="rotate(-15 4 -41)"/>
+            <ellipse cx="16"  cy="-38" rx="3.5" ry="2" fill="rgba(255,255,255,.55)" transform="rotate(25 16 -38)"/>
+          </g>
+        </g>
+      </g>
+
+      <!-- ══════════════════════════════════
+           FRIES — translate(340, 262)
+           right side of box body
+      ══════════════════════════════════ -->
+      <g id="fries-container" transform="translate(340,262)" filter="url(#foodShadow)">
+        <g id="fries">
+          <g transform="scale(0.80)">
+            <path d="M -24 -8 L -19 34 L 19 34 L 24 -8 Z" fill="#DC2626"/>
+            <path d="M -24 -8 L -20 10 L 20 10 L 24 -8 Z" fill="#EF4444" opacity=".5"/>
+            <ellipse cx="0" cy="34" rx="19" ry="5" fill="#B71C1C"/>
+            <rect x="-15" y="-40" width="6" height="36" rx="3" fill="#FFC107"/>
+            <rect x="-7"  y="-48" width="6" height="44" rx="3" fill="#FFB300"/>
+            <rect x="1"   y="-44" width="6" height="40" rx="3" fill="#FFC107"/>
+            <rect x="9"   y="-38" width="6" height="34" rx="3" fill="#FFB300"/>
+            <rect x="-15" y="-40" width="6" height="5" rx="3" fill="#E65100" opacity=".55"/>
+            <rect x="-7"  y="-48" width="6" height="5" rx="3" fill="#E65100" opacity=".55"/>
+            <rect x="1"   y="-44" width="6" height="5" rx="3" fill="#E65100" opacity=".55"/>
+            <rect x="9"   y="-38" width="6" height="5" rx="3" fill="#E65100" opacity=".55"/>
+          </g>
+        </g>
+      </g>
+
+      <!-- ══════════════════════════════════
+           RAMEN BOWL — translate(160, 262)
+           left side of box body
+      ══════════════════════════════════ -->
+      <g id="ramen-container" transform="translate(160,262)" filter="url(#foodShadow)">
+        <g id="ramen">
+          <g transform="scale(0.82)">
+            <ellipse cx="0" cy="34" rx="34" ry="8" fill="rgba(255,112,67,.18)"/>
+            <path d="M -38 0 Q -38 36 0 36 Q 38 36 38 0 Z" fill="#FF7043"/>
+            <ellipse cx="0" cy="0" rx="38" ry="11" fill="#FF8A65"/>
+            <ellipse cx="0" cy="0" rx="29" ry="8"  fill="#FFCCBC" opacity=".55"/>
+            <path d="M -20 -3 Q -10 -13 0 -3 Q 10 7 20 -3"
+                  stroke="#FFF8E1" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M -14 4 Q -4 -6 5 4 Q 14 14 22 4"
+                  stroke="rgba(255,248,225,.55)" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <ellipse cx="-14" cy="18" rx="10" ry="8" fill="#FFF8E1"/>
+            <circle  cx="-14" cy="18" r="5"           fill="#FFD54F"/>
+            <circle  cx="14"  cy="19" r="8"   fill="white"/>
+            <circle  cx="14"  cy="19" r="4"   fill="#F48FB1"/>
+            <circle  cx="14"  cy="19" r="1.5" fill="#F06292"/>
+            <line x1="-5"  y1="-26" x2="-2" y2="5"  stroke="#8D6E63" stroke-width="3.5" stroke-linecap="round"/>
+            <line x1="4"   y1="-29" x2="7"  y2="5"  stroke="#8D6E63" stroke-width="3.5" stroke-linecap="round"/>
+            <path class="stm" d="M -3 -32 Q -7 -40 -3 -48" stroke="#FF8A65" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".5"/>
+            <path class="stm" d="M 5  -30 Q 9  -38 5  -46" stroke="#FF8A65" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".4"/>
+          </g>
+        </g>
+      </g>
+
+      <!-- ══════════════════════════════════
+           DELIVERY BOX — center ≈ (250, 259)
+      ══════════════════════════════════ -->
+      <g id="delivery-box" filter="url(#boxShadow)">
+        <!-- ground shadow -->
+        <ellipse cx="250" cy="342" rx="80" ry="16" fill="#FF6B35" opacity=".14"/>
+
+        <!-- box body -->
+        <rect x="188" y="236" width="124" height="86" rx="10" fill="url(#boxBodyG)"/>
+        <rect x="290" y="236" width="22"  height="86" rx="0 10 10 0" fill="rgba(0,0,0,.10)"/>
+        <line x1="188" y1="279" x2="312" y2="279" stroke="rgba(255,255,255,.15)" stroke-width="2"/>
+        <rect x="242" y="236" width="16" height="86" rx="4" fill="rgba(255,255,255,.10)"/>
+
+        <!-- lid (open, tilted back) -->
+        <path d="M 186 236 L 314 236 L 307 196 L 193 196 Z" fill="url(#boxLidG)"/>
+        <path d="M 314 236 L 307 196 L 315 188 L 322 236 Z" fill="#D4451E" opacity=".82"/>
+        <path d="M 186 236 L 193 196 L 185 188 L 178 236 Z" fill="#D4451E" opacity=".82"/>
+        <line x1="250" y1="196" x2="250" y2="236" stroke="rgba(0,0,0,.12)" stroke-width="2"/>
+        <path d="M 193 196 L 307 196 L 314 236 L 186 236 Z" fill="#FF9A6C" opacity=".3"/>
+
+        <!-- interior rim visible from open top -->
+        <ellipse cx="250" cy="236" rx="62" ry="17" fill="#FFE8DA"/>
+        <ellipse cx="250" cy="236" rx="62" ry="17" fill="url(#boxBodyG)" opacity=".16"/>
+
+        <!-- CONFUSED FACE -->
+        <ellipse cx="228" cy="268" rx="11" ry="12" fill="rgba(255,255,255,.95)"/>
+        <ellipse cx="272" cy="268" rx="11" ry="12" fill="rgba(255,255,255,.95)"/>
+        <circle cx="228" cy="270" r="6.5" fill="#1F2937"/>
+        <circle cx="272" cy="270" r="6.5" fill="#1F2937"/>
+        <circle cx="228" cy="270" r="3.2" fill="#111"/>
+        <circle cx="272" cy="270" r="3.2" fill="#111"/>
+        <circle cx="231" cy="266" r="2.2" fill="white"/>
+        <circle cx="275" cy="266" r="2.2" fill="white"/>
+        <path d="M 218 256 Q 224 249 231 254" stroke="rgba(255,255,255,.85)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        <path d="M 264 253 Q 272 247 279 254" stroke="rgba(255,255,255,.85)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        <path d="M 233 298 Q 242 291 250 298 Q 258 305 267 298"
+              stroke="rgba(255,255,255,.85)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+        <!-- question marks rise from open lid -->
+        <text class="qm" x="237" y="228" font-family="'Poppins',Arial,sans-serif" font-size="18" font-weight="700" fill="#FF6B35">?</text>
+        <text class="qm" x="255" y="222" font-family="'Poppins',Arial,sans-serif" font-size="14" font-weight="700" fill="#E53E3E">?</text>
+        <text class="qm" x="245" y="216" font-family="'Poppins',Arial,sans-serif" font-size="11" font-weight="700" fill="#FFC107">?</text>
+      </g>
+
+      <!-- SPARKLES (well inside viewBox) -->
+      <g>
+        <polygon class="sp" points="418,58  421,50  424,58  432,61  424,64  421,72  418,64  410,61"  fill="#FF6B35"/>
+        <polygon class="sp" points="72,76   74.5,69 77,76   84,78.5 77,81   74.5,88 72,81   65,78.5" fill="#FFC107"/>
+        <polygon class="sp" points="436,248 438,242 440,248 446,250.5 440,253 438,259 436,253 430,250.5" fill="#E53E3E"/>
+        <polygon class="sp" points="62,310  64,304  66,310  72,312.5 66,315  64,321  62,315  56,312.5" fill="#FF6B35"/>
+        <polygon class="sp" points="248,34  250,28  252,34  258,36  252,38  250,44  248,38  242,36"    fill="#FFB300"/>
+        <polygon class="sp" points="378,360 380,354 382,360 388,362 382,364 380,370 378,364 372,362"  fill="#E53E3E"/>
+      </g>
+
+    </svg>
+  </div>
+
+</div>
+
+</body>
+</html>
