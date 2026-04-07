@@ -139,12 +139,20 @@ function createMealCardHTML(meal) {
                 <span>${meal.category}</span>
             </div>
             <div class="menu-item-status">
-                <span class="status-dot ${statusClass}">${statusText}</span>
+                ${meal.isApproved === false ? 
+                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' : 
+                    `<span class="status-dot ${statusClass}">${statusText}</span>`
+                }
             </div>
             <div class="menu-item-price">
                 ${parseFloat(meal.price || 0).toFixed(2)} TL
             </div>
             <div class="menu-item-actions">
+                ${meal.isApproved !== false ? `
+                <button class="btn ${meal.isAvailable ? 'btn-secondary' : 'btn-primary'} btn-sm toggle-meal-btn" data-meal-id="${meal.id}" data-available="${meal.isAvailable}">
+                    ${meal.isAvailable ? 'Tükendi Yap' : 'Satışa Aç'}
+                </button>
+                ` : ''}
                 <button class="btn btn-secondary btn-sm edit-meal-btn" data-meal-id="${meal.id}">Düzenle</button>
                 <button class="btn btn-danger btn-sm delete-meal-btn" data-meal-id="${meal.id}">Sil</button>
             </div>
@@ -176,7 +184,7 @@ async function loadMenuPage() {
 }
 
 function attachMenuEventListeners() {
-        document.querySelectorAll('.delete-meal-btn').forEach(btn => {
+    document.querySelectorAll('.delete-meal-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const mealId = parseInt(e.target.getAttribute('data-meal-id'));
             const isConfirmed = await window.showConfirm('Bu yemeği silmek istediğinize emin misiniz?');
@@ -188,6 +196,21 @@ function attachMenuEventListeners() {
                 alert('Yemek başarıyla silindi.');
             } catch (error) {
                 alert('Yemek silinirken hata oluştu: ' + error.message);
+            }
+        });
+    });
+
+    document.querySelectorAll('.toggle-meal-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const mealId = parseInt(e.target.getAttribute('data-meal-id'));
+            const isAvailable = e.target.getAttribute('data-available') === 'true';
+            btn.disabled = true;
+            try {
+                await updateMeal(mealId, { isAvailable: !isAvailable });
+                loadMenuPage();
+            } catch (error) {
+                alert('Yemek durumu güncellenirken hata oluştu: ' + error.message);
+                btn.disabled = false;
             }
         });
     });
@@ -484,44 +507,48 @@ async function loadOrdersPage() {
     
     await loadOrdersForTab(currentTab);
     
-    setInterval(async () => {
-        await loadOrdersForTab(currentTab);
-    }, 10000);
+    // Auto-refresh is handled globally by startSellerAutoSyncFallback
 }
 
-async function loadOrdersForTab(tab) {
+async function loadOrdersForTab(tab, isSilent = false) {
     const tabContent = document.getElementById(tab);
     if (!tabContent) return;
     
-    tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
+    if (!isSilent) tabContent.innerHTML = '<p style="text-align: center; padding: 2rem;">Yükleniyor...</p>';
     
     try {
         const orders = await fetchSellerOrders(tab);
         
+        let newHtml = '';
         if (orders.length === 0) {
             const tabNames = {
                 'new': 'Yeni sipariş',
                 'preparing': 'Hazırlanan sipariş',
                 'history': 'Geçmiş sipariş'
             };
-            tabContent.innerHTML = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
-            return;
+            newHtml = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
+        } else {
+            newHtml = orders.map(order => createOrderCardHTML(order)).join('');
+        }
+        
+        const newHash = Array.from(newHtml).reduce((hash, char) => 0 | (31 * hash + char.charCodeAt(0)), 0);
+        const currentHash = tabContent.getAttribute('data-hash');
+        
+        if (currentHash !== String(newHash) || !isSilent) {
+            tabContent.innerHTML = newHtml;
+            tabContent.setAttribute('data-hash', newHash);
+            if (orders.length > 0) attachOrderEventListeners();
         }
         
         const tabButton = document.querySelector(`.tab-link[data-tab="${tab}"]`);
         if (tabButton) {
-            const tabText = tabButton.textContent.replace(/\(\d+\)/, `(${orders.length})`);
-            tabButton.textContent = tabText;
+            const currentTabTitle = tabButton.textContent;
+            const tabText = currentTabTitle.replace(/\(\d+\)/, `(${orders.length})`);
+            if (currentTabTitle !== tabText) tabButton.textContent = tabText;
         }
         
-        tabContent.innerHTML = '';
-        orders.forEach(order => {
-            tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-        });
-        
-        attachOrderEventListeners();
     } catch (error) {
-        tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
+        if (!isSilent) tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #E74C3C;">Siparişler yüklenirken hata oluştu.</p>';
     }
 }
 
@@ -718,6 +745,39 @@ async function loadDashboardPage() {
                 window.updateSellerSidebarOwnerName();
             }, 200);
         }
+
+        const shopStatusBtn = document.getElementById('shop-status-btn');
+        if (shopStatusBtn && data.hasOwnProperty('isOpen')) {
+            shopStatusBtn.style.display = 'inline-block';
+            shopStatusBtn.textContent = data.isOpen ? 'Dükkanı Kapat' : 'Dükkanı Aç';
+            shopStatusBtn.className = data.isOpen ? 'btn btn-danger' : 'btn btn-primary';
+            
+            shopStatusBtn.onclick = async () => {
+                const newStatus = !data.isOpen;
+                shopStatusBtn.disabled = true;
+                shopStatusBtn.textContent = 'Bekleyin...';
+                try {
+                    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+                    const response = await fetch(`${baseUrl}/api/seller/toggle-shop-status`, {
+                        method: 'PUT',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ is_open: newStatus })
+                    });
+                    if (!response.ok) throw new Error('Güncelleme başarısız');
+                    
+                    data.isOpen = newStatus;
+                    shopStatusBtn.textContent = data.isOpen ? 'Dükkanı Kapat' : 'Dükkanı Aç';
+                    shopStatusBtn.className = data.isOpen ? 'btn btn-danger' : 'btn btn-primary';
+                    showSellerActionNotification('success', 'Dükkan Durumu', 'Dükkan ' + (data.isOpen ? 'açıldı.' : 'kapatıldı.'));
+                } catch (err) {
+                    showSellerActionNotification('error', 'Hata', err.message);
+                    shopStatusBtn.textContent = data.isOpen ? 'Dükkanı Kapat' : 'Dükkanı Aç';
+                } finally {
+                    shopStatusBtn.disabled = false;
+                }
+            };
+        }
         
         // İstatistikleri güncelle
         const stats = data.stats || {};
@@ -863,6 +923,46 @@ async function loadProfilePage() {
             if (bannerPreview) bannerPreview.src = '';
             if (removeBannerBtn) removeBannerBtn.style.display = 'none';
         }
+        
+        // Teslimat yarıçapı yükle
+        const radiusSlider = document.getElementById('delivery-radius');
+        const radiusLabel = document.getElementById('radius-label');
+        const radiusBadge = document.getElementById('radius-badge');
+        
+        function updateRadiusUI(val) {
+            val = parseInt(val) || 0;
+            if (radiusLabel) {
+                radiusLabel.textContent = val === 0 ? 'Sınırsız' : val + ' km';
+            }
+            if (radiusBadge) {
+                if (val === 0) {
+                    radiusBadge.textContent = 'TÜM TÜRKİYE';
+                    radiusBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+                    radiusBadge.style.color = '#059669';
+                } else if (val <= 50) {
+                    radiusBadge.textContent = 'YAKIN ÇEVRE';
+                    radiusBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+                    radiusBadge.style.color = '#d97706';
+                } else if (val <= 150) {
+                    radiusBadge.textContent = 'BÖLGESEL';
+                    radiusBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+                    radiusBadge.style.color = '#2563eb';
+                } else {
+                    radiusBadge.textContent = 'GENİŞ ALAN';
+                    radiusBadge.style.background = 'rgba(139, 92, 246, 0.15)';
+                    radiusBadge.style.color = '#7c3aed';
+                }
+            }
+        }
+        
+        if (radiusSlider) {
+            radiusSlider.value = profile.deliveryRadiusKm || 0;
+            updateRadiusUI(radiusSlider.value);
+            radiusSlider.addEventListener('input', function() {
+                updateRadiusUI(this.value);
+            });
+        }
+        
         const profileForm = document.getElementById('seller-profile-form');
         
         const logoOptionFile = document.getElementById('logo-option-file');
@@ -931,7 +1031,8 @@ async function loadProfilePage() {
                     shopName: shopNameInput?.value || '',
                     description: descriptionInput?.value || '',
                     location: locationInput?.value || '',
-                    workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined
+                    workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined,
+                    deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined
                 };
                 
                 if (finalLogoUrl !== undefined) profileData.logoUrl = finalLogoUrl;
@@ -1544,16 +1645,11 @@ async function runSellerAutoSync() {
         } else if (isEarningsPage) {
             await loadRecentOrdersForPanel();
         } else if (isOrdersPage) {
-            const tabContent = document.querySelector('.tab-content');
-            if (tabContent) {
-                tabContent.innerHTML = '';
-                if (pendingOrders.length > 0) {
-                    pendingOrders.forEach(function(order) {
-                        tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                    });
-                    attachOrderEventListeners();
-                } else {
-                    tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş yok</p>';
+            const activeTabBtn = document.querySelector('.tab-link.active');
+            if (activeTabBtn) {
+                const currentTab = activeTabBtn.getAttribute('data-tab');
+                if (typeof loadOrdersForTab === 'function') {
+                    await loadOrdersForTab(currentTab, true);
                 }
             }
         }

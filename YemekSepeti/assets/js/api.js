@@ -840,3 +840,4 @@ window.getFavorites=getFavorites;
 window.addFavorite=addFavorite;
 window.removeFavorite=removeFavorite;
 window.checkFavorite=checkFavorite;
+window.resetPassword=resetPassword;

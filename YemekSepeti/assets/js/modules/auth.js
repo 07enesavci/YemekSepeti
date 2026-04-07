@@ -184,6 +184,7 @@ document.addEventListener("DOMContentLoaded", function ()
                         document.getElementById('register-form').style.display='none';
                         document.getElementById('verification-section').style.display='block';
                         document.getElementById('verification-section').setAttribute('data-user-data', JSON.stringify({ fullname, email, password, role }));
+                        startVerificationCountdown();
                         return;
                     }
                     
@@ -293,6 +294,125 @@ document.addEventListener("DOMContentLoaded", function ()
                 btn.textContent = oldText;
             }
         });
+    }
+
+    // --- 5 Dakika Geri Sayım Sayacı ---
+    var countdownInterval = null;
+    var COUNTDOWN_TOTAL = 300; // 5 dakika = 300 saniye
+    var RING_CIRCUMFERENCE = 213.628; // 2 * PI * 34
+
+    function startVerificationCountdown() {
+        // Önceki sayacı temizle
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        var remaining = COUNTDOWN_TOTAL;
+        var ring = document.getElementById('countdown-ring');
+        var text = document.getElementById('countdown-text');
+        var label = document.getElementById('countdown-label');
+        var expiredMsg = document.getElementById('code-expired-msg');
+        var submitBtn = document.getElementById('verify-submit-btn');
+        var codeInput = document.getElementById('verification-code');
+        var container = document.getElementById('countdown-container');
+
+        // Sayacı sıfırla
+        if (ring) { ring.style.strokeDashoffset = '0'; ring.style.stroke = '#e63946'; }
+        if (text) { text.style.color = '#e63946'; text.style.animation = 'none'; }
+        if (expiredMsg) expiredMsg.style.display = 'none';
+        if (container) container.style.display = 'flex';
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = '1'; }
+        if (codeInput) { codeInput.disabled = false; codeInput.value = ''; }
+
+        updateCountdownDisplay(remaining, ring, text, label);
+
+        countdownInterval = setInterval(function () {
+            remaining--;
+            updateCountdownDisplay(remaining, ring, text, label);
+
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                onCountdownExpired(ring, text, label, expiredMsg, submitBtn, codeInput, container);
+            }
+        }, 1000);
+    }
+
+    function updateCountdownDisplay(remaining, ring, text, label) {
+        var minutes = Math.floor(remaining / 60);
+        var seconds = remaining % 60;
+        var display = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+        if (text) text.textContent = display;
+
+        // Progress ring güncellemesi
+        if (ring) {
+            var progress = 1 - (remaining / COUNTDOWN_TOTAL);
+            ring.style.strokeDashoffset = (RING_CIRCUMFERENCE * progress).toString();
+
+            // Son 60 saniyede renk değişimi (turuncu)
+            if (remaining <= 60 && remaining > 10) {
+                ring.style.stroke = '#f4845f';
+                if (text) text.style.color = '#f4845f';
+            }
+            // Son 10 saniyede kırmızı yanıp sönme
+            if (remaining <= 10) {
+                ring.style.stroke = '#d00000';
+                if (text) {
+                    text.style.color = '#d00000';
+                    text.style.animation = 'countdown-blink 0.5s ease-in-out infinite';
+                }
+            } else if (text) {
+                text.style.animation = 'none';
+            }
+        }
+    }
+
+    function onCountdownExpired(ring, text, label, expiredMsg, submitBtn, codeInput, container) {
+        if (text) { text.textContent = '0:00'; text.style.color = '#999'; text.style.animation = 'none'; }
+        if (ring) { ring.style.stroke = '#ccc'; }
+        if (label) label.textContent = 'Süre doldu';
+        if (expiredMsg) expiredMsg.style.display = 'block';
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.5'; }
+        if (codeInput) { codeInput.disabled = true; }
+    }
+
+    // --- Kodu Tekrar Gönder Butonu ---
+    var resendBtn = document.getElementById('resend-code');
+    if (resendBtn) {
+        resendBtn.addEventListener('click', async function () {
+            var verificationSection = document.getElementById('verification-section');
+            var userDataStr = verificationSection ? verificationSection.getAttribute('data-user-data') : null;
+            if (!userDataStr) {
+                alert('Hata: Kullanıcı bilgileri bulunamadı. Lütfen kayıt işlemini tekrar başlatın.');
+                window.location.reload();
+                return;
+            }
+            var userData = JSON.parse(userDataStr);
+            var oldText = resendBtn.textContent;
+            resendBtn.disabled = true;
+            resendBtn.textContent = 'Gönderiliyor...';
+
+            try {
+                var result = await window.registerUser({ email: userData.email });
+                if (result && result.success) {
+                    startVerificationCountdown();
+                    alert('Yeni doğrulama kodu gönderildi!');
+                } else {
+                    alert(result?.message || 'Kod gönderilemedi. Tekrar deneyin.');
+                }
+            } catch (error) {
+                alert('Bir hata oluştu: ' + error.message);
+            } finally {
+                resendBtn.disabled = false;
+                resendBtn.textContent = oldText;
+            }
+        });
+    }
+
+    // Yanıp sönme animasyonu için dinamik stil ekle
+    if (!document.getElementById('countdown-blink-style')) {
+        var style = document.createElement('style');
+        style.id = 'countdown-blink-style';
+        style.textContent = '@keyframes countdown-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }';
+        document.head.appendChild(style);
     }
 
     var verify2FAForm=document.getElementById("verify-2fa-form");
@@ -508,6 +628,161 @@ document.addEventListener("DOMContentLoaded", function ()
                         }
                     }
                     alert(alertMsg);
+                }
+            } 
+            catch (error) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Bir hata oluştu, tekrar deneyin.";
+                } 
+                else 
+                {
+                    alert("Bir hata oluştu, tekrar deneyin.");
+                }
+            } 
+            finally 
+            {
+                btn.disabled=false;
+                btn.textContent=oldText;
+            }
+        });
+    }
+
+    // --- ŞİFRE SIFIRLAMA FORMU (reset-password) ---
+    var resetForm=document.getElementById("reset-password-form");
+    if (resetForm) 
+    {
+        resetForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            var password=document.getElementById("password").value;
+            var confirmPassword=document.getElementById("confirm-password").value;
+            var messageDiv=document.getElementById("reset-password-message");
+
+            // Validasyonlar
+            if (!password || !confirmPassword) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Lütfen tüm alanları doldurun.";
+                } 
+                else 
+                {
+                    alert("Lütfen tüm alanları doldurun.");
+                }
+                return;
+            }
+
+            if (password.length < 6) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Şifre en az 6 karakter olmalıdır.";
+                } 
+                else 
+                {
+                    alert("Şifre en az 6 karakter olmalıdır.");
+                }
+                return;
+            }
+
+            if (password !== confirmPassword) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Şifreler eşleşmiyor.";
+                } 
+                else 
+                {
+                    alert("Şifreler eşleşmiyor.");
+                }
+                return;
+            }
+
+            // URL'den token'ı al
+            var urlParams = new URLSearchParams(window.location.search);
+            var token = urlParams.get("token");
+
+            if (!token) 
+            {
+                if (messageDiv) 
+                {
+                    messageDiv.style.display = "block";
+                    messageDiv.style.backgroundColor = "#FEE2E2";
+                    messageDiv.style.color = "#DC2626";
+                    messageDiv.textContent = "Geçersiz sıfırlama bağlantısı. Lütfen yeni bir bağlantı isteyin.";
+                } 
+                else 
+                {
+                    alert("Geçersiz sıfırlama bağlantısı.");
+                }
+                return;
+            }
+
+            var btn=this.querySelector("button[type=submit]");
+            var oldText=btn.textContent;
+            btn.disabled=true;
+            btn.textContent="Şifre sıfırlanıyor...";
+
+            if (messageDiv) 
+            {
+                messageDiv.style.display = "none";
+                messageDiv.textContent = "";
+            }
+
+            try 
+            {
+                var result=await window.resetPassword(token, password);
+                
+                if (messageDiv) 
+                {
+                    messageDiv.style.display="block";
+                    
+                    if (result && result.success) 
+                    {
+                        messageDiv.style.backgroundColor="#D1FAE5";
+                        messageDiv.style.color="#059669";
+                        messageDiv.textContent=result.message || "Şifreniz başarıyla güncellendi!";
+                        
+                        // Formu gizle, 3 saniye sonra giriş sayfasına yönlendir
+                        resetForm.style.display = "none";
+                        setTimeout(function() {
+                            var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                            window.location.href = baseUrl + "/login";
+                        }, 3000);
+                    } 
+                    else 
+                    {
+                        messageDiv.style.backgroundColor="#FEE2E2";
+                        messageDiv.style.color="#DC2626";
+                        messageDiv.textContent=result && result.message ? result.message : "Şifre sıfırlama başarısız.";
+                    }
+                } 
+                else 
+                {
+                    if (result && result.success) 
+                    {
+                        alert(result.message || "Şifreniz güncellendi!");
+                        var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                        window.location.href = baseUrl + "/login";
+                    } 
+                    else 
+                    {
+                        alert(result && result.message ? result.message : "Şifre sıfırlama başarısız.");
+                    }
                 }
             } 
             catch (error) 

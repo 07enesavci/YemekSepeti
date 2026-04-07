@@ -281,3 +281,283 @@
         flex: 1;
     }
 }
+
+/* ==========================================
+   Kredi kartı 3D animasyonu — wallet & checkout
+   ========================================== */
+/* Kartı içeren parent .card'ın hover transform ve arka plan animasyonları bozmasın */
+.payment-cards-card,
+.payment-cards-card:hover {
+    transform: none !important;
+    transform-style: flat !important;
+    box-shadow: var(--card-shadow) !important;
+    border-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+.payment-cards-card::before,
+.payment-cards-card::after {
+    display: none !important;
+}
+
+.cc-anim-wrapper {
+    perspective: 1000px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.75rem;
+    transform-style: flat;
+    isolation: isolate;
+}
+
+.cc-anim-card {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    transform-style: preserve-3d;
+    transition: transform 1s;
+}
+
+.cc-anim-card.flip {
+    transform: rotateY(180deg);
+}
+
+.cc-anim-highlight {
+    position: absolute;
+    border: 1px solid #fff;
+    border-radius: 12px;
+    z-index: 2;
+    width: 0;
+    height: 0;
+    top: 0;
+    left: 0;
+    box-shadow: 0 0 5px #fff;
+    transition: .3s;
+    pointer-events: none;
+}
+
+.cc-anim-highlight.hl-number {
+    width: 346px;
+    height: 40px;
+    top: 92px;
+    left: 18px;
+}
+
+.cc-anim-highlight.hl-holder {
+    width: 264px;
+    height: 56px;
+    top: 156px;
+    left: 18px;
+}
+
+.cc-anim-highlight.hl-expire {
+    width: 86px;
+    height: 56px;
+    top: 156px;
+    left: 323px;
+}
+
+.cc-anim-highlight.hl-cvv {
+    width: calc(100% - 58px);
+    height: 50px;
+    top: 112px;
+    left: 29px;
+}
+
+.cc-anim-highlight.hl-hidden {
+    display: none;
+}
+
+.cc-anim-front,
+.cc-anim-back {
+    width: 100%;
+    max-width: 420px;
+    height: 233px;
+    border-radius: 20px;
+    padding: 24px 30px 30px;
+    background: linear-gradient(to right bottom, #323941, #061018);
+    box-shadow: 0 33px 50px -15px rgba(50, 55, 63, .66);
+    color: #fff;
+    overflow: hidden;
+    margin: 0 auto;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.cc-anim-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: rotateY(180deg);
+    padding: 24px 0 0;
+}
+
+.cc-anim-front {
+    position: relative;
+}
+
+.cc-anim-front::before,
+.cc-anim-back::before {
+    content: "";
+    position: absolute;
+    border: 16px solid #ff6be7;
+    border-radius: 100%;
+    left: -17%;
+    top: -45px;
+    height: 300px;
+    width: 300px;
+    filter: blur(13px);
+}
+
+.cc-anim-front::after,
+.cc-anim-back::after {
+    content: "";
+    position: absolute;
+    border: 16px solid #7288ff;
+    border-radius: 100%;
+    width: 300px;
+    top: 55%;
+    left: -200px;
+    height: 300px;
+    filter: blur(13px);
+}
+
+.cc-anim-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
+}
+
+.cc-anim-number {
+    font-size: 22px;
+    line-height: 1.5;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    height: 33px;
+    overflow: hidden;
+}
+
+.cc-anim-number span {
+    display: flex;
+    flex-direction: column;
+    transition: .2s;
+}
+
+.cc-anim-number span.filed {
+    transform: translateY(-33px);
+}
+
+.cc-anim-number span:nth-child(4n) {
+    margin-right: 10px;
+}
+
+.cc-anim-footer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+}
+
+/* İsim alanı fazla uzarsa kırpılsın, SKT her zaman görünsün */
+.cc-anim-footer > div:first-child {
+    flex: 1;
+    min-width: 0;
+    max-width: 240px;
+    overflow: hidden;
+}
+
+.cc-anim-footer > div:first-child > div:last-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cc-anim-footer > div:last-child {
+    flex-shrink: 0;
+    white-space: nowrap;
+    text-align: right;
+}
+
+.cc-anim-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 2px;
+}
+
+.cc-anim-hide-line {
+    height: 40px;
+    width: 100%;
+    background-color: #6b7280;
+    position: relative;
+    z-index: 1;
+}
+
+.cc-anim-cvv-block {
+    position: relative;
+    z-index: 1;
+    margin-top: 24px;
+    padding: 0 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.cc-anim-cvv-field {
+    margin-top: 6px;
+    background-color: #fff;
+    border-radius: 12px;
+    height: 44px;
+    width: 100%;
+    color: #000;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 12px;
+    font-size: 25px;
+    line-height: 21px;
+}
+
+@media (max-width: 480px) {
+    .cc-anim-footer > div:first-child {
+        max-width: calc(65% - 20px);
+    }
+    .cc-anim-front,
+    .cc-anim-back {
+        padding: 14px 16px 18px;
+        height: 210px;
+    }
+    .cc-anim-number {
+        font-size: 17px;
+    }
+    .cc-anim-highlight.hl-number {
+        width: calc(100% - 32px);
+        max-width: 346px;
+    }
+    .cc-anim-highlight.hl-holder {
+        width: calc(65% - 16px);
+    }
+    .cc-anim-highlight.hl-expire {
+        left: calc(75% - 16px);
+        width: 86px;
+    }
+    .cc-anim-highlight.hl-cvv {
+        width: calc(100% - 90px);
+        left: 45px;
+        top: 102px;
+    }
+}

@@ -44,6 +44,88 @@
                             </label>
                         </div>
                     </div>
+
+                    <!-- SATICI ADRES BİLGİLERİ — Custom Searchable Dropdown -->
+                    <div id="seller-address-section" class="seller-address-section" style="display: none;">
+                        <div class="address-section-header">
+                            <span class="address-section-icon">📍</span>
+                            <h3 class="address-section-title">İşyeri Adres Bilgileri</h3>
+                            <p class="address-section-desc">Müşterilerinize doğru teslimat yapılabilmesi için işyeri adresinizi eksiksiz girin.</p>
+                        </div>
+
+                        <!-- ADIM 1: İl Seçimi -->
+                        <div class="address-step" id="address-step-city">
+                            <div class="address-step-label">
+                                <span class="step-number">1</span>
+                                <span>İl Seçin</span>
+                            </div>
+                            <div class="custom-dropdown" id="city-dropdown">
+                                <button type="button" class="dropdown-trigger" id="city-trigger">
+                                    <span class="dropdown-trigger-icon">🏙️</span>
+                                    <span class="dropdown-trigger-text" id="city-trigger-text">İl seçiniz...</span>
+                                    <svg class="dropdown-arrow" viewBox="0 0 24 24" width="18" height="18"><polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                </button>
+                                <div class="dropdown-panel" id="city-panel">
+                                    <div class="dropdown-search-wrap">
+                                        <svg class="dropdown-search-icon" viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                        <input type="text" class="dropdown-search" id="city-search" placeholder="İl ara..." autocomplete="off">
+                                    </div>
+                                    <ul class="dropdown-list" id="city-list"></ul>
+                                    <div class="dropdown-empty" id="city-empty" style="display:none;">Sonuç bulunamadı</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="seller-city" name="seller-city" required>
+                        </div>
+
+                        <!-- ADIM 2: İlçe Seçimi -->
+                        <div class="address-step address-step-locked" id="address-step-district">
+                            <div class="address-step-label">
+                                <span class="step-number">2</span>
+                                <span>İlçe Seçin</span>
+                            </div>
+                            <div class="custom-dropdown" id="district-dropdown">
+                                <button type="button" class="dropdown-trigger dropdown-trigger-disabled" id="district-trigger" disabled>
+                                    <span class="dropdown-trigger-icon">🏘️</span>
+                                    <span class="dropdown-trigger-text" id="district-trigger-text">Önce il seçin</span>
+                                    <svg class="dropdown-arrow" viewBox="0 0 24 24" width="18" height="18"><polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                </button>
+                                <div class="dropdown-panel" id="district-panel">
+                                    <div class="dropdown-search-wrap">
+                                        <svg class="dropdown-search-icon" viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                        <input type="text" class="dropdown-search" id="district-search" placeholder="İlçe ara..." autocomplete="off">
+                                    </div>
+                                    <ul class="dropdown-list" id="district-list"></ul>
+                                    <div class="dropdown-empty" id="district-empty" style="display:none;">Sonuç bulunamadı</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="seller-district" name="seller-district" required>
+                        </div>
+
+                        <!-- ADIM 3: Mahalle / Sokak -->
+                        <div class="address-step address-step-locked" id="address-step-neighborhood">
+                            <div class="address-step-label">
+                                <span class="step-number">3</span>
+                                <span>Mahalle / Sokak</span>
+                            </div>
+                            <input type="text" id="seller-neighborhood" class="form-input address-text-input" placeholder="Örn: Caferağa Mah. Moda Cad." required disabled>
+                        </div>
+
+                        <!-- ADIM 4: Açık Adres -->
+                        <div class="address-step address-step-locked" id="address-step-fulladdr">
+                            <div class="address-step-label">
+                                <span class="step-number">4</span>
+                                <span>Açık Adres (Bina No, Kat, Daire)</span>
+                            </div>
+                            <textarea id="seller-full-address" class="form-input address-text-input address-textarea" rows="2" placeholder="Örn: No:15/A, Zemin Kat" required disabled></textarea>
+                        </div>
+
+                        <!-- Seçilen Adres Özeti -->
+                        <div class="address-summary" id="address-summary" style="display:none;">
+                            <div class="address-summary-icon">✅</div>
+                            <div class="address-summary-text" id="address-summary-text"></div>
+                        </div>
+                    </div>
+
                     <div id="courier-docs" class="documents-grid documents-grid-courier" style="display: none;">
                         <div class="doc-upload-item">
                             <label for="doc-idCard-courier" class="doc-upload-box">
@@ -73,19 +155,232 @@
 <script>
 (function() {
     var role = '<%= typeof role !== "undefined" ? role : "" %>';
+    var BASE = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '');
+    var selectedCity = '';
+    var selectedDistrict = '';
+
+    // === SAYFA BAŞLANGIÇ ===
     if (role === 'seller') {
         document.getElementById('seller-docs').style.display = 'grid';
+        document.getElementById('seller-address-section').style.display = 'block';
         document.querySelectorAll('#courier-docs input').forEach(function(i) { i.removeAttribute('required'); });
+        loadCities();
     } else if (role === 'courier') {
         document.getElementById('courier-docs').style.display = 'grid';
         document.querySelectorAll('#seller-docs input').forEach(function(i) { i.removeAttribute('required'); });
+        document.querySelectorAll('#seller-address-section input, #seller-address-section textarea').forEach(function(i) { i.removeAttribute('required'); });
     }
+
+    // === DOSYA UPLOAD ===
     document.querySelectorAll('.doc-upload-box input[type=file]').forEach(function(input) {
         input.addEventListener('change', function() {
             var hint = this.closest('.doc-upload-box').querySelector('.doc-upload-hint');
             if (hint) hint.textContent = this.files[0] ? this.files[0].name : 'Dosya seçin';
         });
     });
+
+    // === CUSTOM DROPDOWN SİSTEMİ ===
+    function setupDropdown(id, onSelect) {
+        var trigger = document.getElementById(id + '-trigger');
+        var panel = document.getElementById(id + '-panel');
+        var search = document.getElementById(id + '-search');
+        var list = document.getElementById(id + '-list');
+        var empty = document.getElementById(id + '-empty');
+        var isOpen = false;
+
+        trigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (trigger.disabled) return;
+            if (isOpen) { closePanel(); } else { openPanel(); }
+        });
+
+        function openPanel() {
+            // Diğer açık panelleri kapat
+            document.querySelectorAll('.dropdown-panel.open').forEach(function(p) {
+                p.classList.remove('open');
+            });
+            panel.classList.add('open');
+            isOpen = true;
+            search.value = '';
+            filterItems('');
+            setTimeout(function() { search.focus(); }, 80);
+        }
+
+        function closePanel() {
+            panel.classList.remove('open');
+            isOpen = false;
+        }
+
+        search.addEventListener('input', function() {
+            filterItems(this.value);
+        });
+
+        search.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closePanel();
+        });
+
+        function filterItems(query) {
+            var q = query.toLowerCase().trim();
+            var items = list.querySelectorAll('li');
+            var visible = 0;
+            items.forEach(function(item) {
+                var text = item.textContent.toLowerCase();
+                if (!q || text.indexOf(q) !== -1) {
+                    item.style.display = '';
+                    visible++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            empty.style.display = visible === 0 ? 'block' : 'none';
+        }
+
+        list.addEventListener('click', function(e) {
+            var li = e.target.closest('li');
+            if (!li) return;
+            var value = li.getAttribute('data-value');
+            onSelect(value);
+            closePanel();
+        });
+
+        // Dışına tıklayınca kapat
+        document.addEventListener('click', function(e) {
+            if (isOpen && !panel.contains(e.target) && e.target !== trigger && !trigger.contains(e.target)) {
+                closePanel();
+            }
+        });
+
+        return { openPanel: openPanel, closePanel: closePanel };
+    }
+
+    function populateList(listId, items) {
+        var list = document.getElementById(listId);
+        list.innerHTML = '';
+        items.forEach(function(item) {
+            var li = document.createElement('li');
+            li.textContent = item;
+            li.setAttribute('data-value', item);
+            list.appendChild(li);
+        });
+    }
+
+    // === İLLERİ YÜKLE ===
+    function loadCities() {
+        fetch(BASE + '/api/address/cities', { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.cities) {
+                    populateList('city-list', data.cities);
+                }
+            })
+            .catch(function(err) {
+                console.error('İller yüklenemedi:', err);
+            });
+    }
+
+    // === İL SEÇİMİ ===
+    setupDropdown('city', function(city) {
+        selectedCity = city;
+        selectedDistrict = '';
+        document.getElementById('seller-city').value = city;
+        document.getElementById('city-trigger-text').textContent = city;
+        document.getElementById('city-trigger').classList.add('dropdown-trigger-selected');
+
+        // İlçe alanını aktif et
+        var distStep = document.getElementById('address-step-district');
+        distStep.classList.remove('address-step-locked');
+        var distTrigger = document.getElementById('district-trigger');
+        distTrigger.disabled = false;
+        distTrigger.classList.remove('dropdown-trigger-disabled');
+        document.getElementById('district-trigger-text').textContent = 'İlçe seçiniz...';
+        distTrigger.classList.remove('dropdown-trigger-selected');
+        document.getElementById('seller-district').value = '';
+
+        // Mahalle ve açık adres alanlarını kilitle
+        lockStep('address-step-neighborhood');
+        lockStep('address-step-fulladdr');
+        document.getElementById('seller-neighborhood').value = '';
+        document.getElementById('seller-neighborhood').disabled = true;
+        document.getElementById('seller-full-address').value = '';
+        document.getElementById('seller-full-address').disabled = true;
+        document.getElementById('address-summary').style.display = 'none';
+
+        // İlçeleri yükle
+        loadDistricts(city);
+    });
+
+    // === İLÇELERİ YÜKLE ===
+    function loadDistricts(city) {
+        document.getElementById('district-list').innerHTML = '<li class="dropdown-loading">Yükleniyor...</li>';
+        fetch(BASE + '/api/address/districts/' + encodeURIComponent(city), { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.districts) {
+                    populateList('district-list', data.districts);
+                }
+            })
+            .catch(function(err) {
+                console.error('İlçeler yüklenemedi:', err);
+            });
+    }
+
+    // === İLÇE SEÇİMİ ===
+    setupDropdown('district', function(district) {
+        selectedDistrict = district;
+        document.getElementById('seller-district').value = district;
+        document.getElementById('district-trigger-text').textContent = district;
+        document.getElementById('district-trigger').classList.add('dropdown-trigger-selected');
+
+        // Mahalle alanını aktif et
+        unlockStep('address-step-neighborhood');
+        var nhInput = document.getElementById('seller-neighborhood');
+        nhInput.disabled = false;
+        nhInput.focus();
+    });
+
+    // === MAHALLE GİRİLDİĞİNDE AÇIK ADRESİ AÇ ===
+    var nhInput = document.getElementById('seller-neighborhood');
+    if (nhInput) {
+        nhInput.addEventListener('input', function() {
+            if (this.value.trim().length > 2) {
+                unlockStep('address-step-fulladdr');
+                document.getElementById('seller-full-address').disabled = false;
+            }
+        });
+    }
+
+    // === AÇIK ADRES GİRİLDİĞİNDE ÖZET GÖSTER ===
+    var faInput = document.getElementById('seller-full-address');
+    if (faInput) {
+        faInput.addEventListener('input', function() {
+            updateSummary();
+        });
+    }
+
+    function updateSummary() {
+        var city = document.getElementById('seller-city').value;
+        var dist = document.getElementById('seller-district').value;
+        var nh = document.getElementById('seller-neighborhood').value.trim();
+        var fa = document.getElementById('seller-full-address').value.trim();
+        var summary = document.getElementById('address-summary');
+        var summaryText = document.getElementById('address-summary-text');
+        if (city && dist && nh && fa) {
+            summaryText.textContent = nh + ', ' + fa + ' — ' + dist + '/' + city;
+            summary.style.display = 'flex';
+        } else {
+            summary.style.display = 'none';
+        }
+    }
+
+    function lockStep(id) {
+        document.getElementById(id).classList.add('address-step-locked');
+    }
+    function unlockStep(id) {
+        document.getElementById(id).classList.remove('address-step-locked');
+    }
+
+    // === BELGE GÖNDER ===
     var MAX_FILE_MB = 5;
     var MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
     function readFileAsDataURL(file) {
@@ -96,13 +391,12 @@
             r.readAsDataURL(file);
         });
     }
-    function submitDocumentsJson(documents) {
-        var base = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '');
-        return fetch(base + '/api/auth/submit-documents-json', {
+    function submitDocumentsJson(payload) {
+        return fetch(BASE + '/api/auth/submit-documents-json', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ documents: documents })
+            body: JSON.stringify(payload)
         }).then(function(res) {
             return res.text().then(function(text) {
                 var data = {};
@@ -114,6 +408,7 @@
             return { success: false, message: 'Bağlantı hatası.' };
         });
     }
+
     document.getElementById('documents-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         var names = role === 'seller' ? ['taxPlate','idCard','activityCert','businessLicense'] : ['idCard','driverLicense'];
@@ -132,6 +427,38 @@
                 return;
             }
         }
+
+        // Satıcı adres doğrulaması
+        var addressData = null;
+        if (role === 'seller') {
+            var city = document.getElementById('seller-city').value.trim();
+            var district = document.getElementById('seller-district').value.trim();
+            var neighborhood = document.getElementById('seller-neighborhood').value.trim();
+            var fullAddress = document.getElementById('seller-full-address').value.trim();
+            if (!city) {
+                alert('Lütfen bir il seçin.');
+                return;
+            }
+            if (!district) {
+                alert('Lütfen bir ilçe seçin.');
+                return;
+            }
+            if (!neighborhood) {
+                alert('Lütfen mahalle/sokak bilgisini girin.');
+                return;
+            }
+            if (!fullAddress) {
+                alert('Lütfen açık adresinizi girin.');
+                return;
+            }
+            addressData = {
+                city: city,
+                district: district,
+                neighborhood: neighborhood,
+                full_address: fullAddress
+            };
+        }
+
         var btn = this.querySelector('button[type=submit]');
         var originalLabel = 'Belgeleri Gönder';
         btn.disabled = true;
@@ -145,9 +472,13 @@
                 alert('Tüm belgeleri seçin.');
                 return;
             }
-            var result = await submitDocumentsJson(documents);
+            var payload = { documents: documents };
+            if (addressData) {
+                payload.address = addressData;
+            }
+            var result = await submitDocumentsJson(payload);
             if (result && result.success && result.redirectUrl) {
-                window.location.href = (typeof window.getBaseUrl === 'function' ? window.getBaseUrl() : '') + result.redirectUrl;
+                window.location.href = BASE + result.redirectUrl;
                 return;
             }
             alert(result && result.message ? result.message : 'Belgeler yüklenemedi.');

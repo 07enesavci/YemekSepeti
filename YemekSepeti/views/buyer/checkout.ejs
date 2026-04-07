@@ -44,6 +44,44 @@
                 </div>
 
                 <form id="new-card-form" class="checkout-new-card-form" style="display: none; margin-top: 1.5rem;">
+                    <div class="cc-anim-wrapper">
+                        <section class="cc-anim-card" id="checkout-cc-card">
+                            <div class="cc-anim-highlight hl-hidden" id="checkout-cc-highlight"></div>
+                            <section class="cc-anim-front">
+                                <div class="cc-anim-header">
+                                    <span style="font-size:13px;opacity:.85;">Kredi Kartı</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="36" width="54" viewBox="-96 -98.908 832 593.448">
+                                        <path fill="#ff5f00" d="M224.833 42.298h190.416v311.005H224.833z"/>
+                                        <path d="M244.446 197.828a197.448 197.448 0 0175.54-155.475 197.777 197.777 0 100 311.004 197.448 197.448 0 01-75.54-155.53z" fill="#eb001b"/>
+                                        <path d="M640 197.828a197.777 197.777 0 01-320.015 155.474 197.777 197.777 0 000-311.004A197.777 197.777 0 01640 197.773z" fill="#f79e1b"/>
+                                    </svg>
+                                </div>
+                                <div class="cc-anim-number" id="checkout-cc-number">
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                </div>
+                                <div class="cc-anim-footer">
+                                    <div>
+                                        <div class="cc-anim-section-title">Kart Sahibi</div>
+                                        <div id="checkout-cc-holder" style="text-transform:uppercase;font-size:14px;">Ad Soyad</div>
+                                    </div>
+                                    <div>
+                                        <div class="cc-anim-section-title">SKT</div>
+                                        <span id="checkout-cc-month" style="font-size:14px;">AA</span>/<span id="checkout-cc-year" style="font-size:14px;">YY</span>
+                                    </div>
+                                </div>
+                            </section>
+                            <section class="cc-anim-back">
+                                <div class="cc-anim-hide-line"></div>
+                                <div class="cc-anim-cvv-block">
+                                    <span>CVV</span>
+                                    <div class="cc-anim-cvv-field" id="checkout-cc-cvv"></div>
+                                </div>
+                            </section>
+                        </section>
+                    </div>
                     <div class="form-group">
                         <label for="card-name" class="form-label">Kart Üzerindeki İsim</label>
                         <input type="text" id="card-name" class="form-input" autocomplete="cc-name">
@@ -58,8 +96,8 @@
                             <input type="text" id="card-expiry" class="form-input" placeholder="AA/YY" autocomplete="cc-exp">
                         </div>
                         <div class="form-group">
-                            <label for="card-cvc" class="form-label">CVC</label>
-                            <input type="text" id="card-cvc" class="form-input" placeholder="123" maxlength="4" autocomplete="cc-csc">
+                            <label for="card-cvc" class="form-label">CVV</label>
+                            <input type="text" id="card-cvc" class="form-input" placeholder="123" maxlength="3" autocomplete="cc-csc">
                         </div>
                     </div>
                     <div class="form-group">

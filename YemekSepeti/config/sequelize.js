@@ -58,8 +58,24 @@ async function ensureOrderPaymentMethodEnum() {
     }
 }
 
+/**
+ * meals.is_approved sütununun NOT NULL olduğunu garanti eder.
+ * sync({ alter:true }) her restart'ta NULL↔NOT NULL farkını tespit edip sütunu yeniden
+ * oluşturabilir ve onaylanan değerleri sıfırlayabilir. Bu fonksiyon bunu önler.
+ */
+async function ensureMealIsApprovedColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE meals MODIFY COLUMN is_approved TINYINT(1) NOT NULL DEFAULT 0`
+        );
+    } catch (e) {
+        // Tablo yoksa veya sütun zaten doğruysa sessiz geç
+    }
+}
+
 module.exports = {
     sequelize,
     testConnection,
-    ensureOrderPaymentMethodEnum
+    ensureOrderPaymentMethodEnum,
+    ensureMealIsApprovedColumn
 };

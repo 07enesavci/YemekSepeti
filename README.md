@@ -133,7 +133,7 @@ YemekSepeti/
 ├── .env.example
 ├── API_LIST.md      # Tüm API endpoint listesi
 ├── PROJECT_IMPROVEMENTS.md  # İyileştirme ve yol haritası
-└── README.md        # Bu dosya
+└── README.md        # Bu dosya.
 ```
 
 ---

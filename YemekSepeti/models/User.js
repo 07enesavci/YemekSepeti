@@ -34,6 +34,22 @@ module.exports=(sequelize, DataTypes)=>{
             type: DataTypes.BOOLEAN,
             defaultValue: true
         },
+        courier_status: {
+            type: DataTypes.ENUM('online', 'offline'),
+            defaultValue: 'offline'
+        },
+        vehicle_type: {
+            type: DataTypes.STRING(50),
+            allowNull: true
+        },
+        last_latitude: {
+            type: DataTypes.DECIMAL(10, 8),
+            allowNull: true
+        },
+        last_longitude: {
+            type: DataTypes.DECIMAL(11, 8),
+            allowNull: true
+        },
         email_verified: {
             type: DataTypes.BOOLEAN,
             defaultValue: false

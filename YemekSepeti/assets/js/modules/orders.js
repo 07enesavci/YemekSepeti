@@ -689,7 +689,7 @@ function showBuyerOrderToast(data) {
 }
 
 function initializeBuyerOrderUpdates() {
-    if (!window.location.pathname.includes('/buyer/orders')) return;
+    if (!window.location.pathname.includes('/buyer/orders') && !window.location.pathname.includes('/buyer/order-confirmation')) return;
     var retries = 0;
     var maxRetries = 50;
     var interval = setInterval(function() {

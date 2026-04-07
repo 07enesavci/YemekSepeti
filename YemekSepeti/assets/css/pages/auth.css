@@ -369,12 +369,45 @@
     cursor: pointer;
 }
 
-/* Checkbox (Kullanım Koşulları) Hizalama Fix */
-.auth-card .form-check {
-    margin-top: 1.5rem;
+/* Beni Hatırla satırı — toggle + etiket + link hizalaması */
+.auth-card .form-group-inline {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 0.25rem;      /* şifre alanı ile arası */
+    margin-bottom: 1.25rem;   /* GİRİŞ YAP butonu ile arası */
+    gap: 0.75rem;
+}
+
+.auth-card .form-check {
+    display: flex;
+    align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.auth-card .form-check label {
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+    cursor: pointer;
+    line-height: 1.4;
+    white-space: normal;
+    user-select: none;
+    flex: 1;
+}
+
+.auth-card .form-link {
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+    text-decoration: none;
+    white-space: nowrap;
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+
+.auth-card .form-link:hover {
+    color: var(--primary-color);
 }
 
 /* ==================================== */
@@ -419,6 +452,7 @@
 }
 .doc-upload-item {
     min-height: 0;
+    height: 100%;
 }
 .doc-upload-box {
     display: flex;
@@ -433,6 +467,7 @@
     transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
     position: relative;
     min-height: 120px;
+    height: 100%;
 }
 .doc-upload-box:hover {
     border-color: var(--primary-color-light);
@@ -480,3 +515,442 @@
         padding: 1.5rem 1.25rem;
     }
 }
+
+/* ==================================== */
+/* 9. SATICI ADRES BİLGİLERİ — CUSTOM DROPDOWN
+-------------------------------------- */
+.seller-address-section {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(220, 38, 38, 0.25);
+    border-radius: 16px;
+    padding: 2rem 1.5rem 1.5rem;
+    margin: 2rem 0 0;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    animation: addressSectionFadeIn 0.5s ease-out;
+}
+
+@keyframes addressSectionFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.address-section-header {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.address-section-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+    animation: addressPinBounce 2s ease-in-out infinite;
+}
+
+@keyframes addressPinBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+.address-section-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin: 0 0 0.35rem;
+}
+
+.address-section-desc {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* === ADRES ADIMLARI === */
+.address-step {
+    margin-bottom: 1.25rem;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.address-step-locked {
+    opacity: 0.4;
+    pointer-events: none;
+    transform: translateY(4px);
+}
+
+.address-step-label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.55rem;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
+}
+
+/* === CUSTOM DROPDOWN === */
+.custom-dropdown {
+    position: relative;
+}
+
+.dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #94a3b8;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: left;
+    font-family: inherit;
+}
+
+.dropdown-trigger:hover:not(:disabled) {
+    border-color: rgba(220, 38, 38, 0.5);
+    background: rgba(15, 23, 42, 1);
+}
+
+.dropdown-trigger:focus:not(:disabled) {
+    outline: none;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+}
+
+.dropdown-trigger-disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.dropdown-trigger-selected {
+    color: #f1f5f9;
+    border-color: rgba(220, 38, 38, 0.4);
+    background: rgba(220, 38, 38, 0.08);
+}
+
+.dropdown-trigger-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.dropdown-trigger-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdown-arrow {
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+    opacity: 0.6;
+}
+
+/* === DROPDOWN PANELİ === */
+.dropdown-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1.5px solid rgba(220, 38, 38, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    z-index: 100;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px) scale(0.97);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s;
+}
+
+.dropdown-panel.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+/* === ARAMA KUTUSU === */
+.dropdown-search-wrap {
+    position: relative;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dropdown-search-icon {
+    position: absolute;
+    left: 1.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+    pointer-events: none;
+}
+
+.dropdown-search {
+    width: 100%;
+    padding: 0.55rem 0.75rem 0.55rem 2.2rem;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.dropdown-search:focus {
+    border-color: #dc2626;
+}
+
+.dropdown-search::placeholder {
+    color: #64748b;
+}
+
+/* === LİSTE === */
+.dropdown-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.35rem 0;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(220, 38, 38, 0.3) transparent;
+}
+
+.dropdown-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dropdown-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.dropdown-list::-webkit-scrollbar-thumb {
+    background: rgba(220, 38, 38, 0.3);
+    border-radius: 3px;
+}
+
+.dropdown-list li {
+    padding: 0.6rem 1rem;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+}
+
+.dropdown-list li:hover {
+    background: rgba(220, 38, 38, 0.12);
+    color: #f1f5f9;
+    border-left-color: #dc2626;
+}
+
+.dropdown-loading {
+    text-align: center;
+    color: #64748b;
+    padding: 1rem !important;
+    cursor: default !important;
+    font-style: italic;
+}
+
+.dropdown-empty {
+    text-align: center;
+    color: #64748b;
+    padding: 1rem;
+    font-size: 0.85rem;
+}
+
+/* === TEXT INPUT === */
+.address-text-input {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+    color: #e2e8f0 !important;
+    border-radius: 10px !important;
+    padding: 0.75rem 1rem !important;
+    font-size: 0.92rem !important;
+    transition: all 0.25s ease;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.address-text-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.address-text-input::placeholder {
+    color: #64748b !important;
+}
+
+.address-text-input:focus:not(:disabled) {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2) !important;
+    background: rgba(15, 23, 42, 1) !important;
+    outline: none;
+}
+
+.address-textarea {
+    resize: vertical;
+    min-height: 56px;
+    max-height: 130px;
+    line-height: 1.5;
+    font-family: inherit;
+}
+
+/* === ADRES ÖZETİ === */
+.address-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    padding: 0.85rem 1.1rem;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 10px;
+    animation: summaryFadeIn 0.35s ease-out;
+}
+
+@keyframes summaryFadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.address-summary-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.address-summary-text {
+    font-size: 0.88rem;
+    color: #a7f3d0;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+/* === LIGHT THEME === */
+:root:not([data-theme="dark"]) .seller-address-section {
+    background: rgba(248, 250, 252, 0.97);
+    border-color: rgba(220, 38, 38, 0.18);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+:root:not([data-theme="dark"]) .address-section-title {
+    color: #1e293b;
+}
+
+:root:not([data-theme="dark"]) .address-section-desc {
+    color: #64748b;
+}
+
+:root:not([data-theme="dark"]) .address-step-label {
+    color: #334155;
+}
+
+:root:not([data-theme="dark"]) .dropdown-trigger {
+    background: #fff;
+    border-color: #d1d5db;
+    color: #6b7280;
+}
+
+:root:not([data-theme="dark"]) .dropdown-trigger-selected {
+    color: #1e293b;
+    border-color: rgba(220, 38, 38, 0.4);
+    background: rgba(220, 38, 38, 0.04);
+}
+
+:root:not([data-theme="dark"]) .dropdown-trigger:hover:not(:disabled) {
+    border-color: rgba(220, 38, 38, 0.5);
+    background: #fafafa;
+}
+
+:root:not([data-theme="dark"]) .dropdown-panel {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: rgba(220, 38, 38, 0.2);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+}
+
+:root:not([data-theme="dark"]) .dropdown-search-wrap {
+    border-bottom-color: #e5e7eb;
+}
+
+:root:not([data-theme="dark"]) .dropdown-search {
+    background: #f8fafc;
+    border-color: #e5e7eb;
+    color: #1e293b;
+}
+
+:root:not([data-theme="dark"]) .dropdown-search::placeholder {
+    color: #9ca3af;
+}
+
+:root:not([data-theme="dark"]) .dropdown-list li {
+    color: #374151;
+}
+
+:root:not([data-theme="dark"]) .dropdown-list li:hover {
+    background: rgba(220, 38, 38, 0.06);
+    color: #1e293b;
+}
+
+:root:not([data-theme="dark"]) .address-text-input {
+    background: #fff !important;
+    border-color: #d1d5db !important;
+    color: #1e293b !important;
+}
+
+:root:not([data-theme="dark"]) .address-text-input::placeholder {
+    color: #9ca3af !important;
+}
+
+:root:not([data-theme="dark"]) .address-text-input:focus:not(:disabled) {
+    background: #fff !important;
+}
+
+:root:not([data-theme="dark"]) .address-summary {
+    background: rgba(16, 185, 129, 0.06);
+    border-color: rgba(16, 185, 129, 0.25);
+}
+
+:root:not([data-theme="dark"]) .address-summary-text {
+    color: #059669;
+}
+
+:root:not([data-theme="dark"]) .dropdown-list::-webkit-scrollbar-thumb {
+    background: rgba(220, 38, 38, 0.2);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 600px) {
+    .seller-address-section {
+        padding: 1.5rem 1rem 1rem;
+    }
+    .dropdown-list {
+        max-height: 180px;
+    }
+}
+

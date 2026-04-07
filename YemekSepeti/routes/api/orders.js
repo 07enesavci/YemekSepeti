@@ -212,13 +212,20 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
 
             const seller = await Seller.findByPk(sellerId, {
-                attributes: ['delivery_fee']
+                attributes: ['delivery_fee', 'is_open']
             });
 
             if (!seller) {
                 return res.status(400).json({ 
                     success: false, 
                     message: "Satıcı bilgisi bulunamadı." 
+                });
+            }
+
+            if (seller.is_open === false || seller.is_open === 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Üzgünüz, bu dükkan şu an kapalı olduğu için sipariş alamıyor." 
                 });
             }
 
@@ -1015,92 +1022,37 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
         
         if (status === 'ready') {
             try {
-                    const currentOrder = await Order.findByPk(orderId, { attributes: ['courier_id', 'status'] });
+                const currentOrder = await Order.findByPk(orderId, { attributes: ['courier_id', 'status'] });
 
-                    if (currentOrder && currentOrder.courier_id !== null) {
-                        await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
+                if (currentOrder && currentOrder.courier_id !== null) {
+                    await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
 
-                        res.json({
-                            success: true,
-                            message: "Sipariş durumu güncellendi."
-                        });
-                        return;
-                    }
-                
-                const activeCouriersQuery = `
-                    SELECT DISTINCT u.id, u.fullname, u.email
-                    FROM users u
-                    WHERE u.role = 'courier'
-                    AND u.is_active = TRUE
-                    AND u.id NOT IN (
-                        SELECT DISTINCT o.courier_id 
-                        FROM orders o 
-                        WHERE o.status = 'on_delivery' 
-                        AND o.courier_id IS NOT NULL
-                    )
-                    ORDER BY RAND()
-                    LIMIT 10
-                `;
-                
-                const activeCouriers = await sequelize.query(activeCouriersQuery, { type: QueryTypes.SELECT });
-                
-                if (activeCouriers && activeCouriers.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * activeCouriers.length);
-                    const selectedCourier = activeCouriers[randomIndex];
-                    const courierId = selectedCourier.id;
-                    
-                    const orderInfoRecord = await Order.findByPk(orderId, {
-                        attributes: ['delivery_fee'],
-                        include: [
-                            { model: Seller, as: 'seller', attributes: ['shop_name'] },
-                            { model: Address, as: 'address', attributes: ['district', 'city'] }
-                        ]
-                    });
-                    await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId, seller_id: shopId } });
-                    const existingTask = await CourierTask.findOne({ where: { order_id: orderId }, attributes: ['id'] });
-                    
-                    if (!existingTask && orderInfoRecord) {
-                        const deliveryLocation = orderInfoRecord.seller && orderInfoRecord.address ? `${orderInfoRecord.address.district || ''}, ${orderInfoRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : (orderInfoRecord.seller?.shop_name || 'Restoran');
-                        const newTask = await CourierTask.create({
-                            order_id: orderId,
-                            courier_id: courierId,
-                            pickup_location: orderInfoRecord.seller?.shop_name || 'Restoran',
-                            delivery_location: deliveryLocation,
-                            estimated_payout: parseFloat(orderInfoRecord.delivery_fee) || 25.00,
-                            status: 'assigned'
-                        });
-                        if (global.io) {
-                            global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
-                                orderId,
-                                courierId,
-                                taskId: newTask.id,
-                                source: 'seller_status_ready',
-                                assignedAt: new Date().toISOString()
-                            });
-                        }
-                    }
-
-                    
-                    if (order && order.user_id) {
-                        createNotification(order.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
-                    }
                     res.json({
                         success: true,
-                        message: "Sipariş durumu güncellendi ve kuryeye atandı.",
-                        courier: {
-                            id: courierId,
-                            name: selectedCourier.fullname
-                        }
+                        message: "Sipariş durumu güncellendi."
                     });
                     return;
-                } else {}
-            } catch (courierError) {}
+                }
+            } catch (courierError) {
+                console.error('Kurye kontrol hatası:', courierError);
+            }
         }
         if (status === 'cancelled') {
             const fullOrder = await Order.findByPk(orderId, {
-                attributes: ['id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number', 'seller_id']
+                attributes: ['id', 'courier_id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number', 'seller_id']
             });
             if (fullOrder && fullOrder.seller_id === shopId) {
+                if (fullOrder.courier_id) {
+                    await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId } });
+                    if (global.io) {
+                        global.io.to(`courier-${fullOrder.courier_id}`).emit('order_cancelled', {
+                            id: fullOrder.id,
+                            orderNumber: fullOrder.order_number,
+                            status: 'cancelled',
+                            message: 'Sipariş iptal edildi.'
+                        });
+                    }
+                }
                 if (fullOrder.payment_method === 'iyzico' && fullOrder.iyzico_payment_data && !fullOrder.iyzico_refunded_at) {
                     try {
                         await refundIyzicoPaymentForOrder(fullOrder, req.ip);
@@ -1119,10 +1071,22 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
             }
         }
         await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
-        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id'] });
+        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number', 'courier_id'] });
+        
+        if (status === 'ready' && updatedOrder && updatedOrder.courier_id === null && global.io) {
+            global.io.emit('order_pool_added', { orderId: orderId });
+        }
         const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
         if (updatedOrder && statusTitles[status]) {
             createNotification(updatedOrder.user_id, 'order', statusTitles[status], `Sipariş #${orderId} durumu: ${statusTitles[status]}.`, orderId).catch(() => {});
+            
+            if (global.io) {
+                global.io.to(`buyer-${updatedOrder.user_id}`).emit('order_status_updated', {
+                    orderId: orderId,
+                    status: status,
+                    orderNumber: updatedOrder.order_number
+                });
+            }
         }
         // Socket.IO ile iptal bildirimini gönder
         if (status === 'cancelled' && global.io) {
@@ -1171,110 +1135,31 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         const sellerRecord = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
         
         if (!sellerRecord) {
-            return res.status(404).json({
-                success: false,
-                message: "Satıcı kaydı bulunamadı."
-            });
+            return res.status(404).json({ success: false, message: "Satıcı kaydı bulunamadı." });
         }
         
         const shopId = sellerRecord.id;
-        
         const order = await Order.findOne({ where: { id: orderId, seller_id: shopId }, attributes: ['id', 'courier_id', 'status'] });
 
         if (!order) {
-            return res.status(404).json({
-                success: false,
-                message: "Sipariş bulunamadı veya size ait değil."
-            });
+            return res.status(404).json({ success: false, message: "Sipariş bulunamadı veya size ait değil." });
         }
         
         if (order.status !== 'ready') {
-            return res.status(400).json({
-                success: false,
-                message: "Sipariş hazır durumunda değil. Önce siparişi hazır durumuna getirin."
-            });
+            return res.status(400).json({ success: false, message: "Sipariş hazır durumunda değil. Önce siparişi hazır durumuna getirin." });
         }
         
         if (order.courier_id !== null) {
-            return res.status(400).json({
-                success: false,
-                message: "Bu sipariş zaten bir kuryeye atanmış."
-            });
+            return res.status(400).json({ success: false, message: "Bu sipariş zaten bir kuryeye atanmış." });
         }
         
-        const activeCouriersQuery = `
-            SELECT DISTINCT u.id, u.fullname, u.email
-            FROM users u
-            WHERE u.role = 'courier'
-            AND u.is_active = TRUE
-            AND u.id NOT IN (
-                SELECT DISTINCT o.courier_id 
-                FROM orders o 
-                WHERE o.status = 'on_delivery' 
-                AND o.courier_id IS NOT NULL
-            )
-            ORDER BY RAND()
-            LIMIT 10
-        `;
-        
-        const activeCouriers = await sequelize.query(activeCouriersQuery, { type: QueryTypes.SELECT });
-        
-        if (!activeCouriers || activeCouriers.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "Aktif ve boşta olan kurye bulunamadı. Lütfen daha sonra tekrar deneyin."
-            });
-        }
-        
-        const randomIndex = Math.floor(Math.random() * activeCouriers.length);
-        const selectedCourier = activeCouriers[randomIndex];
-        const courierId = selectedCourier.id;
-        const orderInfoRecord = await Order.findByPk(orderId, {
-            attributes: ['delivery_fee', 'user_id'],
-            include: [
-                { model: Seller, as: 'seller', attributes: ['shop_name'] },
-                { model: Address, as: 'address', attributes: ['district', 'city'] }
-            ]
-        });
-        
-        await Order.update({ courier_id: courierId, status: 'on_delivery' }, { where: { id: orderId, seller_id: shopId } });
-        
-        if (orderInfoRecord && orderInfoRecord.user_id) {
-            createNotification(orderInfoRecord.user_id, 'order', 'Sipariş yolda', 'Siparişiniz kuryeye verildi.', orderId).catch(() => {});
-        }
-        
-        const existingTask = await CourierTask.findOne({ where: { order_id: orderId }, attributes: ['id'] });
-        
-        let task = existingTask;
-        if (!task && orderInfoRecord) {
-            const deliveryLocation = orderInfoRecord.seller && orderInfoRecord.address ? `${orderInfoRecord.address.district || ''}, ${orderInfoRecord.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : (orderInfoRecord.seller?.shop_name || 'Restoran');
-            task = await CourierTask.create({
-                order_id: orderId,
-                courier_id: courierId,
-                pickup_location: orderInfoRecord.seller?.shop_name || 'Restoran',
-                delivery_location: deliveryLocation,
-                estimated_payout: parseFloat(orderInfoRecord.delivery_fee) || 25.00,
-                status: 'assigned'
-            });
-        }
-
-        if (global.io && task) {
-            global.io.to(`courier-${courierId}`).emit('courier_task_assigned', {
-                orderId,
-                courierId,
-                taskId: task.id,
-                source: 'manual_assign',
-                assignedAt: new Date().toISOString()
-            });
+        if (global.io) {
+            global.io.emit('order_pool_added', { orderId: orderId });
         }
         
         res.json({
             success: true,
-            message: `Sipariş ${selectedCourier.fullname} kuryesine atandı.`,
-            courier: {
-                id: courierId,
-                name: selectedCourier.fullname
-            }
+            message: "Sipariş havuzda yayınlanmaktadır. Çevredeki kuryelerin siparişi teslim alması bekleniyor.",
         });
     } catch (error) {
         res.status(500).json({
@@ -1301,7 +1186,7 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
                 id: orderId,
                 user_id: userId
             },
-            attributes: ['id', 'status', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number']
+            attributes: ['id', 'status', 'courier_id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number']
         });
 
         if (!order) {
@@ -1312,11 +1197,11 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
         }
 
         // Sadece belirli durumlardaki siparişler iptal edilebilir
-        const cancellableStatuses = ['pending', 'confirmed', 'preparing', 'ready'];
+        const cancellableStatuses = ['pending', 'confirmed'];
         if (!cancellableStatuses.includes(order.status)) {
             return res.status(400).json({
                 success: false,
-                message: `Bu sipariş ${getStatusText(order.status)} durumunda olduğu için iptal edilemez.`
+                message: `Bu sipariş ${getStatusText(order.status)} durumunda olduğu için tarafınızca iptal edilemez. Lütfen destek talebi oluşturun.`
             });
         }
 
@@ -1340,6 +1225,13 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
             { status: 'cancelled' },
             { where: { id: orderId, user_id: userId } }
         );
+
+        if (order.courier_id) {
+            await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId } });
+            if (global.io) {
+                global.io.to(`courier-${order.courier_id}`).emit('order_cancelled', { id: orderId, orderNumber: order.order_number, status: 'cancelled' });
+            }
+        }
 
         // Socket.IO ile satıcıya iptal bildirimini gönder
         if (global.io) {

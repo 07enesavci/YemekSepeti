@@ -49,7 +49,7 @@ function helmetMiddleware() {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://static.cloudflareinsights.com"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://static.cloudflareinsights.com", "https://cdn.jsdelivr.net"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
                 imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],

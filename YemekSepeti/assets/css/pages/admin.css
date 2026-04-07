@@ -236,3 +236,56 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* 5. Panel Tabloları (panel-table)
+-------------------------------------- */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px; /* Yumuşak kenarlık */
+}
+
+.panel-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-bg, #fff);
+    font-size: 0.95rem;
+    min-width: 850px; /* Tablonun sıkışmasını önler, taşarsa yatay scroll çıkar */
+}
+
+.panel-table th,
+.panel-table td {
+    padding: 1rem 1.25rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color, #eee);
+    vertical-align: middle;
+}
+
+.panel-table th {
+    font-weight: 600;
+    color: var(--secondary-color, #333);
+    background-color: rgba(0,0,0,0.03);
+    white-space: nowrap; /* Başlıkların alt alta kaymasını önle */
+}
+
+.panel-table td {
+    word-break: break-word; /* Uzun e-posta veya adres satırlarını kır */
+}
+
+.panel-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.panel-table tbody tr:hover {
+    background-color: rgba(220, 38, 38, 0.03); /* YemekSepeti kırmızı tonunda hover */
+}
+
+/* Karanlık Tema Uyumluluğu */
+:root[data-theme="dark"] .panel-table th {
+    background-color: rgba(255, 255, 255, 0.03);
+    color: var(--text-color-light);
+}
+:root[data-theme="dark"] .panel-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}

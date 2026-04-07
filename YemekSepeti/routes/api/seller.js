@@ -6,6 +6,7 @@ const { Seller, Meal, UserFavoriteSeller, Order, sequelize } = require("../../mo
 const { Op } = require("sequelize");
 const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
+const { getCityCoordinates } = require("../../data/turkey-coordinates");
 
 router.use(requireRole('seller'), requireSellerApproved);
 
@@ -24,7 +25,7 @@ router.get("/menu", async (req, res) => {
         }
         const meals = await Meal.findAll({
             where: { seller_id: seller.id },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available'],
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
         
@@ -42,7 +43,8 @@ router.get("/menu", async (req, res) => {
                 description: meal.description || "",
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
-                isAvailable: meal.is_available
+                isAvailable: meal.is_available,
+                isApproved: meal.is_approved
             };
         });
         
@@ -105,8 +107,8 @@ router.post("/menu", async (req, res) => {
 
         const shopId = sellerQuery[0].id;
         const result = await db.execute(
-            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, false, NOW(), NOW())`,
             [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool]
         );
 
@@ -133,6 +135,10 @@ router.post("/menu", async (req, res) => {
             console.error('Favori bildirimi hatası:', notifErr);
         }
 
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: shopId });
+        }
+
         res.status(201).json({
             success: true,
             message: "Yemek başarıyla eklendi.",
@@ -140,7 +146,8 @@ router.post("/menu", async (req, res) => {
                 id: insertId,
                 category, name, description, price: priceNum,
                 imageUrl: finalImageUrl,
-                isAvailable: isAvailableBool
+                isAvailable: isAvailableBool,
+                isApproved: false
             }
         });
     } catch (error) {
@@ -231,6 +238,10 @@ router.put("/menu/:id", async (req, res) => {
         const updateQuery = `UPDATE meals SET ${updateFields.join(", ")}, updated_at = NOW() WHERE id = ? AND seller_id = ?`;
         await db.execute(updateQuery, updateValues);
         
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: shopId });
+        }
+
         res.json({ success: true, message: "Yemek başarıyla güncellendi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });
@@ -262,6 +273,11 @@ router.delete("/menu/:id", async (req, res) => {
         }
         
         await db.execute("DELETE FROM meals WHERE id = ? AND seller_id = ?", [mealId, shopId]);
+        
+        if (global.io) {
+            global.io.emit('menu_updated', { sellerId: shopId });
+        }
+        
         res.json({ success: true, message: "Yemek başarıyla silindi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });
@@ -329,11 +345,35 @@ router.get("/earnings", async (req, res) => {
     }
 });
 
+router.put("/toggle-shop-status", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const { is_open } = req.body;
+        
+        if (typeof is_open !== 'boolean') {
+            return res.status(400).json({ success: false, message: "Geçerli bir durum belirtin." });
+        }
+
+        const [result] = await db.query(
+            "UPDATE sellers SET is_open = ? WHERE user_id = ?",
+            [is_open ? 1 : 0, userId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        }
+
+        res.json({ success: true, message: "Dükkan durumu güncellendi." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
 router.get("/dashboard", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const sellerQuery = await db.query(
-            "SELECT id, shop_name FROM sellers WHERE user_id = ?",
+            "SELECT id, shop_name, is_open FROM sellers WHERE user_id = ?",
             [userId]
         );
         
@@ -387,6 +427,7 @@ router.get("/dashboard", async (req, res) => {
         res.json({
             success: true,
             shopName: shopName,
+            isOpen: !!sellerQuery[0].is_open,
             fullname: fullname,
             stats: {
                 newOrders: parseInt(stats.new_orders) || 0,
@@ -417,7 +458,7 @@ router.get("/dashboard", async (req, res) => {
 router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
-        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl } = req.body;
+        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -484,6 +525,19 @@ router.put("/profile", async (req, res) => {
         if (location !== undefined) {
             updateFields.push("location = ?");
             updateValues.push(location);
+            // Konumdan otomatik koordinat hesapla
+            const coords = getCityCoordinates(location);
+            if (coords) {
+                updateFields.push("latitude = ?");
+                updateValues.push(coords.lat);
+                updateFields.push("longitude = ?");
+                updateValues.push(coords.lng);
+            }
+        }
+        if (deliveryRadiusKm !== undefined) {
+            const radius = parseInt(deliveryRadiusKm);
+            updateFields.push("delivery_radius_km = ?");
+            updateValues.push(isNaN(radius) || radius < 0 ? 0 : radius);
         }
         if (workingHours !== undefined) {
             let hoursValue = null;
@@ -620,7 +674,10 @@ router.get("/profile", async (req, res) => {
                 location,
                 opening_hours as workingHours,
                 logo_url as logoUrl,
-                banner_url as bannerUrl
+                banner_url as bannerUrl,
+                delivery_radius_km as deliveryRadiusKm,
+                latitude,
+                longitude
             FROM sellers 
             WHERE id = ?`,
             [shopId]
@@ -639,6 +696,7 @@ router.get("/profile", async (req, res) => {
         profileData.location = profileData.location || '';
         profileData.logoUrl = profileData.logoUrl || null;
         profileData.bannerUrl = profileData.bannerUrl || null;
+        profileData.deliveryRadiusKm = parseInt(profileData.deliveryRadiusKm) || 0;
         if (profileData.workingHours === null || profileData.workingHours === undefined) {
             profileData.workingHours = '';
         } else if (typeof profileData.workingHours === 'string') {

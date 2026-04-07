@@ -98,6 +98,104 @@ function escapeHtml(s) {
         .replace(/"/g, '&quot;');
 }
 
+function initCreditCardAnimation(ids) {
+    const cardEl = document.getElementById(ids.card);
+    const highlightEl = document.getElementById(ids.highlight);
+    const cardNumEl = document.getElementById(ids.number);
+    const cardHolderEl = document.getElementById(ids.holder);
+    const cardMonthEl = document.getElementById(ids.month);
+    const cardYearEl = document.getElementById(ids.year);
+    const cardCvvEl = document.getElementById(ids.cvv);
+    const numInput = document.getElementById(ids.numInput);
+    const holderInput = document.getElementById(ids.holderInput);
+    const expiryInput = document.getElementById(ids.expiryInput);
+    const cvvInput = document.getElementById(ids.cvvInput);
+
+    if (!cardEl || !numInput) return;
+
+    numInput.addEventListener('focus', () => {
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-number';
+    });
+    if (holderInput) holderInput.addEventListener('focus', () => {
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-holder';
+    });
+    if (expiryInput) expiryInput.addEventListener('focus', () => {
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-expire';
+    });
+    if (cvvInput) {
+        cvvInput.addEventListener('focus', () => {
+            cardEl.classList.add('flip');
+            highlightEl.className = 'cc-anim-highlight hl-cvv';
+        });
+        cvvInput.addEventListener('focusout', () => {
+            cardEl.classList.remove('flip');
+            highlightEl.className = 'cc-anim-highlight hl-hidden';
+        });
+    }
+
+    numInput.addEventListener('input', (e) => {
+        let numbers = e.target.value.replace(/\D/g, '');
+        if (numbers.length > 16) numbers = numbers.slice(0, 16);
+        e.target.value = numbers.replace(/(\d{4})(?=\d)/g, '$1 ');
+
+        const raw = numbers;
+        const spans = cardNumEl.children;
+        for (let i = 0; i < 16; i++) {
+            if (i < raw.length) {
+                const char = (i >= 4 && i < 12) ? '*' : raw[i];
+                spans[i].innerHTML = '#<br>' + char;
+                spans[i].classList.add('filed');
+            } else {
+                spans[i].innerHTML = '#<br>';
+                spans[i].classList.remove('filed');
+            }
+        }
+    });
+
+    if (holderInput) holderInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+        cardHolderEl.innerText = holderInput.value || 'Ad Soyad';
+    });
+    if (expiryInput) expiryInput.addEventListener('input', (e) => {
+        if (e.inputType === 'deleteContentBackward' && e.target.value.endsWith('/')) {
+            e.target.value = e.target.value.slice(0, -1);
+        }
+        let numbers = e.target.value.replace(/\D/g, '');
+        if (numbers.length >= 1 && parseInt(numbers[0], 10) > 1) numbers = '0' + numbers;
+        if (numbers.length >= 2) {
+            const month = parseInt(numbers.substring(0, 2), 10);
+            if (month > 12) numbers = '12' + numbers.slice(2);
+            else if (month === 0) numbers = '01' + numbers.slice(2);
+        }
+        if (numbers.length > 4) numbers = numbers.slice(0, 4);
+        if (numbers.length >= 3) e.target.value = numbers.slice(0, 2) + '/' + numbers.slice(2);
+        else e.target.value = numbers;
+
+        cardMonthEl.innerText = numbers.substring(0, 2).padEnd(2, 'A');
+        cardYearEl.innerText = numbers.substring(2, 4).padEnd(2, 'Y');
+    });
+    if (cvvInput) cvvInput.addEventListener('input', (e) => {
+        let val = e.target.value.replace(/\D/g, '');
+        if (val.length > 3) val = val.slice(0, 3);
+        e.target.value = val;
+        cardCvvEl.innerText = '*'.repeat(val.length);
+    });
+
+    return function resetCard() {
+        Array.from(cardNumEl.children).forEach(s => { s.classList.remove('filed'); s.innerHTML = '#<br>'; });
+        cardHolderEl.innerText = 'Ad Soyad';
+        cardMonthEl.innerText = 'AA';
+        cardYearEl.innerText = 'YY';
+        cardCvvEl.innerText = '';
+        cardEl.classList.remove('flip');
+        highlightEl.className = 'cc-anim-highlight hl-hidden';
+        enteredCount = 0;
+    };
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const walletTransactions = document.getElementById('wallet-transactions');
     const couponsList = document.getElementById('coupons-list');
@@ -370,6 +468,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.addEventListener('click', (e) => {
             if (e.target === el) el.classList.remove('is-open');
         });
+        const nameIn = document.getElementById('pc-edit-name');
+        if (nameIn) {
+            nameIn.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+            });
+        }
         const expIn = document.getElementById('pc-edit-expiry');
         expIn.addEventListener('input', (e) => formatExpiryInput(expIn, e));
         return el;
@@ -444,6 +548,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    const resetWalletCard = initCreditCardAnimation({
+        card: 'wallet-cc-card',
+        highlight: 'wallet-cc-highlight',
+        number: 'wallet-cc-number',
+        holder: 'wallet-cc-holder',
+        month: 'wallet-cc-month',
+        year: 'wallet-cc-year',
+        cvv: 'wallet-cc-cvv',
+        numInput: 'new-pc-number',
+        holderInput: 'new-pc-name',
+        expiryInput: 'new-pc-expiry',
+        cvvInput: 'new-pc-cvc'
+    });
+
     if (toggleAddBtn && addCardPanel) {
         toggleAddBtn.addEventListener('click', () => {
             const open = addCardPanel.hidden;
@@ -463,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (addCardCancel && addCardPanel && addCardForm) {
         addCardCancel.addEventListener('click', () => {
             addCardForm.reset();
+            if (resetWalletCard) resetWalletCard();
             addCardPanel.hidden = true;
             if (toggleAddBtn) {
                 toggleAddBtn.setAttribute('aria-expanded', 'false');
@@ -494,6 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await BUYER_API.savePaymentCard(body);
             if (data.success) {
                 addCardForm.reset();
+                if (resetWalletCard) resetWalletCard();
                 addCardPanel.hidden = true;
                 if (toggleAddBtn) {
                     toggleAddBtn.setAttribute('aria-expanded', 'false');

@@ -14,8 +14,15 @@
 
     <main class="panel-content">
         
-        <h1 class="panel-title">Dashboard (Ana Panel)</h1>
-        <p class="panel-subtitle" id="dashboard-subtitle">Yükleniyor...</p>
+        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div>
+                <h1 class="panel-title" style="margin-bottom: 0.5rem;">Dashboard (Ana Panel)</h1>
+                <p class="panel-subtitle" id="dashboard-subtitle" style="margin-bottom: 0;">Yükleniyor...</p>
+            </div>
+            <div class="shop-status-container">
+                <button id="shop-status-btn" class="btn" style="display: none; font-weight: bold;"></button>
+            </div>
+        </div>
 
         <div class="stat-grid">
             <div class="card stat-card">

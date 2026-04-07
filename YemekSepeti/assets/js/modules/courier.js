@@ -364,6 +364,10 @@ function initializeProfilePage() {
 
 
 function createOrderCardHTML(order) {
+    const distanceBadge = order.distanceKm !== undefined && order.distanceKm !== null 
+        ? `<div style="display:inline-block; margin-top:6px; background:#e0f7fa; color:#00796b; padding:4px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold;">🛵 Size ${parseFloat(order.distanceKm).toFixed(1)} km mesafede</div>`
+        : '';
+
     return `
         <div class="card available-order-card" data-order-id="${order.id}">
             <div class="order-route">
@@ -374,6 +378,7 @@ function createOrderCardHTML(order) {
                 <div class="route-point" style="border-left: 3px solid #E74C3C; padding-left: 10px; margin-top: 8px;">
                     <strong>📍 Teslim:</strong> ${order.dropoffFullAddress || order.dropoff || 'Belirtilmemiş'}
                 </div>
+                ${distanceBadge}
             </div>
             <div id="available-map-${order.id}" class="available-order-map" style="height: 0; overflow: hidden; transition: height 0.3s ease; border-radius: 8px; margin: 8px 0;"></div>
             <div class="order-payout">
@@ -547,7 +552,8 @@ async function loadAvailableOrders() {
                 dropoffFullAddress: task.dropoffFullAddress || task.dropoff,
                 dropoffLat: task.dropoffLat || null,
                 dropoffLng: task.dropoffLng || null,
-                payout: task.payout
+                payout: task.payout,
+                distanceKm: task.distanceKm
             });
             ordersListContainer.insertAdjacentHTML('beforeend', orderHTML);
         });
@@ -591,22 +597,56 @@ async function handleTaskComplete(event) {
 async function handleTaskPickup(event) {
     const btn = event.currentTarget;
     const orderId = btn ? btn.getAttribute('data-order-id') : null;
-    if (!orderId) return;
+    if (!orderId || btn.classList.contains('animation')) return;
 
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Paket Teslim Alınıyor...';
-    }
+    const box = btn.querySelector('.box');
+    const truck = btn.querySelector('.truck');
+
+    if (!box || !truck) return;
+
+    // Animasyonu başlat
+    btn.classList.add('animation');
+
+    // Ana timeline – tüm animasyonu tek bir timeline ile senkronize yönet
+    const btnW = btn.offsetWidth || 300;
+    const truckW = truck.offsetWidth || 72;
+    const finalX = btnW - truckW - 16;
+
+    const tl = gsap.timeline({
+        onComplete: function () {
+            btn.classList.add('done');
+            // Animasyon bittikten 1 saniye sonra paneli yenile ("Teslim Edildi" butonu gelsin)
+            setTimeout(function () { loadActiveTasks(); }, 1000);
+        }
+    });
+
+    // 1) Kutuyu göster ve tıra yükle (0 – 1.3s)
+    tl.to(btn, { '--box-s': 1, '--box-o': 1, duration: 0.3 }, 0.5)
+      .to(btn, { '--box-x': 0, duration: 0.4 }, 0.7)
+      .to(btn, { '--hx': -5, '--bx': 50, duration: 0.18 }, 0.92)
+      .to(btn, { '--box-y': 0, duration: 0.1 }, 1.15)
+
+    // 2) Tır sola → sağa doğru düzgün tek seferde gitsin (1.5s – 3.5s)
+      .to(btn, {
+          '--truck-x': finalX,
+          duration: 2,
+          ease: 'power1.inOut'
+      }, 1.5)
+
+    // 3) İlerleme çubuğu tırla birlikte dolsun
+      .to(btn, {
+          '--progress': 1,
+          duration: 2,
+          ease: 'power1.inOut'
+      }, 1.5);
 
     try {
         await pickupTask(parseInt(orderId));
         displayMessage('✅ Sipariş #' + orderId + ' için paket teslim alındı. Rota teslimat noktasına güncelleniyor...', 'success');
-        setTimeout(function() { loadActiveTasks(); }, 700);
     } catch (error) {
-        if (btn && btn.parentNode) {
-            btn.disabled = false;
-            btn.textContent = '📦 Paketi Teslim Aldım';
-        }
+        tl.kill();
+        btn.classList.remove('animation', 'done');
+        gsap.killTweensOf(btn);
         displayMessage('❌ ' + (error && error.message ? error.message : 'İşlem başarısız.'), 'error');
     }
 }
@@ -623,6 +663,7 @@ let courierSocket = null;
 let lastRenderedActiveTaskKey = null;
 let lastRenderedDashboardMode = null;
 let courierLocationInterval = null;
+let idleCourierLocationInterval = null;
 let hasShownGeoPermissionWarning = false;
 
 async function resolveCourierSocketUserId() {
@@ -720,6 +761,35 @@ async function connectCourierSocket() {
             }
         });
 
+        courierSocket.on('order_pool_removed', (payload) => {
+            const path = window.location.pathname || '';
+            if (path.includes('/courier/available') || path.endsWith('/available')) {
+                const orderId = payload && payload.orderId ? payload.orderId : null;
+                if (orderId) {
+                    const card = document.querySelector(`.available-order-card[data-order-id="${orderId}"]`);
+                    if (card) {
+                        card.style.transition = 'all 0.3s ease';
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            if (card) card.remove();
+                            const container = document.querySelector('.available-orders-list');
+                            if (container && container.children.length === 0) {
+                                loadAvailableOrders();
+                            }
+                        }, 300);
+                    }
+                }
+            }
+        });
+
+        courierSocket.on('order_pool_added', (payload) => {
+            const path = window.location.pathname || '';
+            if (path.includes('/courier/available') || path.endsWith('/available')) {
+                loadAvailableOrders();
+            }
+        });
+
         courierSocket.on('disconnect', () => {
             courierSocket = null;
             setTimeout(() => connectCourierSocket(), 1500);
@@ -761,6 +831,10 @@ function clearCourierAutoRefresh() {
         clearInterval(courierLocationInterval);
         courierLocationInterval = null;
     }
+    if (idleCourierLocationInterval) {
+        clearInterval(idleCourierLocationInterval);
+        idleCourierLocationInterval = null;
+    }
 }
 
 function setupCourierAutoRefresh(mode) {
@@ -783,6 +857,22 @@ function setupCourierAutoRefresh(mode) {
             loadAvailableOrders();
         }, refreshMs);
     }
+
+    const postIdleLocation = async () => {
+        if (document.hidden) return;
+        const pos = await getCourierCurrentPosition();
+        if (pos && pos[0] != null && pos[1] != null) {
+            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            fetch(`${baseUrl}/api/courier/location`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude: pos[0], longitude: pos[1] })
+            }).catch(e => {});
+        }
+    };
+    idleCourierLocationInterval = setInterval(postIdleLocation, 25000);
+    setTimeout(postIdleLocation, 2000);
 }
 
 function playCourierTaskSound() {
@@ -1188,7 +1278,21 @@ function createActiveTaskCard(order) {
 
             ${isPickedUp
                 ? `<button class="btn btn-primary btn-full courier-task-action-btn complete-task-btn" data-order-id="${order.id}">✅ Teslim Ettim</button>`
-                : `<button class="btn btn-primary btn-full courier-task-action-btn pickup-task-btn" data-order-id="${order.id}">📦 Paketi Teslim Aldım</button>`
+                : `<button class="truck-button courier-task-action-btn pickup-task-btn" data-order-id="${order.id}">
+                    <span class="default">📦 Paketi Teslim Aldım</span>
+                    <span class="success">
+                        Paket Alındı
+                        <svg viewbox="0 0 12 10">
+                            <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
+                        </svg>
+                    </span>
+                    <span class="truck">
+                        <span class="wheel"></span>
+                        <span class="back"></span>
+                        <span class="front"></span>
+                        <span class="box"></span>
+                    </span>
+                </button>`
             }
         </div>
     `;
@@ -1251,6 +1355,11 @@ async function loadActiveTasks() {
             ].join(':');
 
             const hasExistingTaskCard = !!taskContainer.querySelector('.courier-task-action-btn');
+
+            // Animasyon devam ediyorsa yeniden render etme (animasyonu kesme)
+            if (taskContainer.querySelector('.truck-button.animation:not(.done)')) {
+                return;
+            }
 
             // Auto-refresh sırasında görev aynıysa haritayı tekrar kurma.
             if (hasExistingTaskCard && lastRenderedDashboardMode === 'active' && lastRenderedActiveTaskKey === activeTaskKey) {

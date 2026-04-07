@@ -53,11 +53,13 @@
                             <span class="header-user-caret">▾</span>
                         </button>
                         <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
-                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/profile` : '/seller/profile' %>" class="header-user-menu-item">Profilim</a>
-                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="header-user-menu-item">Panelim</a>
-                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/orders` : '/seller/orders' %>" class="header-user-menu-item">Siparişler</a>
-                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/earnings` : '/seller/earnings' %>" class="header-user-menu-item">Kazançlar</a>
-                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="header-user-menu-item">📊 Panelim</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/orders` : '/seller/orders' %>" class="header-user-menu-item">📋 Siparişler</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/menu` : '/seller/menu' %>" class="header-user-menu-item">🍲 Menü Yönetimi</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/earnings` : '/seller/earnings' %>" class="header-user-menu-item">💰 Kazançlar</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/profile` : '/seller/profile' %>" class="header-user-menu-item">🏪 Dükkan Profili</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/coupons` : '/seller/coupons' %>" class="header-user-menu-item">🎫 Kuponlar</a>
+                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">🚪 Çıkış Yap</button>
                         </div>
                     </li>
                 <% } else if (user && user.role === 'courier') { %>
@@ -87,10 +89,11 @@
                             <span class="header-user-caret">▾</span>
                         </button>
                         <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
-                            <a href="/courier/<%= courierId %>/profile" class="header-user-menu-item">Profilim</a>
-                            <a href="/courier/<%= courierId %>/available" class="header-user-menu-item">Uygun Görevler</a>
-                            <a href="/courier/<%= courierId %>/history" class="header-user-menu-item">Teslimat Geçmişi</a>
-                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                            <a href="/courier/<%= courierId %>/dashboard" class="header-user-menu-item">📊 Dashboard</a>
+                            <a href="/courier/<%= courierId %>/available" class="header-user-menu-item">🛵 Uygun Siparişler</a>
+                            <a href="/courier/<%= courierId %>/history" class="header-user-menu-item">🕒 Geçmiş Siparişler</a>
+                            <a href="/courier/<%= courierId %>/profile" class="header-user-menu-item">👤 Profilim</a>
+                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">🚪 Çıkış Yap</button>
                         </div>
                     </li>
                 <% } else if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
@@ -114,11 +117,56 @@
                             <span class="header-user-avatar" data-has-initial="<%= userInitial ? '1' : '0' %>"><span class="header-user-avatar-initial"><%= userInitial || '' %></span><span class="header-user-avatar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z"/></svg></span></span>
                             <span class="header-user-caret">▾</span>
                         </button>
-                        <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
-                            <a href="/admin/users" class="header-user-menu-item">Kullanıcılar</a>
-                            <a href="/admin/sellers" class="header-user-menu-item">Satıcı Onayı</a>
-                            <a href="/admin/reports" class="header-user-menu-item">Raporlar</a>
-                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                        <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none; min-width: 260px; padding: 1rem; border-radius: 16px;">
+                            <!-- Profil Başlığı -->
+                            <div style="padding: 0 0.5rem 0.75rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1rem;">
+                                <div style="font-weight: 700; color: var(--text-color); font-size: 1rem;">Yönetici Paneli</div>
+                                <div style="font-size: 0.85rem; color: var(--text-color-light);">Hızlı Erişim Menüsü</div>
+                            </div>
+                            
+                            <div style="max-height: 155px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 1rem; padding-right: 6px;">
+                                <a href="/admin/users" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">👥</span> 
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Kullanıcı Yönetimi</span>
+                                </a>
+                                <a href="/admin/menu-control" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">🍽️</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Menü Kontrol</span>
+                                </a>
+                                
+                                <a href="/admin/sellers" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">🏪</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Satıcı Onayları</span>
+                                </a>
+                                <a href="/admin/couriers" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">🛵</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Kurye Onayları</span>
+                                </a>
+                                
+                                <a href="/admin/all-sellers" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">🛍️</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Tüm Satıcılar</span>
+                                </a>
+                                <a href="/admin/all-couriers" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">📦</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Tüm Kuryeler</span>
+                                </a>
+                                
+                                <a href="/admin/coupons" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">🎟️</span> 
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Kuponlar</span>
+                                </a>
+                                <a href="/admin/reports" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">📊</span> 
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Raporlar</span>
+                                </a>
+                            </div>
+                            
+                            <div style="height: 1px; background: var(--border-color); margin: 0 0.5rem 0.75rem; opacity: 0.6;"></div>
+                            
+                            <button type="button" class="header-user-menu-item danger" id="header-logout-btn" style="width: calc(100% - 1rem); margin: 0 auto; justify-content: center; padding: 10px; font-size: 0.95rem;">
+                                <span style="font-size: 1.1rem; margin-right: 4px;">🚪</span> Çıkış Yap
+                            </button>
                         </div>
                     </li>
                 <% } else { %>
@@ -151,11 +199,11 @@
                                 <span class="header-user-caret">▾</span>
                             </button>
                             <div class="header-user-menu-dropdown" id="header-user-menu-dropdown" style="display:none;">
-                                <a href="/buyer/profile" class="header-user-menu-item">Profilim</a>
-                                <a href="/buyer/favorites" class="header-user-menu-item">Favori Satıcılar</a>
-                                <a href="/buyer/orders" class="header-user-menu-item">Siparişlerim</a>
-                                <a href="/buyer/cart" class="header-user-menu-item">Sepetim</a>
-                                <button type="button" class="header-user-menu-item danger" id="header-logout-btn">Çıkış Yap</button>
+                                <a href="/buyer/profile" class="header-user-menu-item">👤 Profilim</a>
+                                <a href="/buyer/favorites" class="header-user-menu-item">❤️ Favori Satıcılar</a>
+                                <a href="/buyer/orders" class="header-user-menu-item">📋 Siparişlerim</a>
+                                <a href="/buyer/cart" class="header-user-menu-item">🛒 Sepetim</a>
+                                <button type="button" class="header-user-menu-item danger" id="header-logout-btn">🚪 Çıkış Yap</button>
                             </div>
                         </li>
                     <% } else { %>
