@@ -7,8 +7,27 @@
         
         <div class="checkout-details">
             
-            <div class="card checkout-card">
-                <h3 class="checkout-card-title">1. Teslimat Adresi</h3>
+            <div class="card checkout-card" id="delivery-type-card" style="margin-bottom: 1.5rem;">
+                <h3 class="checkout-card-title">1. Teslimat Türü</h3>
+                <div class="role-selector">
+                    <div class="form-check form-check-radio">
+                        <input type="radio" id="delivery-type-delivery" name="deliveryType" value="delivery" checked>
+                        <label for="delivery-type-delivery">
+                            <strong>Adrese Teslim</strong>
+                        </label>
+                    </div>
+                    <div class="form-check form-check-radio">
+                        <input type="radio" id="delivery-type-pickup" name="deliveryType" value="pickup">
+                        <label for="delivery-type-pickup">
+                            <strong>Gel Al</strong>
+                            <span>(Mağazadan teslim alın)</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card checkout-card" id="address-card">
+                <h3 class="checkout-card-title">2. Teslimat Adresi</h3>
                 <div class="role-selector"> 
                     <div class="form-check form-check-radio">
                         <input type="radio" id="address-1" name="address" value="1" checked>
@@ -26,8 +45,8 @@
                 </div>
             </div>
 
-            <div class="card checkout-card">
-                <h3 class="checkout-card-title">2. Ödeme Yöntemi</h3>
+            <div class="card checkout-card" id="payment-method-card">
+                <h3 class="checkout-card-title">3. Ödeme Yöntemi</h3>
                 <div class="role-selector">
                     <div class="form-check form-check-radio">
                         <input type="radio" id="card-1" name="payment-card" value="1" checked>
@@ -127,6 +146,9 @@
                     <div class="summary-row">
                         <span>Teslimat Ücreti</span>
                         <span id="summary-delivery">29.99 TL</span>
+                    </div>
+                    <div id="pickup-discount-message" style="display: none; background: rgba(39, 174, 96, 0.1); border: 1px solid rgba(39, 174, 96, 0.2); color: #27ae60; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; text-align: center; margin-top: 10px; margin-bottom: 15px;">
+                        <i class="fas fa-gift" style="margin-right: 5px;"></i> Gel al ile teslimat ücretsiz!
                     </div>
                     
                     <hr class="divider">

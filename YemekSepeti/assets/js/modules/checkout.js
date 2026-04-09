@@ -443,11 +443,10 @@ function clearCheckoutLocationPreview() {
 }
 
 function renderAddresses(addresses) {
-    const addressContainer = document.querySelector('.checkout-card .role-selector');
+    const addressCard = document.getElementById('address-card');
+    const addressContainer = addressCard ? addressCard.querySelector('.role-selector') : null;
     if (!addressContainer) return;
     
-    const newAddressRadio = addressContainer.querySelector('#address-new');
-    const newAddressLabel = newAddressRadio ? newAddressRadio.closest('.form-check-radio') : null;
     addressContainer.innerHTML = '';
     
     if (addresses.length > 0) {
@@ -457,31 +456,27 @@ function renderAddresses(addresses) {
             addressDiv.innerHTML = `
                 <input type="radio" id="address-${address.id}" name="address" value="${address.id}" ${address.isDefault ? 'checked' : ''}>
                 <label for="address-${address.id}">
-                    <strong>${address.title || 'Adres'}</strong>
-                    <span>(${address.detail || address.fullDetail || ''})</span>
+                    <strong>${escapeHtmlCheckout(address.title || 'Adres')}</strong>
+                    <span>(${escapeHtmlCheckout(address.detail || address.fullDetail || '')})</span>
                 </label>
             `;
             addressContainer.appendChild(addressDiv);
         });
     }
     
-    if (newAddressLabel) {
-        addressContainer.appendChild(newAddressLabel);
-    } else {
-        const newAddressDiv = document.createElement('div');
-        newAddressDiv.className = 'form-check form-check-radio';
-        newAddressDiv.innerHTML = `
-            <input type="radio" id="address-new" name="address" value="new">
-            <label for="address-new">
-                <strong>Yeni Adres Ekle</strong>
-            </label>
-        `;
-        addressContainer.appendChild(newAddressDiv);
-    }
+    const newAddressDiv = document.createElement('div');
+    newAddressDiv.className = 'form-check form-check-radio';
+    newAddressDiv.innerHTML = `
+        <input type="radio" id="address-new" name="address" value="new">
+        <label for="address-new">
+            <strong>Yeni Adres Ekle</strong>
+        </label>
+    `;
+    addressContainer.appendChild(newAddressDiv);
 }
 
 function renderPaymentCards(cards) {
-    const paymentContainer = document.querySelectorAll('.checkout-card .role-selector')[1];
+    const paymentContainer = document.querySelector('#payment-method-card .role-selector');
     if (!paymentContainer) return;
 
     const newCardRadio = paymentContainer.querySelector('#card-new');
@@ -672,7 +667,29 @@ document.addEventListener('DOMContentLoaded', async function(){
         const cards = await loadPaymentCards();
         renderPaymentCards(cards);
         
-        const addressCard = document.querySelector('.checkout-card');
+        // Delivery type listeners
+        const deliveryRadios = document.querySelectorAll('input[name="deliveryType"]');
+        const deliveryCard = document.getElementById('address-card');
+        const summaryDelivery = document.getElementById('summary-delivery');
+        const pickupMessage = document.getElementById('pickup-discount-message');
+        
+        deliveryRadios.forEach(radio => {
+            radio.addEventListener('change', async (e) => {
+                const type = e.target.value;
+                if (type === 'pickup') {
+                    if (deliveryCard) deliveryCard.style.display = 'none';
+                    if (pickupMessage) pickupMessage.style.display = 'block';
+                    window.forcePickupDeliveryFee = true;
+                } else {
+                    if (deliveryCard) deliveryCard.style.display = 'block';
+                    if (pickupMessage) pickupMessage.style.display = 'none';
+                    window.forcePickupDeliveryFee = false;
+                }
+                await cizOdemeSayfasi();
+            });
+        });
+        
+        const addressCard = document.getElementById('address-card');
         if (addressCard && !document.getElementById('new-address-form-checkout')) {
             addressCard.insertAdjacentHTML('afterend', NEW_ADDRESS_FORM_CHECKOUT);
             
@@ -840,11 +857,12 @@ document.addEventListener('DOMContentLoaded', async function(){
                                 return;
                         }
                         
+                        var isPickup = document.querySelector('input[name="deliveryType"]:checked')?.value === 'pickup';
                         var adresRadio = document.querySelector('input[name="address"]:checked');
                         var kartRadio = document.querySelector('input[name="payment-card"]:checked');
                         var sozlesmeOnayli = document.getElementById('terms').checked;
 
-                        if (!adresRadio)
+                        if (!isPickup && !adresRadio)
                         {
                                 alert("Lütfen bir adres seçin.");
                                 return;
@@ -860,12 +878,12 @@ document.addEventListener('DOMContentLoaded', async function(){
                                 return;
                         }
 
-                        var adresSecili = adresRadio.value;
+                        var adresSecili = adresRadio ? adresRadio.value : null;
                         var kartSecili = kartRadio.value;
                         
     	 	 	        var addressId = null;
 
-            	 	 	if (adresSecili === 'new')
+            	 	 	if (!isPickup && adresSecili === 'new')
                                 {
     	 	 	 	        const newAddressForm = document.getElementById('new-address-form-checkout');
     	 	 	 	        if (newAddressForm) {
@@ -874,7 +892,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	        }
     	 	 	 	        return;
     	 	 	        }
-                                else
+                                else if (!isPickup)
                                 {
                                         addressId = parseInt(adresSecili);
                                         if (!addressId) {
@@ -972,8 +990,8 @@ document.addEventListener('DOMContentLoaded', async function(){
             	 	 	if (typeof window.createOrder === 'function')
                                         {
             	 	 	    try {
-            	 	 	        console.log('📦 Sipariş oluşturuluyor...', { cart: cartForAPI, addressId, paymentMethod });
-            	 	 	        const sonuc = await window.createOrder(cartForAPI, addressId, paymentMethod, iyzicoCardPayload);
+            	 	 	        console.log('📦 Sipariş oluşturuluyor...', { cart: cartForAPI, addressId, paymentMethod, deliveryType: document.querySelector('input[name="deliveryType"]:checked').value });
+            	 	 	        const sonuc = await window.createOrder(cartForAPI, addressId, paymentMethod, iyzicoCardPayload, document.querySelector('input[name="deliveryType"]:checked').value);
             	 	 	        console.log('📦 Sipariş sonucu:', sonuc);
             	 	 	        
             	 	 	        if (!sonuc || !sonuc.success) {

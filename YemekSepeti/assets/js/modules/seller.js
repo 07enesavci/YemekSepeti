@@ -445,9 +445,15 @@ function createOrderCardHTML(order) {
             <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}">Kuryeye Hazır Olduğunu Bildir</button>
         `;
     } else if (order.status === 'ready' && !order.courierId) {
-        actionButtons = `
-            <button class="btn btn-primary assign-courier-btn" data-order-id="${order.id}">Kuryeye Bildir</button>
-        `;
+        if (order.deliveryType === 'pickup') {
+            actionButtons = `
+                <button class="btn btn-success custom-delivered-btn" style="background-color: #27AE60; border-color: #27AE60;" data-order-id="${order.id}">Teslim Edildi</button>
+            `;
+        } else {
+            actionButtons = `
+                <button class="btn btn-primary assign-courier-btn" data-order-id="${order.id}">Kuryeye Bildir</button>
+            `;
+        }
     }
     
     return `
@@ -625,6 +631,19 @@ function attachOrderEventListeners() {
                 showSellerActionNotification('error', 'Kurye Atama Hatası', error.message || 'Kurye atanamadı.');
                 button.disabled = false;
                 button.textContent = 'Kuryeye Bildir';
+            }
+        });
+    });
+
+    document.querySelectorAll('.custom-delivered-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            try {
+                await updateOrderStatus(orderId, 'delivered');
+                showSellerActionNotification('success', 'Sipariş Teslim Edildi', '#' + orderId + ' müşteriye teslim edildi.');
+                await loadOrdersForTab('preparing');
+            } catch (error) {
+                showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
         });
     });

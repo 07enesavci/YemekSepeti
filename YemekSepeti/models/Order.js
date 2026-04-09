@@ -24,7 +24,11 @@ module.exports=(sequelize, DataTypes)=>{
         },
         address_id: {
             type: DataTypes.INTEGER,
-            allowNull: false
+            allowNull: true
+        },
+        delivery_type: {
+            type: DataTypes.ENUM('delivery', 'pickup'),
+            defaultValue: 'delivery'
         },
         payment_method: {
             type: DataTypes.ENUM('credit_card', 'cash', 'wallet', 'iyzico'),

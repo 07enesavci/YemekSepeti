@@ -39,6 +39,28 @@ async function forgotPassword(email) {
  * Sayfa Etkileşimleri
  */
 document.addEventListener("DOMContentLoaded", function () {
+    const queryParams = new URLSearchParams(window.location.search);
+    const googleErrorCode = queryParams.get("googleError");
+    if (googleErrorCode) {
+        const googleErrorMessages = {
+            not_configured: "Google ile giriş şu anda aktif değil. Lütfen daha sonra tekrar deneyin.",
+            access_denied: "Google giriş izni verilmedi.",
+            invalid_state: "Google giriş doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
+            token_exchange_failed: "Google doğrulama adımı tamamlanamadı.",
+            token_missing: "Google oturum bilgisi alınamadı.",
+            profile_fetch_failed: "Google profil bilgileri alınamadı.",
+            email_missing: "Google hesabınızdan e-posta bilgisi alınamadı.",
+            account_not_found: "Bu Google hesabı ile eşleşen bir kullanıcı bulunamadı. Lütfen kayıt olun.",
+            inactive_account: "Hesabınız pasif durumda. Destek ile iletişime geçin.",
+            oauth_failed: "Google ile giriş sırasında bir hata oluştu."
+        };
+
+        alert(googleErrorMessages[googleErrorCode] || "Google ile işlem sırasında bir hata oluştu.");
+        queryParams.delete("googleError");
+        const updatedQuery = queryParams.toString();
+        const cleanUrl = `${window.location.pathname}${updatedQuery ? `?${updatedQuery}` : ""}${window.location.hash || ""}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
     
     // --- GİRİŞ FORMU ---
     const loginForm = document.getElementById("login-form");

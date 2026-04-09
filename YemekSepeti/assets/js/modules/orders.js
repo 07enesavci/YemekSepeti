@@ -36,9 +36,13 @@ async function showOrderDetail(orderId) {
                     <div class="order-detail-section order-status-timeline">
                         <h3>Sipariş Durumu</h3>
                         <div class="timeline-steps">
-                            ${['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered'].map((st, i) => {
-                                const labels = { pending: 'Alındı', confirmed: 'Onaylandı', preparing: 'Hazırlanıyor', ready: 'Hazır', on_delivery: 'Yolda', delivered: 'Teslim Edildi' };
-                                const done = orderDetail.status === 'cancelled' ? (st === 'pending') : (['pending','confirmed','preparing','ready','on_delivery','delivered'].indexOf(orderDetail.status) >= i);
+                            ${(orderDetail.deliveryType === 'pickup' 
+                                ? ['pending', 'confirmed', 'preparing', 'ready', 'delivered'] 
+                                : ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered']
+                            ).map((st, i) => {
+                                const labels = { pending: 'Alındı', confirmed: 'Onaylandı', preparing: 'Hazırlanıyor', ready: 'Hazır', on_delivery: 'Yolda', delivered: orderDetail.deliveryType === 'pickup' ? 'Teslim Alındı' : 'Teslim Edildi' };
+                                const orderFlow = orderDetail.deliveryType === 'pickup' ? ['pending', 'confirmed', 'preparing', 'ready', 'delivered'] : ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered'];
+                                const done = orderDetail.status === 'cancelled' ? (st === 'pending') : (orderFlow.indexOf(orderDetail.status) >= i);
                                 const current = orderDetail.status === st;
                                 return `<div class="timeline-step ${done ? 'done' : ''} ${current ? 'current' : ''}"><span class="timeline-dot"></span><span class="timeline-label">${labels[st] || st}</span></div>`;
                             }).join('')}

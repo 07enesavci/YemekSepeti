@@ -596,7 +596,12 @@ window.getSepetTotals = async function(){
    	}
    	
    	// Yuvarlama
-   	teslimatUcreti = Math.round(teslimatUcreti * 100) / 100;
+   	if (window.forcePickupDeliveryFee) {
+        teslimatUcreti = 0.00;
+   	} else {
+   	    teslimatUcreti = Math.round(teslimatUcreti * 100) / 100;
+   	}
+
    	
    	var kuponIndirimi = 0;
     var validCoupon = getValidAppliedCouponForCurrentCart();

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
@@ -60,6 +61,78 @@ async function comparePassword(password, hashedPassword) {
     return await bcrypt.compare(password, hashedPassword);
 }
 
+function getBaseUrl(req) {
+    const configuredBaseUrl = (process.env.BASE_URL || '').trim();
+    if (configuredBaseUrl) return configuredBaseUrl.replace(/\/+$/, '');
+    return `${req.protocol}://${req.get('host')}`;
+}
+
+function getGoogleOAuthConfig(req) {
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+    const fallbackRedirect = `${getBaseUrl(req)}/api/auth/google/callback`;
+    const redirectUri = (process.env.GOOGLE_REDIRECT_URI || fallbackRedirect).trim();
+
+    return {
+        clientId,
+        clientSecret,
+        redirectUri,
+        configured: !!(clientId && clientSecret)
+    };
+}
+
+function parseGoogleOAuthState(state) {
+    try {
+        const decoded = Buffer.from(String(state), 'base64').toString('utf8');
+        const parsed = JSON.parse(decoded);
+        if (!parsed || typeof parsed !== 'object') return null;
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
+function clearGoogleOAuthSession(req) {
+    if (req.session) {
+        delete req.session.googleOAuth;
+    }
+}
+
+function getPostLoginRedirect(userData) {
+    if (!userData) return '/';
+    if (userData.role === 'admin' || userData.role === 'super_admin' || userData.role === 'support') return '/admin/users';
+    if (userData.role === 'seller') return '/seller/dashboard';
+    if (userData.role === 'courier') {
+        const courierId = userData.courierId || userData.id;
+        return `/courier/${courierId}/dashboard`;
+    }
+    return '/';
+}
+
+async function buildSessionUserData(user) {
+    const userData = { id: user.id, email: user.email, fullname: user.fullname, role: user.role };
+
+    if (user.role === 'seller') {
+        const seller = await Seller.findOne({ where: { user_id: user.id } });
+        if (seller) {
+            userData.sellerId = seller.id;
+            userData.sellerApproved = !!seller.is_active;
+        } else {
+            userData.sellerApproved = false;
+        }
+    } else if (user.role === 'courier') {
+        const courier = await Courier.findOne({ where: { user_id: user.id } });
+        if (courier) {
+            userData.courierId = courier.id;
+            userData.courierApproved = !!courier.is_active;
+        } else {
+            userData.courierApproved = false;
+        }
+    }
+
+    return userData;
+}
+
 function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -116,24 +189,7 @@ router.post("/login", authLimiter, [
             return res.status(403).json({ success: false, message: "Hesabınız pasif veya silinmiş görünüyor." });
         }
         const token = generateToken(user);
-        const userData = { id: user.id, email: user.email, fullname: user.fullname, role: user.role };
-        if (user.role === 'seller') {
-            const seller = await Seller.findOne({ where: { user_id: user.id } });
-            if (seller) {
-                userData.sellerId = seller.id;
-                userData.sellerApproved = !!seller.is_active;
-            } else {
-                userData.sellerApproved = false;
-            }
-        } else if (user.role === 'courier') {
-            const courier = await Courier.findOne({ where: { user_id: user.id } });
-            if (courier) {
-                userData.courierId = courier.id;
-                userData.courierApproved = !!courier.is_active;
-            } else {
-                userData.courierApproved = false;
-            }
-        }
+        const userData = await buildSessionUserData(user);
         req.session.user = userData;
         req.session.isAuthenticated = true;
         if (req.body.remember_me) {
@@ -142,6 +198,156 @@ router.post("/login", authLimiter, [
         res.json({ success: true, user: userData, token });
     } catch (error) {
         res.status(500).json({ success: false, message: "Giriş hatası." });
+    }
+});
+
+function startGoogleOAuth(req, res, intent) {
+    const safeIntent = intent === 'register' ? 'register' : 'login';
+    const oauthConfig = getGoogleOAuthConfig(req);
+
+    if (!oauthConfig.configured) {
+        return res.redirect(`/auth/google-coming-soon?intent=${safeIntent}`);
+    }
+
+    const csrfToken = crypto.randomBytes(24).toString('hex');
+    const statePayload = Buffer.from(JSON.stringify({ csrf: csrfToken, intent: safeIntent }), 'utf8').toString('base64');
+
+    req.session.googleOAuth = {
+        state: csrfToken,
+        intent: safeIntent,
+        createdAt: Date.now()
+    };
+
+    const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    googleAuthUrl.searchParams.set('client_id', oauthConfig.clientId);
+    googleAuthUrl.searchParams.set('redirect_uri', oauthConfig.redirectUri);
+    googleAuthUrl.searchParams.set('response_type', 'code');
+    googleAuthUrl.searchParams.set('scope', 'openid email profile');
+    googleAuthUrl.searchParams.set('state', statePayload);
+    googleAuthUrl.searchParams.set('prompt', 'select_account');
+    googleAuthUrl.searchParams.set('access_type', 'offline');
+
+    return res.redirect(googleAuthUrl.toString());
+}
+
+router.get('/google/login', (req, res) => startGoogleOAuth(req, res, 'login'));
+router.get('/google/register', (req, res) => startGoogleOAuth(req, res, 'register'));
+
+router.get('/google/callback', async (req, res) => {
+    const fallbackIntent = req.session?.googleOAuth?.intent === 'register' ? 'register' : 'login';
+    const fallbackPage = fallbackIntent === 'register' ? '/register' : '/login';
+    const fallbackWithError = (errorCode) => `${fallbackPage}?googleError=${encodeURIComponent(errorCode)}`;
+
+    try {
+        const { code, state, error } = req.query;
+        if (error) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(fallbackWithError('access_denied'));
+        }
+
+        if (!code || !state || !req.session?.googleOAuth) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(fallbackWithError('invalid_state'));
+        }
+
+        const parsedState = parseGoogleOAuthState(state);
+        const sessionState = req.session.googleOAuth;
+        const isStateValid = parsedState && parsedState.csrf && parsedState.csrf === sessionState.state;
+
+        if (!isStateValid) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(fallbackWithError('invalid_state'));
+        }
+
+        const intent = parsedState.intent === 'register' ? 'register' : 'login';
+        const oauthConfig = getGoogleOAuthConfig(req);
+        const redirectWithIntentError = (errorCode) => `/${intent}?googleError=${encodeURIComponent(errorCode)}`;
+
+        if (!oauthConfig.configured) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(`/auth/google-coming-soon?intent=${intent}`);
+        }
+
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                code: String(code),
+                client_id: oauthConfig.clientId,
+                client_secret: oauthConfig.clientSecret,
+                redirect_uri: oauthConfig.redirectUri,
+                grant_type: 'authorization_code'
+            })
+        });
+
+        if (!tokenResponse.ok) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(redirectWithIntentError('token_exchange_failed'));
+        }
+
+        const tokenData = await tokenResponse.json();
+        if (!tokenData.access_token) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(redirectWithIntentError('token_missing'));
+        }
+
+        const profileResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: {
+                Authorization: `Bearer ${tokenData.access_token}`
+            }
+        });
+
+        if (!profileResponse.ok) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(redirectWithIntentError('profile_fetch_failed'));
+        }
+
+        const profileData = await profileResponse.json();
+        const email = String(profileData.email || '').trim().toLowerCase();
+        if (!email) {
+            clearGoogleOAuthSession(req);
+            return res.redirect(redirectWithIntentError('email_missing'));
+        }
+
+        let user = await User.findOne({ where: { email } });
+
+        if (!user && intent === 'login') {
+            clearGoogleOAuthSession(req);
+            return res.redirect('/register?googleError=account_not_found');
+        }
+
+        if (!user) {
+            const generatedPassword = crypto.randomBytes(32).toString('hex');
+            const fallbackName = email.split('@')[0] || 'Google Kullanıcısı';
+            const fullname = String(profileData.name || fallbackName).trim().slice(0, 255) || 'Google Kullanıcısı';
+
+            user = await User.create({
+                email,
+                password: await hashPassword(generatedPassword),
+                fullname,
+                role: 'buyer',
+                email_verified: true
+            });
+        } else if (user.email_verified !== true) {
+            await user.update({ email_verified: true });
+        }
+
+        if (user.is_active === false) {
+            clearGoogleOAuthSession(req);
+            return res.redirect('/login?googleError=inactive_account');
+        }
+
+        const userData = await buildSessionUserData(user);
+        req.session.user = userData;
+        req.session.isAuthenticated = true;
+
+        clearGoogleOAuthSession(req);
+        return res.redirect(getPostLoginRedirect(userData));
+    } catch (error) {
+        clearGoogleOAuthSession(req);
+        return res.redirect(fallbackWithError('oauth_failed'));
     }
 });
 

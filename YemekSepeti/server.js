@@ -447,6 +447,26 @@ try {
         try { res.render("common/register", { title: "Kayıt Ol", pageCss: "auth.css", pageJs: "auth.js" }); } 
         catch (error) { renderError(res, error, "Register"); }
     });
+
+    app.get("/auth/google-coming-soon", (req, res) => {
+        try {
+            const intent = req.query.intent === 'register' ? 'register' : 'login';
+            const statusTitle = intent === 'register' ? 'Google ile Kayıt Yakında' : 'Google ile Giriş Yakında';
+            const backUrl = intent === 'register' ? '/register' : '/login';
+            const backButtonText = intent === 'register' ? 'Kayıt Ekranına Dön' : 'Giriş Ekranına Dön';
+
+            res.render("common/google-auth-coming-soon", {
+                title: statusTitle,
+                pageCss: "auth.css",
+                statusTitle,
+                backUrl,
+                backButtonText
+            });
+        } catch (error) {
+            renderError(res, error, "Google Auth Bilgi");
+        }
+    });
+
     app.get("/register/documents", requireRole(['seller', 'courier']), async (req, res) => {
         try {
             const user = req.session && req.session.user;

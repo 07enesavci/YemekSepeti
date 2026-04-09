@@ -129,6 +129,118 @@
     font-size: 1.1rem;
 }
 
+.auth-divider {
+    position: relative;
+    text-align: center;
+    margin: 1.15rem 0 1rem;
+}
+
+.auth-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.auth-divider span {
+    position: relative;
+    z-index: 1;
+    display: inline-block;
+    padding: 0 0.75rem;
+    color: var(--text-color-light);
+    background: var(--card-bg);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.btn-google {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    margin-top: 0;
+    border: 1.5px solid var(--border-color) !important;
+    background: #fff !important;
+    color: #1f2937 !important;
+    box-shadow: var(--shadow-md);
+    font-family: var(--font-family-heading);
+    font-size: 0.95rem;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+}
+
+.btn-google:hover {
+    background: #fff5f5 !important;
+    border-color: rgba(220, 38, 38, 0.28) !important;
+    color: #111827 !important;
+}
+
+.btn-google::before,
+.btn-google::after {
+    display: none !important;
+}
+
+.google-icon {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.google-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+:root[data-theme="dark"] .btn-google {
+    background: rgba(15, 23, 42, 0.92) !important;
+    border-color: rgba(148, 163, 184, 0.32) !important;
+    color: #e2e8f0 !important;
+}
+
+:root[data-theme="dark"] .btn-google:hover {
+    background: rgba(30, 41, 59, 0.95) !important;
+}
+
+:root[data-theme="dark"] .auth-divider span {
+    background: rgba(15, 23, 42, 0.92);
+}
+
+.google-status-panel {
+    margin: 0 0 1.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px dashed rgba(220, 38, 38, 0.35);
+    border-radius: var(--border-radius-small);
+    background: linear-gradient(135deg, rgba(254, 242, 242, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+
+.google-status-title {
+    margin: 0 0 0.45rem;
+    font-family: var(--font-family-heading);
+    font-size: 0.95rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--primary-color-dark);
+}
+
+.google-status-text {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--text-color-light);
+    line-height: 1.55;
+}
+
+:root[data-theme="dark"] .google-status-panel {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(239, 68, 68, 0.45);
+}
+
 /* RESPONSIVE DESIGN */
 @media (max-width: 768px) {
     .auth-page {

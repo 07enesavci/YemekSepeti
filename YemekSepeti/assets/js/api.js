@@ -375,11 +375,11 @@ async function getSellerMenu(sellerId)
 }
 
 // Order functions
-async function createOrder(cart, address, paymentMethod = 'credit_card', paymentPayload = null) 
+async function createOrder(cart, address, paymentMethod = 'credit_card', paymentPayload = null, deliveryType = 'delivery') 
 {
     try 
     {
-        console.log('createOrder çağrıldı:', { cart, address, paymentMethod });
+        console.log('createOrder çağrıldı:', { cart, address, paymentMethod, deliveryType });
         
         if (!cart || !Array.isArray(cart) || cart.length === 0) 
         {
@@ -387,7 +387,7 @@ async function createOrder(cart, address, paymentMethod = 'credit_card', payment
             return { success: false, message: "Sepet boş." };
         }
 
-        if (!address) 
+        if (!address && deliveryType !== 'pickup') 
         {
             console.error('Adres seçilmemiş');
             return { success: false, message: "Lütfen bir adres seçin." };
@@ -402,7 +402,7 @@ async function createOrder(cart, address, paymentMethod = 'credit_card', payment
         console.log('API_BASE_URL:', API_BASE_URL);
         
         // Kupon bilgisini ekle
-        const orderData = { cart, address, paymentMethod };
+        const orderData = { cart, address, paymentMethod, deliveryType };
         if (paymentPayload && typeof paymentPayload === 'object') {
             orderData.iyzicoCard = paymentPayload.iyzicoCard || undefined;
         }

@@ -96,7 +96,9 @@ function isDeadlockError(err) {
 
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
-        const { cart, address, paymentMethod, couponCode, iyzicoCard } = req.body;
+        const { cart, address, paymentMethod, couponCode, iyzicoCard, deliveryType } = req.body;
+    const finalDeliveryType = (deliveryType === 'pickup') ? 'pickup' : 'delivery';
+
         
         const userId = req.session.user.id;
 
@@ -107,7 +109,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
         }
 
-        if (!address) {
+        if (!address && finalDeliveryType !== 'pickup') {
             return res.status(400).json({ 
                 success: false, 
                 message: "Adres bilgisi gereklidir." 
@@ -143,38 +145,42 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
 
             let addressId = typeof address === 'number' ? address : (typeof address === 'string' ? parseInt(address) : null);
-            if (addressId) {
-                const addressCheck = await Address.findOne({
-                    where: { id: addressId, user_id: userId },
-                    attributes: ['id']
-                });
-                if (!addressCheck) {
-                    addressId = null;
+            if (finalDeliveryType === 'pickup') {
+                addressId = null;
+            } else {
+                if (addressId) {
+                    const addressCheck = await Address.findOne({
+                        where: { id: addressId, user_id: userId },
+                        attributes: ['id']
+                    });
+                    if (!addressCheck) {
+                        addressId = null;
+                    }
                 }
-            }
-            if (!addressId) {
-                const defaultAddress = await Address.findOne({
-                    where: { user_id: userId, is_default: true },
-                    attributes: ['id']
-                });
-                
-                if (defaultAddress) {
-                    addressId = defaultAddress.id;
-                } else {
-                    const userInfo = await User.findByPk(userId, {
-                        attributes: ['fullname', 'phone']
+                if (!addressId) {
+                    const defaultAddress = await Address.findOne({
+                        where: { user_id: userId, is_default: true },
+                        attributes: ['id']
                     });
                     
-                    const newAddress = await Address.create({
-                        user_id: userId,
-                        title: 'Ev Adresi',
-                        full_address: 'Adres bilgisi girilmemiş, lütfen profil sayfanızdan güncelleyin',
-                        district: 'İstanbul',
-                        city: 'İstanbul',
-                        is_default: true
-                    });
-                    
-                    addressId = newAddress.id;
+                    if (defaultAddress) {
+                        addressId = defaultAddress.id;
+                    } else {
+                        const userInfo = await User.findByPk(userId, {
+                            attributes: ['fullname', 'phone']
+                        });
+                        
+                        const newAddress = await Address.create({
+                            user_id: userId,
+                            title: 'Ev Adresi',
+                            full_address: 'Adres bilgisi girilmemiş, lütfen profil sayfanızdan güncelleyin',
+                            district: 'İstanbul',
+                            city: 'İstanbul',
+                            is_default: true
+                        });
+                        
+                        addressId = newAddress.id;
+                    }
                 }
             }
             const mealIds = cart
@@ -246,7 +252,11 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 subtotal += mealPrice * quantity;
             }
             subtotal = Math.round(subtotal * 100) / 100;
-            deliveryFee = Math.round(deliveryFee * 100) / 100;
+            if (finalDeliveryType === 'pickup') {
+                deliveryFee = 0;
+            } else {
+                deliveryFee = Math.round(deliveryFee * 100) / 100;
+            }
             const totalAmount = Math.round((subtotal + deliveryFee) * 100) / 100;
             
             // Kupon validasyonu ve uygulaması
@@ -514,6 +524,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         user_id: userId,
                         seller_id: sellerId,
                         address_id: addressId,
+                        delivery_type: finalDeliveryType,
                         payment_method: paymentMethod || 'credit_card',
                         subtotal: subtotal.toFixed(2),
                         delivery_fee: deliveryFee.toFixed(2),
@@ -943,21 +954,24 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
             ],
             order: [['created_at', 'DESC']]
         });
-        const formattedOrders = ordersRaw.map(order => {
+            const formattedOrders = ordersRaw.map(order => {
             const fullname = order.buyer?.fullname || 'Müşteri';
             const customerName = `${(fullname.charAt(0) || '')}*** ${(fullname.charAt(fullname.length - 1) || '')}`;
-            const deliveryAddress = order.address ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || order.address.full_address : `Adres ID: ${order.address_id}`;
+            const deliveryTypeDisplay = order.delivery_type === 'pickup' ? '<span class="badge badge-warning" style="background:#f39c12;color:white;padding:2px 6px;border-radius:4px;font-size:0.8rem;">Gel Al</span>' : '';
+            const deliveryAddress = order.delivery_type === 'pickup' ? 'Gel Al (Mağazadan Teslim)' : (order.address ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || order.address.full_address : `Adres ID: ${order.address_id}`);
+            const customerNameWithBadge = deliveryTypeDisplay ? `${customerName} ${deliveryTypeDisplay}` : customerName;
             const itemsStr = (order.items || []).map(i => `${i.quantity} x ${i.meal_name}`).join(', ') || 'Belirtilmemiş';
 
             return {
                 id: order.id,
                 orderNumber: order.order_number,
                 status: order.status,
+                deliveryType: order.delivery_type,
                 statusText: getStatusText(order.status),
                 courierId: order.courier_id || null,
                 courierName: order.courier?.fullname || null,
                 date: new Date(order.created_at).toLocaleString('tr-TR'),
-                customer: customerName,
+                customer: customerNameWithBadge,
                 address: deliveryAddress,
                 items: itemsStr,
                 total: parseFloat(order.total_amount) || 0,
@@ -994,7 +1008,7 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                 message: "Durum belirtilmedi."
             });
         }
-        const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'cancelled'];
+        const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -1070,10 +1084,14 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                 }
             }
         }
-        await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
-        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number', 'courier_id'] });
+        const updateData = { status };
+        if (status === 'delivered') {
+            updateData.delivered_at = new Date();
+        }
+        await Order.update(updateData, { where: { id: orderId, seller_id: shopId } });
+        const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number', 'courier_id', 'delivery_type'] });
         
-        if (status === 'ready' && updatedOrder && updatedOrder.courier_id === null && global.io) {
+        if (status === 'ready' && updatedOrder && updatedOrder.courier_id === null && updatedOrder.delivery_type !== 'pickup' && global.io) {
             global.io.emit('order_pool_added', { orderId: orderId });
         }
         const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
@@ -1305,6 +1323,7 @@ router.get("/:id", requireAuth, async (req, res) => {
                     o.delivery_fee,
                     o.discount_amount,
                     o.payment_method,
+                    o.delivery_type,
                     o.address_id,
                     o.user_id,
                     o.seller_id,
@@ -1386,6 +1405,7 @@ router.get("/:id", requireAuth, async (req, res) => {
                 subtotal: parseFloat(order.subtotal) || 0,
                 deliveryFee: parseFloat(order.delivery_fee) || 0,
                 discount: parseFloat(order.discount_amount) || 0,
+                deliveryType: order.delivery_type || 'delivery',
                 paymentMethod: order.payment_method || 'credit_card',
                 seller: {
                     id: order.seller_id,
