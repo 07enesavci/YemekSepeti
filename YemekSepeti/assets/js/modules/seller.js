@@ -976,6 +976,8 @@ async function loadProfilePage() {
         
         if (radiusSlider) {
             radiusSlider.value = profile.deliveryRadiusKm || 0;
+            const pickupCb = document.getElementById('pickup-enabled');
+            if (pickupCb) pickupCb.checked = profile.pickupEnabled !== false;
             updateRadiusUI(radiusSlider.value);
             radiusSlider.addEventListener('input', function() {
                 updateRadiusUI(this.value);
@@ -1044,6 +1046,7 @@ async function loadProfilePage() {
                     finalBannerUrl = bannerUrlInput && bannerUrlInput.value.trim() !== '' ? bannerUrlInput.value.trim() : null;
                 }
                 
+                const pickupCb = document.getElementById('pickup-enabled');
                 const profileData = {
                     fullname: fullnameInput?.value || '',
                     email: emailInput?.value || '',
@@ -1051,7 +1054,8 @@ async function loadProfilePage() {
                     description: descriptionInput?.value || '',
                     location: locationInput?.value || '',
                     workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined,
-                    deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined
+                    deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined,
+                    pickupEnabled: pickupCb ? pickupCb.checked : true
                 };
                 
                 if (finalLogoUrl !== undefined) profileData.logoUrl = finalLogoUrl;

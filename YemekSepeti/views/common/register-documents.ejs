@@ -6,6 +6,9 @@
                     <div class="documents-page-icon" aria-hidden="true">📄</div>
                     <h1 class="card-title text-center">Belgeleri Yükleyin</h1>
                     <p class="text-center auth-subtext">Hesap türünüze göre aşağıdaki belgeleri yükleyin. Tüm alanlar zorunludur.</p>
+                    <% if (typeof isPartnerDomain !== 'undefined' && isPartnerDomain) { %>
+                    <p class="text-center auth-subtext" style="font-size: 0.92rem;">Partner başvurunuz tamamlanana kadar bu adımı bitirmeniz gerekir. Belgeler incelendikten sonra panele erişebilirsiniz.</p>
+                    <% } %>
                     <p class="documents-hint">Her dosya en fazla 5 MB • Resim veya PDF</p>
                 </div>
 

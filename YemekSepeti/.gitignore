@@ -26,3 +26,6 @@ Thumbs.db
 dist/
 build/
 
+# Canlı paket çıktısı (npm run deploy:bundle)
+canli-dagitim/YemekSepeti/PAKET-TAM-UYGULAMA/
+

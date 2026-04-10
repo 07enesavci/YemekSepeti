@@ -8,6 +8,16 @@ var userLocation = { lat: null, lng: null };
 
 // Geolocation ile konum al ve localStorage'a kaydet
 function initUserGeolocation() {
+    try {
+        var deliveryAreaRaw = localStorage.getItem('ys_delivery_area');
+        if (deliveryAreaRaw) {
+            var delivery = JSON.parse(deliveryAreaRaw);
+            if (delivery && delivery.lat && delivery.lng) {
+                userLocation.lat = Number(delivery.lat);
+                userLocation.lng = Number(delivery.lng);
+            }
+        }
+    } catch (e) {}
     // Önce localStorage'dan kontrol et
     try {
         var saved = localStorage.getItem('ys-user-location');
@@ -35,8 +45,8 @@ function initUserGeolocation() {
                     loadRestaurants(false);
                 }
             },
-            function(error) {
-                console.log('Konum izni reddedildi veya alınamadı:', error.message);
+            function() {
+                /* İzin yoksa elle adres akışı kullanılır; konsolu kirletme. */
             },
             { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
         );
@@ -61,7 +71,7 @@ async function loadRestaurants(append) {
         if (userLocation.lat && userLocation.lng) {
             apiUrl += '&userLat=' + userLocation.lat + '&userLng=' + userLocation.lng;
         }
-        const response = await fetch(apiUrl);
+        const response = await fetch(apiUrl, { credentials: 'same-origin' });
         if (!response.ok) {
             let msg = 'Restoranlar yüklenemedi (HTTP ' + response.status + ').';
             try {
@@ -686,7 +696,7 @@ async function loadHeroSlider() {
 
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const response = await fetch(`${baseUrl}/api/sellers`);
+        const response = await fetch(`${baseUrl}/api/sellers`, { credentials: 'same-origin' });
         
         if (!response.ok) {
             throw new Error('Restoranlar yüklenemedi');
@@ -767,6 +777,10 @@ async function loadHeroSlider() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const host = String(window.location.hostname || '').toLowerCase();
+    if (host === 'partner.localhost' || host === 'admin.localhost') {
+        return;
+    }
     // Kullanıcı konumunu başlat
     initUserGeolocation();
     
@@ -777,6 +791,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         initFilters();
     }
+    document.addEventListener('ys-delivery-area-updated', function (e) {
+        if (!e || !e.detail) return;
+        const d = e.detail;
+        if (d.lat != null && d.lng != null && !Number.isNaN(Number(d.lat)) && !Number.isNaN(Number(d.lng))) {
+            userLocation.lat = Number(d.lat);
+            userLocation.lng = Number(d.lng);
+        }
+        loadRestaurants(false);
+    });
     
     handleHeroSearch();
     

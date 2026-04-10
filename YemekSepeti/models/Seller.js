@@ -95,6 +95,12 @@ module.exports = (sequelize, DataTypes) => {
         is_open: {
             type: DataTypes.BOOLEAN,
             defaultValue: true
+        },
+        /** Gel Al (mağazadan teslim) — checkout ve sipariş doğrulamasında kullanılır */
+        pickup_enabled: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: true,
+            allowNull: false
         }
     }, {
         tableName: 'sellers',

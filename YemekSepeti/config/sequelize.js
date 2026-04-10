@@ -59,17 +59,125 @@ async function ensureOrderPaymentMethodEnum() {
 }
 
 /**
- * meals.is_approved sütununun NOT NULL olduğunu garanti eder.
- * sync({ alter:true }) her restart'ta NULL↔NOT NULL farkını tespit edip sütunu yeniden
- * oluşturabilir ve onaylanan değerleri sıfırlayabilir. Bu fonksiyon bunu önler.
+ * meals.is_approved sütununun varlığını ve NOT NULL + DEFAULT 0 olmasını garanti eder.
+ * Önce ADD (sütun yoksa); MODIFY yalnızca mevcut sütun için anlamlıdır — eski kodda
+ * sadece MODIFY kullanıldığı için sütun hiç yokken hata yutuluyor ve public menü 500 veriyordu.
  */
 async function ensureMealIsApprovedColumn() {
+    let added = false;
+    try {
+        await sequelize.query(
+            `ALTER TABLE meals ADD COLUMN is_approved TINYINT(1) NOT NULL DEFAULT 0`
+        );
+        added = true;
+    } catch (e) {
+        const msg = String(e.message || '');
+        const errno = e.parent && e.parent.errno;
+        const dup = msg.includes('Duplicate column') || errno === 1060;
+        if (!dup) {
+            // Tablo yok vb. — MODIFY da muhtemelen başarısız olur
+        }
+    }
+    if (added) {
+        try {
+            // Sütun yeni eklendiyse: daha önce eklenmiş satırlar alıcı menüsünde görünsün
+            await sequelize.query(`UPDATE meals SET is_approved = 1`);
+        } catch (_) {}
+    }
     try {
         await sequelize.query(
             `ALTER TABLE meals MODIFY COLUMN is_approved TINYINT(1) NOT NULL DEFAULT 0`
         );
-    } catch (e) {
-        // Tablo yoksa veya sütun zaten doğruysa sessiz geç
+    } catch (_) {}
+}
+
+async function ensurePaymentCardsEncryptionColumns() {
+    try {
+        await sequelize.query(`ALTER TABLE payment_cards ADD COLUMN card_number_encrypted TEXT NULL`);
+    } catch (_) {}
+    try {
+        await sequelize.query(`ALTER TABLE payment_cards ADD COLUMN card_cvc_encrypted TEXT NULL`);
+    } catch (_) {}
+}
+
+/**
+ * sellers.is_open (mağaza açık/kapalı) — modelde var; eski DB'lerde sütun yoksa admin all-sellers 500 veriyordu.
+ */
+async function ensureSellerIsOpenColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE sellers ADD COLUMN is_open TINYINT(1) NOT NULL DEFAULT 1`
+        );
+    } catch (_) {}
+    try {
+        await sequelize.query(
+            `ALTER TABLE sellers MODIFY COLUMN is_open TINYINT(1) NOT NULL DEFAULT 1`
+        );
+    } catch (_) {}
+}
+
+/**
+ * Modelde olan teslimat/konum alanları eski veritabanlarında yoksa INSERT 500 verir (submit-documents-json).
+ */
+async function ensureSellerGeoColumns() {
+    const alters = [
+        `ALTER TABLE sellers ADD COLUMN delivery_radius_km INT NOT NULL DEFAULT 0`,
+        `ALTER TABLE sellers ADD COLUMN latitude DECIMAL(10,8) NULL`,
+        `ALTER TABLE sellers ADD COLUMN longitude DECIMAL(11,8) NULL`
+    ];
+    for (const sql of alters) {
+        try {
+            await sequelize.query(sql);
+        } catch (_) {}
+    }
+}
+
+/**
+ * APPROVE_ALL_SELLERS_ON_STARTUP=true iken tüm satıcıları onaylı ve açık işaretler (partner girişi / admin liste).
+ * Kapatmak için .env: APPROVE_ALL_SELLERS_ON_STARTUP=false
+ */
+async function ensureSellerPickupEnabledColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE sellers ADD COLUMN pickup_enabled TINYINT(1) NOT NULL DEFAULT 1`
+        );
+    } catch (_) {}
+    try {
+        await sequelize.query(
+            `ALTER TABLE sellers MODIFY COLUMN pickup_enabled TINYINT(1) NOT NULL DEFAULT 1`
+        );
+    } catch (_) {}
+}
+
+async function approveAllSellersOnStartupIfEnabled() {
+    if (process.env.APPROVE_ALL_SELLERS_ON_STARTUP === 'false') return;
+    if (process.env.APPROVE_ALL_SELLERS_ON_STARTUP !== 'true') return;
+    try {
+        await sequelize.query(`UPDATE sellers SET is_active = 1`);
+        try {
+            await sequelize.query(`UPDATE sellers SET is_open = 1`);
+        } catch (_) {
+            await sequelize.query(`UPDATE sellers SET is_active = 1`);
+        }
+    } catch (_) {}
+}
+
+async function ensureUserOptionalColumns() {
+    const alters = [
+        `ALTER TABLE users ADD COLUMN courier_status ENUM('online','offline') DEFAULT 'offline'`,
+        `ALTER TABLE users ADD COLUMN vehicle_type VARCHAR(50) NULL`,
+        `ALTER TABLE users ADD COLUMN last_latitude DECIMAL(10,8) NULL`,
+        `ALTER TABLE users ADD COLUMN last_longitude DECIMAL(11,8) NULL`,
+        `ALTER TABLE users ADD COLUMN email_verified TINYINT(1) DEFAULT 0`,
+        `ALTER TABLE users ADD COLUMN two_factor_enabled TINYINT(1) DEFAULT 0`,
+        `ALTER TABLE users ADD COLUMN two_factor_secret VARCHAR(255) NULL`,
+        `ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(255) NULL`,
+        `ALTER TABLE users ADD COLUMN password_reset_expires DATETIME NULL`
+    ];
+    for (const sql of alters) {
+        try {
+            await sequelize.query(sql);
+        } catch (_) {}
     }
 }
 
@@ -77,5 +185,11 @@ module.exports = {
     sequelize,
     testConnection,
     ensureOrderPaymentMethodEnum,
-    ensureMealIsApprovedColumn
+    ensureMealIsApprovedColumn,
+    ensureSellerIsOpenColumn,
+    ensureSellerGeoColumns,
+    ensureSellerPickupEnabledColumn,
+    approveAllSellersOnStartupIfEnabled,
+    ensurePaymentCardsEncryptionColumns,
+    ensureUserOptionalColumns
 };

@@ -1,5 +1,48 @@
 document.addEventListener("DOMContentLoaded", function () 
 {
+    function buyerHasSavedDeliveryArea() {
+        try {
+            var raw = localStorage.getItem("ys_delivery_area");
+            if (!raw) return false;
+            var o = JSON.parse(raw);
+            return !!(o && o.il && String(o.il).trim() && o.ilce && String(o.ilce).trim() &&
+                o.mahalle && String(o.mahalle).trim() && o.cadde && String(o.cadde).trim());
+        } catch (e) {
+            return false;
+        }
+    }
+    function promptBuyerDeliveryAfterAuthIfNeeded() {
+        try {
+            if (!buyerHasSavedDeliveryArea()) {
+                sessionStorage.setItem("ys_prompt_buyer_delivery", "1");
+            }
+        } catch (e) {}
+    }
+
+    var queryParams=new URLSearchParams(window.location.search);
+    var googleErrorCode=queryParams.get("googleError");
+    if (googleErrorCode) {
+        var googleErrorMessages={
+            not_configured: "Google ile giriş şu anda aktif değil. Lütfen daha sonra tekrar deneyin.",
+            access_denied: "Google giriş izni verilmedi.",
+            invalid_state: "Google giriş doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
+            token_exchange_failed: "Google doğrulama adımı tamamlanamadı.",
+            token_missing: "Google oturum bilgisi alınamadı.",
+            profile_fetch_failed: "Google profil bilgileri alınamadı.",
+            email_missing: "Google hesabınızdan e-posta bilgisi alınamadı.",
+            account_not_found: "Bu Google hesabı ile eşleşen bir kullanıcı bulunamadı. Lütfen kayıt olun.",
+            inactive_account: "Hesabınız pasif durumda. Destek ile iletişime geçin.",
+            oauth_failed: "Google ile giriş sırasında bir hata oluştu.",
+            wrong_role_partner: "Bu Google hesabı partner (satıcı/kurye) hesabı değil. Partner için kayıtlı e-posta ile giriş yapın.",
+            wrong_role_buyer: "Bu Google hesabı alıcı hesabı değil. Müşteri sitesinde alıcı olarak kayıtlı hesapla deneyin.",
+            partner_use_email: "Partner kaydı Google ile otomatik açılmaz. Lütfen e-posta ile kayıt olun; ardından girişte Google kullanabilirsiniz."
+        };
+        alert(googleErrorMessages[googleErrorCode] || "Google ile işlem sırasında bir hata oluştu.");
+        queryParams.delete("googleError");
+        var updatedQuery=queryParams.toString();
+        var cleanUrl=window.location.pathname+(updatedQuery ? "?"+updatedQuery : "")+(window.location.hash || "");
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
 
     var loginForm=document.getElementById("login-form");
     if (loginForm) 
@@ -58,11 +101,6 @@ document.addEventListener("DOMContentLoaded", function ()
                     } 
                     else if (role === "seller") 
                     {
-                        if (result.user.sellerApproved !== true) 
-                        {
-                            window.location.href=baseUrl + "/seller/pending-approval";
-                            return;
-                        }
                         var sellerId=result.user.sellerId;
                         if (sellerId) 
                         {
@@ -75,16 +113,12 @@ document.addEventListener("DOMContentLoaded", function ()
                     } 
                     else if (role === "courier") 
                     {
-                        if (result.user.courierApproved !== true) 
-                        {
-                            window.location.href=baseUrl + "/courier/pending-approval";
-                            return;
-                        }
                         var courierId=result.user.courierId || result.user.id;
                         window.location.href=`${baseUrl}/courier/${courierId}/dashboard`;
                     } 
                     else if (role === "buyer")
                     {
+                        promptBuyerDeliveryAfterAuthIfNeeded();
                         var urlParams=new URLSearchParams(window.location.search);
                         var redirectUrl=urlParams.get('redirect');
                         
@@ -493,6 +527,7 @@ document.addEventListener("DOMContentLoaded", function ()
                     } 
                     else if (role === "buyer") 
                     {
+                        promptBuyerDeliveryAfterAuthIfNeeded();
                         window.location.href=`${baseUrl}/`;
                     } 
                     else 

@@ -458,7 +458,7 @@ router.get("/dashboard", async (req, res) => {
 router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
-        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm } = req.body;
+        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -538,6 +538,10 @@ router.put("/profile", async (req, res) => {
             const radius = parseInt(deliveryRadiusKm);
             updateFields.push("delivery_radius_km = ?");
             updateValues.push(isNaN(radius) || radius < 0 ? 0 : radius);
+        }
+        if (pickupEnabled !== undefined) {
+            updateFields.push("pickup_enabled = ?");
+            updateValues.push(pickupEnabled === true || pickupEnabled === 1 || pickupEnabled === '1' ? 1 : 0);
         }
         if (workingHours !== undefined) {
             let hoursValue = null;
@@ -676,6 +680,7 @@ router.get("/profile", async (req, res) => {
                 logo_url as logoUrl,
                 banner_url as bannerUrl,
                 delivery_radius_km as deliveryRadiusKm,
+                pickup_enabled as pickupEnabled,
                 latitude,
                 longitude
             FROM sellers 
@@ -697,6 +702,7 @@ router.get("/profile", async (req, res) => {
         profileData.logoUrl = profileData.logoUrl || null;
         profileData.bannerUrl = profileData.bannerUrl || null;
         profileData.deliveryRadiusKm = parseInt(profileData.deliveryRadiusKm) || 0;
+        profileData.pickupEnabled = profileData.pickupEnabled === 1 || profileData.pickupEnabled === true;
         if (profileData.workingHours === null || profileData.workingHours === undefined) {
             profileData.workingHours = '';
         } else if (typeof profileData.workingHours === 'string') {

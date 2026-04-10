@@ -8,6 +8,7 @@ const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, Cour
 const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 const { refundIyzicoPaymentForOrder } = require("../../lib/iyzicoRefund");
+const { decryptText } = require("../../lib/cardCrypto");
 
 const iyzipay = new Iyzipay({
     apiKey: process.env.IYZICO_API_KEY || "",
@@ -96,7 +97,7 @@ function isDeadlockError(err) {
 
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
-        const { cart, address, paymentMethod, couponCode, iyzicoCard, deliveryType } = req.body;
+        const { cart, address, paymentMethod, couponCode, iyzicoCard, iyzicoSavedCardId, iyzicoSavedCardCvc, deliveryType } = req.body;
     const finalDeliveryType = (deliveryType === 'pickup') ? 'pickup' : 'delivery';
 
         
@@ -218,7 +219,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
 
             const seller = await Seller.findByPk(sellerId, {
-                attributes: ['delivery_fee', 'is_open']
+                attributes: ['delivery_fee', 'is_open', 'pickup_enabled']
             });
 
             if (!seller) {
@@ -232,6 +233,14 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 return res.status(400).json({ 
                     success: false, 
                     message: "Üzgünüz, bu dükkan şu an kapalı olduğu için sipariş alamıyor." 
+                });
+            }
+
+            const pickupAllowed = seller.pickup_enabled !== false && seller.pickup_enabled !== 0;
+            if (finalDeliveryType === 'pickup' && !pickupAllowed) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Bu restoran mağazadan teslim (Gel Al) siparişi kabul etmiyor."
                 });
             }
 
@@ -384,11 +393,30 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     });
                 }
 
-                if (!iyzicoCard || !iyzicoCard.cardHolderName || !iyzicoCard.cardNumber || !iyzicoCard.expireMonth || !iyzicoCard.expireYear || !iyzicoCard.cvc) {
-                    return res.status(400).json({
-                        success: false,
-                        message: "iyzico kart bilgileri eksik."
-                    });
+                let effectiveCard = iyzicoCard || null;
+                if (!effectiveCard && iyzicoSavedCardId) {
+                    const [rows] = await db.pool.query(
+                        `SELECT id, card_name, card_number_encrypted, card_expiry_month, card_expiry_year FROM payment_cards WHERE id = ? AND user_id = ? LIMIT 1`,
+                        [parseInt(iyzicoSavedCardId, 10), userId]
+                    );
+                    const saved = rows && rows[0];
+                    const cardNumber = saved ? decryptText(saved.card_number_encrypted) : null;
+                    if (!saved || !cardNumber) {
+                        return res.status(400).json({ success: false, message: "Kayıtlı kart güvenli olarak çözülemedi." });
+                    }
+                    if (!iyzicoSavedCardCvc) {
+                        return res.status(400).json({ success: false, message: "Kayıtlı kart için CVC gerekli." });
+                    }
+                    effectiveCard = {
+                        cardHolderName: saved.card_name,
+                        cardNumber,
+                        expireMonth: String(saved.card_expiry_month).padStart(2, '0'),
+                        expireYear: String(saved.card_expiry_year).slice(-2),
+                        cvc: String(iyzicoSavedCardCvc).replace(/\D/g, '').slice(0, 4)
+                    };
+                }
+                if (!effectiveCard || !effectiveCard.cardHolderName || !effectiveCard.cardNumber || !effectiveCard.expireMonth || !effectiveCard.expireYear || !effectiveCard.cvc) {
+                    return res.status(400).json({ success: false, message: "iyzico kart bilgileri eksik." });
                 }
 
                 const selectedAddress = await Address.findByPk(addressId);
@@ -423,11 +451,11 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     paymentChannel: Iyzipay.PAYMENT_CHANNEL.WEB,
                     paymentGroup: Iyzipay.PAYMENT_GROUP.PRODUCT,
                     paymentCard: {
-                        cardHolderName: iyzicoCard.cardHolderName,
-                        cardNumber: String(iyzicoCard.cardNumber).replace(/\s/g, ""),
-                        expireMonth: String(iyzicoCard.expireMonth).padStart(2, '0'),
-                        expireYear: String(iyzicoCard.expireYear).slice(-2),
-                        cvc: String(iyzicoCard.cvc),
+                        cardHolderName: effectiveCard.cardHolderName,
+                        cardNumber: String(effectiveCard.cardNumber).replace(/\s/g, ""),
+                        expireMonth: String(effectiveCard.expireMonth).padStart(2, '0'),
+                        expireYear: String(effectiveCard.expireYear).slice(-2),
+                        cvc: String(effectiveCard.cvc),
                         registerCard: '0'
                     },
                     buyer: {

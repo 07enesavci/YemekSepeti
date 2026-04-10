@@ -204,6 +204,16 @@ function buildIyzicoPayloadFromParsed(p) {
     };
 }
 
+function buildIyzicoSavedCardPayload(savedCardId) {
+    const cvcInput = document.getElementById('card-cvc');
+    const cvc = cvcInput ? String(cvcInput.value || '').replace(/\D/g, '').slice(0, 4) : '';
+    if (!cvc) return null;
+    return {
+        iyzicoSavedCardId: parseInt(savedCardId, 10),
+        iyzicoSavedCardCvc: cvc
+    };
+}
+
 function ensureCheckoutEditModal() {
     if (document.getElementById('checkout-pc-edit-overlay')) return;
     document.body.insertAdjacentHTML('beforeend', `
@@ -316,11 +326,11 @@ async function reverseGeocode(lat, lng) {
         const data = await response.json();
         const addr = data.address || {};
 
-        const district = addr.town || addr.suburb || addr.city_district || addr.county || '';
-        const city = addr.city || addr.state || addr.province || '';
+        const city = addr.city || addr.province || addr.state || addr.state_district || '';
+        const district = addr.town || addr.city_district || addr.county || addr.municipality || '';
         const road = addr.road || '';
         const houseNumber = addr.house_number || '';
-        const neighbourhood = addr.neighbourhood || addr.quarter || addr.suburb || '';
+        const neighbourhood = addr.neighbourhood || addr.quarter || addr.suburb || addr.village || '';
         const detail = [neighbourhood, road, houseNumber].filter(Boolean).join(', ') || (data.display_name || '');
 
         return {
@@ -609,6 +619,41 @@ const NEW_ADDRESS_FORM_CHECKOUT = `
     </div>
 `;
 
+/** Satıcı veritabanındaki pickupEnabled=false ise Gel Al seçeneğini kapatır */
+async function applySellerPickupToCheckout() {
+    try {
+        const sepet = window.getSepet ? window.getSepet() : [];
+        if (!sepet || !sepet.length) return;
+        const first = sepet[0];
+        const sid = first.urun?.sellerId || first.urun?.seller_id || first.sellerId;
+        if (!sid) return;
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const r = await fetch(`${baseUrl}/api/sellers/${sid}`, { credentials: 'include' });
+        if (!r.ok) return;
+        const s = await r.json();
+        if (s.pickupEnabled === false) {
+            const pickupRadio = document.getElementById('delivery-type-pickup');
+            const deliveryRadio = document.getElementById('delivery-type-delivery');
+            const pickupRow = pickupRadio ? pickupRadio.closest('.form-check') : null;
+            if (pickupRow) pickupRow.style.display = 'none';
+            if (pickupRadio) {
+                pickupRadio.disabled = true;
+                pickupRadio.checked = false;
+            }
+            if (deliveryRadio) {
+                deliveryRadio.checked = true;
+            }
+            window.forcePickupDeliveryFee = false;
+            const pickupMsg = document.getElementById('pickup-discount-message');
+            if (pickupMsg) pickupMsg.style.display = 'none';
+            const deliveryCard = document.getElementById('address-card');
+            if (deliveryCard) deliveryCard.style.display = 'block';
+        }
+    } catch (e) {
+        console.warn('Gel Al (satıcı) ayarı yüklenemedi', e);
+    }
+}
+
 async function cizOdemeSayfasi()
 {
         var sepet = window.getSepet();
@@ -838,6 +883,7 @@ document.addEventListener('DOMContentLoaded', async function(){
             });
         }
 
+        await applySellerPickupToCheckout();
         cizOdemeSayfasi();
         
         var tamamlaBtn = document.getElementById('complete-order-btn') || document.querySelector('.order-summary .btn-primary');
@@ -966,9 +1012,13 @@ document.addEventListener('DOMContentLoaded', async function(){
     	 	 	 	            return;
     	 	 	 	        }
     	 	 	 	        }
-    	 	 	        } else {
-                            alert('iyzico ödemesi için güvenlik nedeniyle bu aşamada yeni kart bilgisi girmeniz gerekiyor.');
-                            return;
+                        } else {
+                            const savedPayload = buildIyzicoSavedCardPayload(kartSecili);
+                            if (!savedPayload) {
+                                alert('Kayıtlı kart ile ödeme için güvenlik kodu (CVC) girin.');
+                                return;
+                            }
+                            iyzicoCardPayload = savedPayload;
     	 	 	        }
 
     	 	 	        var cartForAPI = sepet.map(function(item) {

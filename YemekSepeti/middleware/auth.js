@@ -343,6 +343,148 @@ function requireRole(allowedRoles)
 	};
 }
 
+function getDomainType(req) {
+    const host = String((req.headers && req.headers.host) || '').split(':')[0].toLowerCase();
+    const buyerDomain = String(process.env.BUYER_DOMAIN || 'evlezzetleri.site').toLowerCase();
+    const partnerDomain = String(process.env.PARTNER_DOMAIN || 'partner.evlezzetleri.site').toLowerCase();
+    const adminDomain = String(process.env.ADMIN_DOMAIN || 'admin.evlezzetleri.site').toLowerCase();
+    if (!host || host === 'localhost' || host === '127.0.0.1') return 'local';
+    if (host === adminDomain) return 'admin';
+    if (host === partnerDomain) return 'partner';
+    if (host === buyerDomain) return 'buyer';
+    return 'unknown';
+}
+
+function roleAllowedOnDomain(role, domainType) {
+    if (domainType === 'local' || domainType === 'unknown') return true;
+    if (domainType === 'buyer') return role === 'buyer';
+    if (domainType === 'partner') return role === 'seller' || role === 'courier';
+    if (domainType === 'admin') return role === 'admin' || role === 'super_admin' || role === 'support';
+    return true;
+}
+
+function enforceRoleDomain(req, res, next) {
+    const user = req.session && req.session.user;
+    if (!user || !user.role) return next();
+    const dt = getDomainType(req);
+    if (roleAllowedOnDomain(user.role, dt)) return next();
+    const isApi = req.originalUrl && String(req.originalUrl).indexOf('/api/') === 0;
+    if (isApi) {
+        return res.status(403).json({ success: false, message: 'Bu rolde bu domainden erişim izni yok.' });
+    }
+    if (dt === 'admin') return res.redirect(302, '/admin/users');
+    if (dt === 'partner') return res.redirect(302, '/login');
+    return res.redirect(302, '/');
+}
+
+/**
+ * admin.* → yalnızca admin paneli; partner.* → yalnızca satıcı/kurye panelleri (ana sayfa / alıcı sayfalarına çıkış yok).
+ */
+function restrictPanelNavigation(req, res, next) {
+    try {
+        const dt = getDomainType(req);
+        if (dt !== 'admin' && dt !== 'partner') return next();
+
+        const rawPath = req.path || '';
+        const p = rawPath.split('?')[0];
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+
+        const isStatic =
+            p.startsWith('/assets') ||
+            p.startsWith('/public') ||
+            p.startsWith('/uploads') ||
+            p.startsWith('/socket.io') ||
+            p === '/manifest.json' ||
+            p === '/sw.js' ||
+            p === '/favicon.ico' ||
+            p === '/favicon.svg' ||
+            p === '/favicon.png';
+        if (isStatic) return next();
+
+        if (dt === 'admin') {
+            res.locals.logoHomeHref = '/admin/users';
+            const adminUser =
+                req.session &&
+                req.session.user &&
+                ['admin', 'super_admin', 'support'].indexOf(req.session.user.role) !== -1;
+            if (p === '/') {
+                if (!adminUser) return res.redirect(302, '/login');
+                return res.redirect(302, '/admin/users');
+            }
+            if (p.startsWith('/buyer') || p.startsWith('/seller') || p.startsWith('/courier')) {
+                return res.redirect(302, adminUser ? '/admin/users' : '/login');
+            }
+            if (p === '/register') return res.redirect(302, '/login');
+            return next();
+        }
+
+        const u = (res.locals && res.locals.user) || (req.session && req.session.user);
+
+        if (u && u.role === 'seller') {
+            res.locals.logoHomeHref = u.sellerId
+                ? `/seller/${u.sellerId}/dashboard`
+                : '/seller/dashboard';
+        } else if (u && u.role === 'courier') {
+            const cid = u.courierId || u.id;
+            res.locals.logoHomeHref = `/courier/${cid}/dashboard`;
+        } else {
+            res.locals.logoHomeHref = '/';
+        }
+
+        if (p === '/') {
+            if (!u) return next();
+            if (u.role === 'seller') {
+                if (u.sellerId) return res.redirect(302, `/seller/${u.sellerId}/dashboard`);
+                return res.redirect(302, '/seller/dashboard');
+            }
+            if (u.role === 'courier') {
+                const cid = u.courierId || u.id;
+                return res.redirect(302, `/courier/${cid}/dashboard`);
+            }
+            return res.redirect(302, '/login');
+        }
+        if (p.startsWith('/buyer')) {
+            const fallback = res.locals.logoHomeHref || '/login';
+            return res.redirect(302, fallback);
+        }
+        return next();
+    } catch (e) {
+        return next();
+    }
+}
+
+/** Alıcı / sepet / vitrin API’leri admin ve partner hostlarında kapalı */
+function blockShoppingApisOnPanelHosts(req, res, next) {
+    try {
+        const dt = getDomainType(req);
+        if (dt !== 'admin' && dt !== 'partner') return next();
+        const full = (req.originalUrl && String(req.originalUrl).split('?')[0]) || req.path || '';
+        if (full.indexOf('/api/') !== 0) return next();
+        if (
+            full.startsWith('/api/buyer') ||
+            full.startsWith('/api/cart') ||
+            full === '/api/sellers' ||
+            full.startsWith('/api/sellers/') ||
+            full.startsWith('/api/favorites') ||
+            full.startsWith('/api/reviews')
+        ) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bu API bu alan adında kullanılamaz. Müşteri sitesini kullanın.'
+            });
+        }
+        if (full.startsWith('/api/orders') && full.indexOf('/seller') === -1 && full.indexOf('/courier') === -1) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bu API bu alan adında kullanılamaz. Müşteri sitesini kullanın.'
+            });
+        }
+        return next();
+    } catch (e) {
+        return next();
+    }
+}
+
 function requireSellerApproved(req, res, next) 
 {
 	var isApi = req.originalUrl && req.originalUrl.indexOf('/api/') === 0;
@@ -417,6 +559,11 @@ module.exports = {
 	requireAdmin,
 	requireAuth,
 	requireRole,
+    getDomainType,
+    roleAllowedOnDomain,
+    enforceRoleDomain,
+    restrictPanelNavigation,
+    blockShoppingApisOnPanelHosts,
 	requireSellerApproved,
 	requireCourierApproved
 };

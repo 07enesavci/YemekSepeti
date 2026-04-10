@@ -52,7 +52,10 @@ document.addEventListener("DOMContentLoaded", function () {
             email_missing: "Google hesabınızdan e-posta bilgisi alınamadı.",
             account_not_found: "Bu Google hesabı ile eşleşen bir kullanıcı bulunamadı. Lütfen kayıt olun.",
             inactive_account: "Hesabınız pasif durumda. Destek ile iletişime geçin.",
-            oauth_failed: "Google ile giriş sırasında bir hata oluştu."
+            oauth_failed: "Google ile giriş sırasında bir hata oluştu.",
+            wrong_role_partner: "Bu Google hesabı partner (satıcı/kurye) hesabı değil. Partner için kayıtlı e-posta ile giriş yapın.",
+            wrong_role_buyer: "Bu Google hesabı alıcı hesabı değil. Müşteri sitesinde alıcı olarak kayıtlı hesapla deneyin.",
+            partner_use_email: "Partner kaydı Google ile otomatik açılmaz. Lütfen e-posta ile kayıt olun; ardından girişte Google kullanabilirsiniz."
         };
 
         alert(googleErrorMessages[googleErrorCode] || "Google ile işlem sırasında bir hata oluştu.");

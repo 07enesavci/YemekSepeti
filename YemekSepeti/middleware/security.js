@@ -49,11 +49,11 @@ function helmetMiddleware() {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://static.cloudflareinsights.com", "https://cdn.jsdelivr.net"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io", "https://cdnjs.cloudflare.com", "https://unpkg.com", "https://static.cloudflareinsights.com", "https://cdn.jsdelivr.net", "https://*.kaspersky-labs.com"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "https://unpkg.com"],
                 imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
-                connectSrc: ["'self'", "https://cdn.socket.io", "wss:", "ws:", "https://unpkg.com", "https://nominatim.openstreetmap.org", "https://router.project-osrm.org", "https://*.tile.openstreetmap.org"],
+                connectSrc: ["'self'", "http://localhost:3000", "http://127.0.0.1:3000", "https://cdn.socket.io", "wss:", "ws:", "https://unpkg.com", "https://nominatim.openstreetmap.org", "https://router.project-osrm.org", "https://*.tile.openstreetmap.org", "https://*.kaspersky-labs.com"],
                 workerSrc: ["'self'", "blob:"],
                 frameSrc: ["'self'", "https://www.openstreetmap.org"]
             }

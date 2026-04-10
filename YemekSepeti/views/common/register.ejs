@@ -3,7 +3,9 @@
         
         <div class="card auth-card">
             <div class="card-content">
-                <h1 class="card-title" style="text-align: center;">Hesap Oluştur</h1>
+                <h1 class="card-title" style="text-align: center;">
+                    <%= authType === 'admin' ? 'Admin Kayıt Kapalı' : (authType === 'partner' ? 'Partner Hesabı Oluştur' : 'Hesap Oluştur') %>
+                </h1>
                 <p class="text-center auth-subtext">Aramıza katılmak için bilgilerinizi girin.</p>
                 
                 <form id="register-form" enctype="multipart/form-data">
@@ -32,6 +34,7 @@
                     <div class="form-group">
                         <label class="form-label">Hesap Türü Seçin:</label>
                         <div class="role-selector"> 
+                            <% if (!authType || authType === 'buyer') { %>
                             <div class="form-check form-check-radio">
                                 <input type="radio" id="role-buyer" name="user-role" value="buyer" checked>
                                 <label for="role-buyer">
@@ -40,9 +43,11 @@
                                     <span>(Yemek sipariş vermek istiyorum)</span>
                                 </label>
                             </div>
+                            <% } %>
                             
+                            <% if (authType === 'partner') { %>
                             <div class="form-check form-check-radio">
-                                <input type="radio" id="role-seller" name="user-role" value="seller">
+                                <input type="radio" id="role-seller" name="user-role" value="seller" checked>
                                 <label for="role-seller">
                                     <span class="icon">🍲</span> 
                                     <strong>Satıcıyım</strong> 
@@ -58,6 +63,7 @@
                                     <span>(Sipariş teslimatı yapmak istiyorum)</span>
                                 </label>
                             </div>
+                            <% } %>
                         </div>
                         <p class="text-muted" style="margin-top: 8px; font-size: 0.9rem;">Satıcı ve kurye seçeneklerinde e-posta doğrulamasından sonra belgeleriniz istenecektir.</p>
                     </div>
@@ -73,6 +79,7 @@
                         Kayıt Ol
                     </button>
 
+                    <% if (typeof googleOAuthEnabled !== 'undefined' && googleOAuthEnabled && (!authType || authType === 'buyer')) { %>
                     <div class="auth-divider" role="separator" aria-label="Alternatif kayıt seçenekleri">
                         <span>veya</span>
                     </div>
@@ -88,6 +95,7 @@
                         </span>
                         Google ile Kayıt Ol
                     </a>
+                    <% } %>
                 </form>
 
                 <!-- Email Doğrulama Ekranı -->

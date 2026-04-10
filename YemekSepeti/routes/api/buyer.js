@@ -5,6 +5,7 @@ const { requireRole }=require("../../middleware/auth");
 const bcrypt=require("bcryptjs");
 const { User, Address, Order, Review, Seller } = require("../../models");
 const { Op, Sequelize } = require('sequelize');
+const { encryptText, decryptText } = require("../../lib/cardCrypto");
 
 router.get("/profile", requireRole('buyer'), async (req, res) => {
     try {
@@ -405,9 +406,11 @@ router.get("/payment-cards", requireRole('buyer'), async (req, res) => {
                     id,
                     card_name,
                     card_number,
+                    card_number_encrypted,
                     card_expiry_month,
                     card_expiry_year,
                     card_cvc,
+                    card_cvc_encrypted,
                     is_default,
                     created_at
                 FROM payment_cards
@@ -418,8 +421,10 @@ router.get("/payment-cards", requireRole('buyer'), async (req, res) => {
             const cards = await db.query(query, [userId]);
             
             const formattedCards = cards.map(card => {
-                let maskedNumber = card.card_number ? "**** **** **** " + card.card_number.slice(-4) : "**** **** **** ****";
-                let lastFour = card.card_number ? card.card_number.slice(-4) : "****";
+                const decrypted = decryptText(card.card_number_encrypted);
+                const effectiveCard = decrypted || card.card_number;
+                let maskedNumber = effectiveCard ? "**** **** **** " + String(effectiveCard).slice(-4) : "**** **** **** ****";
+                let lastFour = effectiveCard ? String(effectiveCard).slice(-4) : "****";
                 return {
                     id: card.id,
                     cardName: card.card_name || "Kart",
@@ -470,6 +475,8 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
             });
         }
         const cardLastFour = cleanCardNumber.slice(-4);
+        const encryptedCardNumber = encryptText(cleanCardNumber);
+        const encryptedCvc = cvc ? encryptText(String(cvc).replace(/\D/g, '').slice(0, 4)) : null;
         if (isDefault) {
             try {
                 await db.execute(
@@ -486,9 +493,9 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
             let maskedCvc = cvc ? '***' : null;
             let defaultFlag = isDefault ? 1 : 0;
             const result = await db.execute(
-                `INSERT INTO payment_cards (user_id, card_name, card_number, card_expiry_month, card_expiry_year, card_cvc, is_default)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [userId, cardName.trim(), cardLastFour, expiryMonth, expiryYear, maskedCvc, defaultFlag]
+                `INSERT INTO payment_cards (user_id, card_name, card_number, card_number_encrypted, card_expiry_month, card_expiry_year, card_cvc, card_cvc_encrypted, is_default)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [userId, cardName.trim(), cardLastFour, encryptedCardNumber, expiryMonth, expiryYear, maskedCvc, encryptedCvc, defaultFlag]
             );
             res.json({
                 success: true,
@@ -503,9 +510,11 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
                         user_id INT NOT NULL,
                         card_name VARCHAR(100) NOT NULL,
                         card_number VARCHAR(4) NOT NULL,
+                        card_number_encrypted TEXT NULL,
                         card_expiry_month INT NOT NULL,
                         card_expiry_year INT NOT NULL,
                         card_cvc VARCHAR(3) NULL,
+                        card_cvc_encrypted TEXT NULL,
                         is_default BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -517,9 +526,9 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
                 let maskedCvc2 = cvc ? '***' : null;
                 let defaultFlag2 = isDefault ? 1 : 0;
                 const result = await db.execute(
-                    `INSERT INTO payment_cards (user_id, card_name, card_number, card_expiry_month, card_expiry_year, card_cvc, is_default)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [userId, cardName.trim(), cardLastFour, expiryMonth, expiryYear, maskedCvc2, defaultFlag2]
+                `INSERT INTO payment_cards (user_id, card_name, card_number, card_number_encrypted, card_expiry_month, card_expiry_year, card_cvc, card_cvc_encrypted, is_default)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [userId, cardName.trim(), cardLastFour, encryptedCardNumber, expiryMonth, expiryYear, maskedCvc2, encryptedCvc, defaultFlag2]
                 );
                 res.json({
                     success: true,

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getCities, getDistricts } = require('../../data/turkey-addresses');
-const { nearestCityFromLatLng } = require('../../data/turkey-coordinates');
+const { nearestCityFromLatLng, getCityCoordinates } = require('../../data/turkey-coordinates');
 
 function escapeRegex(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -169,6 +169,13 @@ router.post('/delivery-context', (req, res) => {
                 message: 'Seçilen il ve ilçe eşleşmiyor.'
             });
         }
+        if ((lat == null || lng == null) && ilKey) {
+            const cc = getCityCoordinates(ilKey);
+            if (cc && cc.lat != null && cc.lng != null) {
+                lat = cc.lat;
+                lng = cc.lng;
+            }
+        }
         req.session.deliveryArea = {
             il: ilKey,
             ilce: ilceKey,
@@ -177,7 +184,12 @@ router.post('/delivery-context', (req, res) => {
             ...(lat != null && lng != null ? { lat, lng } : {}),
             updatedAt: Date.now()
         };
-        return res.json({ success: true });
+        const payload = { success: true };
+        if (lat != null && lng != null) {
+            payload.lat = lat;
+            payload.lng = lng;
+        }
+        return res.json(payload);
     } catch (error) {
         console.error('delivery-context hatası:', error);
         return res.status(500).json({ success: false, message: 'Kaydedilemedi.' });

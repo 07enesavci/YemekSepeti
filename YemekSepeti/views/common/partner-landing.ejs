@@ -1,0 +1,21 @@
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="card auth-card">
+            <div class="card-content">
+                <h1 class="card-title text-center">Partner portalı</h1>
+                <p class="text-center auth-subtext">
+                    Satıcı veya kurye hesabınızla giriş yapın; yeni başvuru için kayıt olun. Müşteri sipariş ekranı bu adreste yer almaz.
+                </p>
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 12px; margin-top: 1.25rem;">
+                    <a href="/login" class="btn btn-primary btn-full">Giriş yap</a>
+                    <a href="/register" class="btn btn-secondary btn-full">Yeni başvuru — kayıt ol</a>
+                </div>
+                <% if (typeof storefrontUrl !== 'undefined' && storefrontUrl) { %>
+                <p class="text-center" style="margin-top: 1.25rem; font-size: 0.85rem; color: var(--text-color-light);">
+                    Müşteri (sipariş) sitesi: <a href="<%= storefrontUrl %>" style="color: var(--secondary-color);"><%= storefrontUrl %></a>
+                </p>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>

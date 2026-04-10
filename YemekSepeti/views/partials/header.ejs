@@ -1,7 +1,13 @@
 <header class="site-header">
     <div class="header-content container">
-        <a href="<%= typeof documentsOnlyNav !== 'undefined' && documentsOnlyNav ? '/register/documents' : '/' %>" class="logo">Ev Lezzetleri</a>
+        <a href="<%= typeof documentsOnlyNav !== 'undefined' && documentsOnlyNav ? '/register/documents' : (typeof logoHomeHref !== 'undefined' && logoHomeHref ? logoHomeHref : '/') %>" class="logo">Ev Lezzetleri</a>
         <div class="header-actions">
+            <% if (typeof enableDeliveryModal === 'undefined' || enableDeliveryModal) { %>
+            <button class="header-location-chip" id="header-delivery-chip" type="button" hidden>
+                <span aria-hidden="true">📍</span>
+                <span id="header-delivery-text">Konum seçin</span>
+            </button>
+            <% } %>
             <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Koyu tema">
                 <span class="theme-icon sun" aria-hidden="true">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

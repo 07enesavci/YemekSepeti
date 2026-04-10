@@ -455,58 +455,73 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
     try {
         const { is_open, search } = req.query;
 
-        let whereClauseStr = "s.id IS NOT NULL";
-        let replacements = [];
-
+        const sellerWhere = {};
         if (is_open === 'open') {
-            whereClauseStr += " AND s.is_open = 1 AND s.is_active = 1";
+            sellerWhere.is_open = true;
+            sellerWhere.is_active = true;
         } else if (is_open === 'closed') {
-            whereClauseStr += " AND (s.is_open = 0 OR s.is_active = 0)";
+            sellerWhere[Op.or] = [{ is_open: false }, { is_active: false }];
         }
 
-        if (search && search.trim() !== '') {
-            whereClauseStr += " AND (s.shop_name LIKE ? OR u.fullname LIKE ? OR u.phone LIKE ?)";
-            const term = `%${search}%`;
-            replacements.push(term, term, term);
+        const sellers = await Seller.findAll({
+            where: Object.keys(sellerWhere).length ? sellerWhere : undefined,
+            attributes: [
+                'id', 'shop_name', 'location', 'is_open', 'is_active',
+                'rating', 'total_reviews', 'logo_url', 'banner_url', 'created_at'
+            ],
+            include: [{
+                model: User,
+                as: 'user',
+                required: true,
+                attributes: ['id', 'fullname', 'email', 'phone', 'role', 'created_at']
+            }],
+            order: [['created_at', 'DESC']],
+            subQuery: false
+        });
+
+        let list = sellers;
+        if (search && String(search).trim() !== '') {
+            const t = String(search).trim().toLowerCase();
+            list = sellers.filter((s) => {
+                const u = s.user;
+                if (!u) return false;
+                return (
+                    (u.fullname && u.fullname.toLowerCase().includes(t)) ||
+                    (u.email && u.email.toLowerCase().includes(t)) ||
+                    (u.phone && String(u.phone).toLowerCase().includes(t)) ||
+                    (s.shop_name && s.shop_name.toLowerCase().includes(t)) ||
+                    (s.location && s.location.toLowerCase().includes(t))
+                );
+            });
         }
 
-        const sql = `
-            SELECT
-                s.id as seller_id, s.shop_name, s.location, s.is_open, s.is_active, s.rating, s.total_reviews, s.created_at,
-                s.logo_url, s.banner_url,
-                u.id as user_id, u.fullname, u.email, u.phone
-            FROM sellers s
-            JOIN users u ON s.user_id = u.id
-            WHERE ${whereClauseStr}
-            ORDER BY s.created_at DESC
-        `;
-
-        const rows = await db.query(sql, replacements);
-
-        // Return array format similar to couriers
-        const formattedData = Array.isArray(rows) ? rows.map(r => ({
-            id: r.user_id,
-            fullname: r.fullname,
-            email: r.email,
-            phone: r.phone,
-            created_at: r.created_at,
+        const formattedData = list.map((s) => ({
+            id: s.user.id,
+            fullname: s.user.fullname,
+            email: s.user.email,
+            phone: s.user.phone,
+            created_at: s.created_at || s.user.created_at,
             Seller: {
-                id: r.seller_id,
-                shop_name: r.shop_name,
-                location: r.location,
-                is_open: r.is_open,
-                is_active: r.is_active,
-                rating: parseFloat(r.rating) || 0,
-                total_reviews: r.total_reviews,
-                logo_url: r.logo_url || null,
-                banner_url: r.banner_url || null
+                id: s.id,
+                shop_name: s.shop_name,
+                location: s.location,
+                is_open: s.is_open,
+                is_active: s.is_active,
+                rating: parseFloat(s.rating) || 0,
+                total_reviews: s.total_reviews,
+                logo_url: s.logo_url || null,
+                banner_url: s.banner_url || null
             }
-        })) : [];
+        }));
 
         res.json({ success: true, data: formattedData });
     } catch (error) {
         console.error("All sellers list error:", error);
-        res.status(500).json({ success: false, message: "Satıcılar getirilemedi." });
+        res.status(500).json({
+            success: false,
+            message: "Satıcılar getirilemedi.",
+            detail: process.env.NODE_ENV !== 'production' ? error.message : undefined
+        });
     }
 });
 

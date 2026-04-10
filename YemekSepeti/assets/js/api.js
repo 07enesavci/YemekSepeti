@@ -405,6 +405,8 @@ async function createOrder(cart, address, paymentMethod = 'credit_card', payment
         const orderData = { cart, address, paymentMethod, deliveryType };
         if (paymentPayload && typeof paymentPayload === 'object') {
             orderData.iyzicoCard = paymentPayload.iyzicoCard || undefined;
+            orderData.iyzicoSavedCardId = paymentPayload.iyzicoSavedCardId || undefined;
+            orderData.iyzicoSavedCardCvc = paymentPayload.iyzicoSavedCardCvc || undefined;
         }
         if (window.appliedCoupon && window.appliedCoupon.code) {
             orderData.couponCode = window.appliedCoupon.code;

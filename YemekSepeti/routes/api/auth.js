@@ -13,6 +13,8 @@ const { sendVerificationCode, sendPasswordResetLink } = require("../../config/em
 const { body, validationResult } = require('express-validator');
 const { authLimiter } = require('../../middleware/security');
 const { submitDocumentsJsonValidation, handleValidationErrors: handleValidate } = require('../../middleware/validate');
+const { getDomainType, roleAllowedOnDomain } = require('../../middleware/auth');
+const { isGoogleOAuthConfigured } = require('../../config/google-oauth');
 
 // --- MULTER YAPILANDIRMASI (DOSYA YÜKLEME) ---
 const uploadDir = path.resolve(__dirname, '..', '..', 'public', 'uploads', 'merchants');
@@ -71,13 +73,14 @@ function getGoogleOAuthConfig(req) {
     const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
     const clientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
     const fallbackRedirect = `${getBaseUrl(req)}/api/auth/google/callback`;
-    const redirectUri = (process.env.GOOGLE_REDIRECT_URI || fallbackRedirect).trim();
+    /** Boş bırakılırsa her host (localhost, partner.localhost) için doğru callback kullanılır; Google Console'da her URI yetkilendirilmeli. */
+    const redirectUri = ((process.env.GOOGLE_REDIRECT_URI || '').trim() || fallbackRedirect);
 
     return {
         clientId,
         clientSecret,
         redirectUri,
-        configured: !!(clientId && clientSecret)
+        configured: isGoogleOAuthConfigured()
     };
 }
 
@@ -101,7 +104,10 @@ function clearGoogleOAuthSession(req) {
 function getPostLoginRedirect(userData) {
     if (!userData) return '/';
     if (userData.role === 'admin' || userData.role === 'super_admin' || userData.role === 'support') return '/admin/users';
-    if (userData.role === 'seller') return '/seller/dashboard';
+    if (userData.role === 'seller') {
+        if (userData.sellerId) return `/seller/${userData.sellerId}/dashboard`;
+        return '/seller/dashboard';
+    }
     if (userData.role === 'courier') {
         const courierId = userData.courierId || userData.id;
         return `/courier/${courierId}/dashboard`;
@@ -112,22 +118,28 @@ function getPostLoginRedirect(userData) {
 async function buildSessionUserData(user) {
     const userData = { id: user.id, email: user.email, fullname: user.fullname, role: user.role };
 
-    if (user.role === 'seller') {
-        const seller = await Seller.findOne({ where: { user_id: user.id } });
-        if (seller) {
-            userData.sellerId = seller.id;
-            userData.sellerApproved = !!seller.is_active;
-        } else {
-            userData.sellerApproved = false;
+    try {
+        if (user.role === 'seller') {
+            const seller = await Seller.findOne({ where: { user_id: user.id } });
+            if (seller) {
+                userData.sellerId = seller.id;
+                userData.sellerApproved = !!seller.is_active;
+            } else {
+                userData.sellerApproved = false;
+            }
+        } else if (user.role === 'courier') {
+            const courier = await Courier.findOne({ where: { user_id: user.id } });
+            if (courier) {
+                userData.courierId = courier.id;
+                userData.courierApproved = !!courier.is_active;
+            } else {
+                userData.courierApproved = false;
+            }
         }
-    } else if (user.role === 'courier') {
-        const courier = await Courier.findOne({ where: { user_id: user.id } });
-        if (courier) {
-            userData.courierId = courier.id;
-            userData.courierApproved = !!courier.is_active;
-        } else {
-            userData.courierApproved = false;
-        }
+    } catch (_) {
+        // Eski şema/kolon eksikliği nedeniyle login tamamen fail etmesin.
+        if (user.role === 'seller') userData.sellerApproved = false;
+        if (user.role === 'courier') userData.courierApproved = false;
     }
 
     return userData;
@@ -181,12 +193,19 @@ router.post("/login", authLimiter, [
 ], handleValidationErrors, async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({
+            where: { email },
+            attributes: ['id', 'email', 'password', 'fullname', 'phone', 'role', 'is_active']
+        });
         if (!user || !(await comparePassword(password, user.password))) {
             return res.status(401).json({ success: false, message: "Hatalı e-posta veya şifre." });
         }
         if (user.is_active === false) {
             return res.status(403).json({ success: false, message: "Hesabınız pasif veya silinmiş görünüyor." });
+        }
+        const domainType = getDomainType(req);
+        if (!roleAllowedOnDomain(user.role, domainType)) {
+            return res.status(403).json({ success: false, message: "Bu hesap bu domain üzerinden giriş yapamaz." });
         }
         const token = generateToken(user);
         const userData = await buildSessionUserData(user);
@@ -197,6 +216,7 @@ router.post("/login", authLimiter, [
         }
         res.json({ success: true, user: userData, token });
     } catch (error) {
+        console.error("Login error:", error);
         res.status(500).json({ success: false, message: "Giriş hatası." });
     }
 });
@@ -206,15 +226,24 @@ function startGoogleOAuth(req, res, intent) {
     const oauthConfig = getGoogleOAuthConfig(req);
 
     if (!oauthConfig.configured) {
-        return res.redirect(`/auth/google-coming-soon?intent=${safeIntent}`);
+        const page = safeIntent === 'register' ? '/register' : '/login';
+        return res.redirect(`${page}?googleError=not_configured`);
     }
 
+    const dt = getDomainType(req);
+    if (dt === 'admin') {
+        return res.redirect('/login?googleError=not_configured');
+    }
+    /** partner.* → satıcı/kurye; diğer → alıcı (buyer) akışı */
+    const portal = dt === 'partner' ? 'partner' : 'buyer';
+
     const csrfToken = crypto.randomBytes(24).toString('hex');
-    const statePayload = Buffer.from(JSON.stringify({ csrf: csrfToken, intent: safeIntent }), 'utf8').toString('base64');
+    const statePayload = Buffer.from(JSON.stringify({ csrf: csrfToken, intent: safeIntent, portal }), 'utf8').toString('base64');
 
     req.session.googleOAuth = {
         state: csrfToken,
         intent: safeIntent,
+        portal,
         createdAt: Date.now()
     };
 
@@ -260,12 +289,18 @@ router.get('/google/callback', async (req, res) => {
         }
 
         const intent = parsedState.intent === 'register' ? 'register' : 'login';
+        const portal = parsedState.portal === 'partner' ? 'partner' : 'buyer';
         const oauthConfig = getGoogleOAuthConfig(req);
         const redirectWithIntentError = (errorCode) => `/${intent}?googleError=${encodeURIComponent(errorCode)}`;
 
         if (!oauthConfig.configured) {
             clearGoogleOAuthSession(req);
-            return res.redirect(`/auth/google-coming-soon?intent=${intent}`);
+            return res.redirect(redirectWithIntentError('not_configured'));
+        }
+        const domainTypeCb = getDomainType(req);
+        if (domainTypeCb === 'admin') {
+            clearGoogleOAuthSession(req);
+            return res.redirect('/login?googleError=not_configured');
         }
 
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -313,24 +348,51 @@ router.get('/google/callback', async (req, res) => {
 
         let user = await User.findOne({ where: { email } });
 
-        if (!user && intent === 'login') {
-            clearGoogleOAuthSession(req);
-            return res.redirect('/register?googleError=account_not_found');
+        if (intent === 'login') {
+            if (!user) {
+                clearGoogleOAuthSession(req);
+                return res.redirect('/register?googleError=account_not_found');
+            }
+            if (portal === 'partner') {
+                if (user.role !== 'seller' && user.role !== 'courier') {
+                    clearGoogleOAuthSession(req);
+                    return res.redirect('/login?googleError=wrong_role_partner');
+                }
+            } else if (user.role !== 'buyer') {
+                clearGoogleOAuthSession(req);
+                return res.redirect('/login?googleError=wrong_role_buyer');
+            }
+        } else {
+            if (!user) {
+                if (portal === 'partner') {
+                    clearGoogleOAuthSession(req);
+                    return res.redirect('/register?googleError=partner_use_email');
+                }
+                const generatedPassword = crypto.randomBytes(32).toString('hex');
+                const fallbackName = email.split('@')[0] || 'Google Kullanıcısı';
+                const fullname = String(profileData.name || fallbackName).trim().slice(0, 255) || 'Google Kullanıcısı';
+
+                user = await User.create({
+                    email,
+                    password: await hashPassword(generatedPassword),
+                    fullname,
+                    role: 'buyer',
+                    email_verified: true
+                });
+            } else {
+                if (portal === 'partner') {
+                    if (user.role !== 'seller' && user.role !== 'courier') {
+                        clearGoogleOAuthSession(req);
+                        return res.redirect('/login?googleError=account_not_found');
+                    }
+                } else if (user.role !== 'buyer') {
+                    clearGoogleOAuthSession(req);
+                    return res.redirect('/login?googleError=account_not_found');
+                }
+            }
         }
 
-        if (!user) {
-            const generatedPassword = crypto.randomBytes(32).toString('hex');
-            const fallbackName = email.split('@')[0] || 'Google Kullanıcısı';
-            const fullname = String(profileData.name || fallbackName).trim().slice(0, 255) || 'Google Kullanıcısı';
-
-            user = await User.create({
-                email,
-                password: await hashPassword(generatedPassword),
-                fullname,
-                role: 'buyer',
-                email_verified: true
-            });
-        } else if (user.email_verified !== true) {
+        if (user.email_verified !== true) {
             await user.update({ email_verified: true });
         }
 
@@ -357,7 +419,11 @@ router.post("/register", [
 ], handleValidationErrors, async (req, res) => {
     const { email } = req.body;
     try {
-        const existingUser = await User.findOne({ where: { email } });
+        const domainType = getDomainType(req);
+        if (domainType === 'admin') {
+            return res.status(403).json({ success: false, message: "Admin domaininde kayıt kapalıdır." });
+        }
+        const existingUser = await User.findOne({ where: { email }, attributes: ['id', 'email'] });
         if (existingUser) return res.status(400).json({ success: false, message: "Bu e-posta kayıtlı." });
 
         const code = generateVerificationCode();
@@ -375,9 +441,16 @@ router.post("/verify-email", async (req, res) => {
     const { email, code, fullname, password, role = "buyer" } = req.body;
 
     try {
+        const domainType = getDomainType(req);
+        if (domainType === 'admin') {
+            return res.status(403).json({ success: false, message: "Admin domaininde kayıt kapalıdır." });
+        }
         const isValid = await verifyCode(email, code, 'registration');
         if (!isValid) return res.status(400).json({ success: false, message: "Geçersiz veya süresi dolmuş kod." });
 
+        if (!roleAllowedOnDomain(role, domainType)) {
+            return res.status(403).json({ success: false, message: "Bu domain üzerinde bu rol ile kayıt olamazsınız." });
+        }
         const hashedPassword = await hashPassword(password);
         const user = await User.create({
             email,
@@ -397,8 +470,7 @@ router.post("/verify-email", async (req, res) => {
                 success: true,
                 user: userData,
                 token,
-                needsDocuments: true,
-                redirectUrl: '/register/documents'
+                needsDocuments: false
             });
         }
 
@@ -484,23 +556,27 @@ router.post("/submit-documents", (req, res, next) => {
                 shop_name: user.fullname + "'nın Mutfağı",
                 location: locationText,
                 is_active: false,
+                is_open: true,
                 tax_plate: taxPlate,
                 id_card: idCard,
                 activity_cert: activityCert,
                 business_license: businessLicense
             });
 
-            // Adres kaydı oluştur
             if (addrCity && addrFull) {
-                const fullAddressText = [addrNeighborhood, addrFull].filter(Boolean).join(', ');
-                await Address.create({
-                    user_id: userId,
-                    title: 'İşyeri Adresi',
-                    full_address: fullAddressText,
-                    district: addrDistrict || null,
-                    city: addrCity,
-                    is_default: true
-                });
+                try {
+                    const fullAddressText = [addrNeighborhood, addrFull].filter(Boolean).join(', ');
+                    await Address.create({
+                        user_id: userId,
+                        title: 'İşyeri Adresi',
+                        full_address: fullAddressText,
+                        district: addrDistrict || null,
+                        city: addrCity,
+                        is_default: true
+                    });
+                } catch (addrErr) {
+                    console.error("[submit-documents] Adres kaydı:", addrErr.message);
+                }
             }
 
             req.session.user.sellerId = seller.id;
@@ -599,23 +675,28 @@ router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValid
                 shop_name: user.fullname + "'nın Mutfağı",
                 location: locationText,
                 is_active: false,
+                is_open: true,
                 tax_plate: saved.taxPlate,
                 id_card: saved.idCard,
                 activity_cert: saved.activityCert,
                 business_license: saved.businessLicense
             });
 
-            // Adres kaydı oluştur
+            // Adres kaydı oluştur (başarısız olsa bile satıcı kaydı tamam sayılır)
             if (addrCity && addrFull) {
-                const fullAddressText = [addrNeighborhood, addrFull].filter(Boolean).join(', ');
-                await Address.create({
-                    user_id: userId,
-                    title: 'İşyeri Adresi',
-                    full_address: fullAddressText,
-                    district: addrDistrict || null,
-                    city: addrCity,
-                    is_default: true
-                });
+                try {
+                    const fullAddressText = [addrNeighborhood, addrFull].filter(Boolean).join(', ');
+                    await Address.create({
+                        user_id: userId,
+                        title: 'İşyeri Adresi',
+                        full_address: fullAddressText,
+                        district: addrDistrict || null,
+                        city: addrCity,
+                        is_default: true
+                    });
+                } catch (addrErr) {
+                    console.error("[submit-documents-json] Adres kaydı:", addrErr.message);
+                }
             }
 
             req.session.user.sellerId = seller.id;
@@ -646,7 +727,7 @@ router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValid
 router.post("/forgot-password", async (req, res) => {
     const { email } = req.body;
     try {
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({ where: { email }, attributes: ['id', 'email', 'role'] });
         if (!user) {
             // Güvenlik: kullanıcı var mı belli etme
             return res.json({ success: true, message: "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi." });
@@ -703,12 +784,23 @@ router.post("/reset-password", async (req, res) => {
 router.get("/me", async (req, res) => {
     try {
         if (req.session && req.session.user && req.session.isAuthenticated) {
+            const sessionUser = req.session.user;
+            const dbUser = await User.findByPk(sessionUser.id, {
+                attributes: ['id', 'email', 'fullname', 'phone', 'role', 'is_active']
+            });
+            if (!dbUser) {
+                return res.status(401).json({ success: false, message: "Oturum bulunamadı." });
+            }
+            const fresh = await buildSessionUserData(dbUser);
+            req.session.user = { ...sessionUser, ...fresh };
             const user = req.session.user;
             let sellerApproved = null;
             let courierApproved = null;
             if (user.role === 'seller' && user.sellerId) {
                 const seller = await Seller.findByPk(user.sellerId);
                 sellerApproved = !!(seller && seller.is_active);
+            } else if (user.role === 'seller' && !user.sellerId) {
+                sellerApproved = false;
             }
             if (user.role === 'courier') {
                 const { Courier } = require("../../models");
@@ -723,7 +815,7 @@ router.get("/me", async (req, res) => {
                     fullname: user.fullname,
                     role: user.role,
                     sellerId: user.sellerId || null,
-                    courierId: user.courierId || user.id,
+                    courierId: user.courierId || (user.role === 'courier' ? user.id : null),
                     sellerApproved,
                     courierApproved
                 }

@@ -16,10 +16,19 @@
         return b ? `${b}${p}` : p;
     }
 
+    /** CSP / CORS: farklı porttan API’ye istekte credentials doğru gider */
+    function addressFetchOpts() {
+        const b = apiBase();
+        return b ? { credentials: 'include', mode: 'cors' } : { credentials: 'same-origin' };
+    }
+
     function pathExcluded() {
         const p = window.location.pathname || '';
+        const host = String(window.location.hostname || '').toLowerCase();
+        if (host === 'partner.localhost' || host === 'admin.localhost') return true;
         if (p.startsWith('/seller') || p.startsWith('/courier') || p.startsWith('/admin')) return true;
         if (p === '/login' || p === '/register' || p === '/forgot-password' || p === '/reset-password') return true;
+        if (p.startsWith('/auth/')) return true;
         if (p.startsWith('/register/documents')) return true;
         return false;
     }
@@ -92,18 +101,26 @@
     }
 
     function showOverlay(overlay) {
+        overlay.inert = false;
         overlay.hidden = false;
         overlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('delivery-area-modal-open');
     }
 
     function hideOverlay(overlay) {
+        if (!overlay) return;
+        const focusOut = document.getElementById('header-delivery-chip') || document.querySelector('main') || document.body;
         try {
-            const ae = document.activeElement;
-            if (overlay && ae && overlay.contains(ae) && typeof ae.blur === 'function') {
-                ae.blur();
+            if (focusOut && typeof focusOut.focus === 'function') {
+                if (!focusOut.hasAttribute('tabindex')) focusOut.setAttribute('tabindex', '-1');
+                focusOut.focus({ preventScroll: true });
             }
         } catch (e) {}
+        try {
+            const ae = document.activeElement;
+            if (overlay.contains(ae) && typeof ae.blur === 'function') ae.blur();
+        } catch (e) {}
+        overlay.inert = true;
         overlay.hidden = true;
         overlay.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('delivery-area-modal-open');
@@ -119,12 +136,16 @@
             const r = await fetch(addressApiUrl('/api/address/delivery-context'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                credentials: 'same-origin',
+                ...addressFetchOpts(),
                 body: JSON.stringify(body)
             });
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.success) {
                 return j.message || 'Sunucuya kaydedilemedi.';
+            }
+            if (j.lat != null && j.lng != null && !Number.isNaN(Number(j.lat)) && !Number.isNaN(Number(j.lng))) {
+                pendingLat = Number(j.lat);
+                pendingLng = Number(j.lng);
             }
             return null;
         } catch (e) {
@@ -133,7 +154,8 @@
     }
 
     async function loadCities(selectEl) {
-        const res = await fetch(addressApiUrl('/api/address/cities'), { credentials: 'same-origin' });
+        const res = await fetch(addressApiUrl('/api/address/cities'), addressFetchOpts());
+        if (!res.ok) throw new Error('İller yüklenemedi.');
         const j = await res.json();
         if (!j.success || !Array.isArray(j.cities)) throw new Error('İller yüklenemedi.');
         selectEl.innerHTML = '<option value="">İl seçin</option>';
@@ -147,7 +169,7 @@
 
     async function loadDistricts(city, selectIlce) {
         const enc = encodeURIComponent(city);
-        const res = await fetch(addressApiUrl(`/api/address/districts/${enc}`), { credentials: 'same-origin' });
+        const res = await fetch(addressApiUrl(`/api/address/districts/${enc}`), addressFetchOpts());
         const j = await res.json();
         if (!res.ok || !j.success || !Array.isArray(j.districts)) {
             selectIlce.innerHTML = '<option value="">İlçe bulunamadı</option>';
@@ -170,21 +192,33 @@
         const selIlce = document.getElementById('delivery-ilce');
         const inpMah = document.getElementById('delivery-mahalle');
         const inpCad = document.getElementById('delivery-cadde');
+        const errFill = document.getElementById('delivery-area-error');
         if (!selIl || !selIlce || !inpMah || !inpCad) return;
-        await loadCities(selIl);
-        if (stored) {
-            selIl.value = stored.il;
-            await loadDistricts(stored.il, selIlce);
-            selIlce.value = stored.ilce;
-            inpMah.value = stored.mahalle;
-            inpCad.value = stored.cadde;
-            if (stored.lat != null && stored.lng != null) {
-                pendingLat = stored.lat;
-                pendingLng = stored.lng;
+        try {
+            await loadCities(selIl);
+            if (stored) {
+                selIl.value = stored.il;
+                await loadDistricts(stored.il, selIlce);
+                selIlce.value = stored.ilce;
+                inpMah.value = stored.mahalle;
+                inpCad.value = stored.cadde;
+                if (stored.lat != null && stored.lng != null) {
+                    pendingLat = stored.lat;
+                    pendingLng = stored.lng;
+                }
+            } else {
+                inpMah.value = '';
+                inpCad.value = '';
             }
-        } else {
-            inpMah.value = '';
-            inpCad.value = '';
+            if (errFill) {
+                errFill.hidden = true;
+                errFill.textContent = '';
+            }
+        } catch (e) {
+            if (errFill) {
+                errFill.textContent = (e && e.message) || 'İl / ilçe listesi yüklenemedi. Sayfayı yenileyin.';
+                errFill.hidden = false;
+            }
         }
     }
 
@@ -231,6 +265,10 @@
             }
             return;
         }
+        if (pendingLat != null && pendingLng != null) {
+            data.lat = pendingLat;
+            data.lng = pendingLng;
+        }
         try {
             window.__buyerAddressPromptPending = false;
         } catch (e) {}
@@ -274,7 +312,7 @@
         }
         listEl.innerHTML = '';
         if (loadingEl) loadingEl.hidden = false;
-        fetch(addressApiUrl('/api/buyer/addresses'), { credentials: 'same-origin' })
+        fetch(addressApiUrl('/api/buyer/addresses'), addressFetchOpts())
             .then((r) => r.json())
             .then((j) => {
                 if (loadingEl) loadingEl.hidden = true;
@@ -379,6 +417,22 @@
                     selIlce.innerHTML = '<option value="">İlçeler yüklenemedi</option>';
                     selIlce.disabled = true;
                 });
+            });
+        }
+
+        if (selIlce && selIl) {
+            selIlce.addEventListener('focus', () => {
+                const city = selIl.value;
+                if (!city) return;
+                const opts = selIlce.options && selIlce.options.length;
+                if (opts != null && opts <= 1) {
+                    selIlce.innerHTML = '<option value="">Yükleniyor...</option>';
+                    selIlce.disabled = true;
+                    loadDistricts(city, selIlce).catch(() => {
+                        selIlce.innerHTML = '<option value="">İlçeler yüklenemedi</option>';
+                        selIlce.disabled = true;
+                    });
+                }
             });
         }
 
@@ -500,7 +554,7 @@
                             const url = addressApiUrl(
                                 `/api/address/near-city?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
                             );
-                            const r = await fetch(url, { credentials: 'include', mode: 'cors' });
+                            const r = await fetch(url, addressFetchOpts());
                             const j = await r.json().catch(() => ({}));
                             if (!r.ok || !j.success || !j.il) {
                                 throw new Error((j && j.message) || 'Sunucu konumu çözümleyemedi.');
@@ -546,6 +600,13 @@
         if (pathExcluded()) {
             const chip = document.getElementById('header-delivery-chip');
             if (chip) chip.hidden = true;
+            const overlay = document.getElementById('delivery-area-overlay');
+            if (overlay) {
+                overlay.inert = true;
+                overlay.hidden = true;
+                overlay.setAttribute('aria-hidden', 'true');
+            }
+            document.body.classList.remove('delivery-area-modal-open');
             return;
         }
         const chip = document.getElementById('header-delivery-chip');

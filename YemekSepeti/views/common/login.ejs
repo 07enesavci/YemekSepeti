@@ -3,7 +3,9 @@
         
         <div class="card auth-card">
             <div class="card-content">
-                <h1 class="card-title text-center">Giriş Yap</h1>
+                <h1 class="card-title text-center">
+                    <%= authType === 'admin' ? 'Admin Girişi' : (authType === 'partner' ? 'Partner Girişi' : 'Giriş Yap') %>
+                </h1>
                 <p class="text-center auth-subtext">Lezzet dünyamıza tekrar hoş geldin!</p>
                 
                 <form id="login-form">
@@ -28,6 +30,7 @@
                     
                     <button type="submit" class="btn btn-primary btn-full"> Giriş Yap</button>
 
+                    <% if (typeof googleOAuthEnabled !== 'undefined' && googleOAuthEnabled && (!authType || authType === 'buyer' || authType === 'partner')) { %>
                     <div class="auth-divider" role="separator" aria-label="Alternatif giriş seçenekleri">
                         <span>veya</span>
                     </div>
@@ -43,6 +46,7 @@
                         </span>
                         Google ile Giriş Yap
                     </a>
+                    <% } %>
                 </form>
 
                 <!-- 2FA Doğrulama Ekranı -->

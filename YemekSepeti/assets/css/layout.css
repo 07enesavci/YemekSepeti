@@ -99,6 +99,153 @@
     z-index: 100;
 }
 
+.header-location-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+body.delivery-area-modal-open {
+    overflow: hidden;
+}
+
+.delivery-area-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(3px);
+    z-index: 2200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+/* [hidden] tek başına yeterli değil: üstteki display:flex özgüllüğü hidden'ı ezer; kapanınca overlay görünür kalıyordu */
+.delivery-area-overlay[hidden] {
+    display: none !important;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.delivery-area-dialog {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    border-radius: 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+    padding: 20px;
+}
+
+.delivery-area-title {
+    margin: 0 0 8px 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.delivery-area-desc {
+    margin: 0 0 14px 0;
+    color: var(--text-color-light);
+    font-size: 0.95rem;
+}
+
+.delivery-area-form {
+    display: grid;
+    gap: 10px;
+}
+
+.delivery-area-form .form-input {
+    width: 100%;
+}
+
+.delivery-area-gps-row {
+    margin-top: 2px;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.delivery-area-gps-btn {
+    white-space: nowrap;
+}
+
+.delivery-area-submit {
+    width: 100%;
+    margin-top: 4px;
+}
+
+.delivery-area-muted {
+    margin: 8px 0;
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+}
+
+.delivery-area-error {
+    margin: 4px 0 0;
+    color: #dc2626;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.delivery-buyer-list {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.delivery-buyer-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.delivery-buyer-item:hover {
+    border-color: var(--primary-color);
+}
+
+.delivery-buyer-item-sub {
+    color: var(--text-color-light);
+    font-size: 0.86rem;
+}
+
+.delivery-buyer-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+    .delivery-area-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .delivery-area-dialog {
+        width: 100%;
+        max-height: 88vh;
+        border-radius: 16px 16px 0 0;
+        padding: 16px;
+    }
+}
+
 @media (max-width: 768px) {
     .header-content {
         flex-direction: column;

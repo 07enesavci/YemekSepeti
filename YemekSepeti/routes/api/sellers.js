@@ -8,20 +8,20 @@ const { getCityCoordinates, haversineDistance } = require("../../data/turkey-coo
 router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
     try {
         const { location, rating, q, min_order, userLat, userLng } = req.query;
+        const deliveryArea = req.session && req.session.deliveryArea ? req.session.deliveryArea : null;
         const dbSellers = await Seller.findAll({
             where: { is_active: true },
             attributes: [
-                'id', 'shop_name', 'location', 'rating', 'logo_url', 
-                'banner_url', 'description', 'delivery_fee', 
-                'min_order_amount', 'total_reviews', 'is_active', 'is_open',
-                'delivery_radius_km', 'latitude', 'longitude'
+                'id', 'shop_name', 'location', 'rating', 'logo_url',
+                'banner_url', 'description', 'delivery_fee',
+                'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled'
             ],
             order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
         });
         
         // Alıcının konumunu al
-        const buyerLat = userLat ? parseFloat(userLat) : null;
-        const buyerLng = userLng ? parseFloat(userLng) : null;
+        const buyerLat = userLat ? parseFloat(userLat) : (deliveryArea && deliveryArea.lat != null ? parseFloat(deliveryArea.lat) : null);
+        const buyerLng = userLng ? parseFloat(userLng) : (deliveryArea && deliveryArea.lng != null ? parseFloat(deliveryArea.lng) : null);
         const hasBuyerLocation = buyerLat !== null && buyerLng !== null && !isNaN(buyerLat) && !isNaN(buyerLng);
         
         const sellers = dbSellers.map(seller => {
@@ -35,8 +35,8 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
             }
             
             // Satıcının koordinatlarını belirle (DB'den veya location string'inden)
-            let sellerLat = seller.latitude ? parseFloat(seller.latitude) : null;
-            let sellerLng = seller.longitude ? parseFloat(seller.longitude) : null;
+            let sellerLat = null;
+            let sellerLng = null;
             
             if ((!sellerLat || !sellerLng) && seller.location) {
                 const coords = getCityCoordinates(seller.location);
@@ -46,7 +46,7 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 }
             }
             
-            const radiusKm = parseInt(seller.delivery_radius_km) || 0;
+            const radiusKm = 0;
             
             // Mesafe hesapla ve yarıçap filtresi uygula
             let distance = null;
@@ -60,6 +60,15 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 }
             }
             
+            const sellerLocationText = String(seller.location || '').toLocaleLowerCase('tr-TR');
+            if (deliveryArea && deliveryArea.il && deliveryArea.ilce) {
+                const il = String(deliveryArea.il).toLocaleLowerCase('tr-TR');
+                const ilce = String(deliveryArea.ilce).toLocaleLowerCase('tr-TR');
+                const hasLocationMatch = sellerLocationText.includes(il) || sellerLocationText.includes(ilce);
+                if (!hasLocationMatch && !hasBuyerLocation) {
+                    return null;
+                }
+            }
             return {
                 id: seller.id,
                 name: seller.shop_name || 'İsimsiz Satıcı',
@@ -71,7 +80,8 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 deliveryFee: parseFloat(seller.delivery_fee) || 15.00,
                 minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
                 totalReviews: parseInt(seller.total_reviews) || 0,
-                isOpen: !!seller.is_open,
+                isOpen: seller.is_open !== false && seller.is_open !== 0,
+                pickupEnabled: seller.pickup_enabled !== false && seller.pickup_enabled !== 0,
                 deliveryRadiusKm: radiusKm,
                 distance: distance // Alıcıya mesafe (km) — null ise bilinmiyor
             };
@@ -150,7 +160,7 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             attributes: [
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
-                'min_order_amount', 'total_reviews', 'is_active', 'is_open'
+                'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled'
             ]
         });
 
@@ -182,7 +192,8 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             deliveryFee: parseFloat(seller.delivery_fee) || 15.00,
             minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
             totalReviews: parseInt(seller.total_reviews) || 0,
-            isOpen: !!seller.is_open
+            isOpen: seller.is_open !== false && seller.is_open !== 0,
+            pickupEnabled: seller.pickup_enabled !== false && seller.pickup_enabled !== 0
         });
     } catch (error) {
         res.status(500).json({

@@ -4,6 +4,11 @@ function isPanelPath(pathname) {
     return /^\/(seller|courier|admin)(\/|$)/.test(pathname || '');
 }
 
+function isPanelHost() {
+    const host = String(window.location.hostname || '').toLowerCase();
+    return host === 'partner.localhost' || host === 'admin.localhost';
+}
+
 function createFloatingCartHTML() {
     const cartHTML = `
         <div class="floating-cart-overlay" id="floating-cart-overlay"></div>
@@ -54,7 +59,7 @@ async function initFloatingCart() {
     }
     
     const path = window.location.pathname;
-    if (isPanelPath(path)) {
+    if (isPanelPath(path) || isPanelHost()) {
         return;
     }
     
@@ -145,7 +150,7 @@ function toggleFloatingCart(e) {
 
 async function updateFloatingCart() {
     const path = window.location.pathname;
-    if (isPanelPath(path)) {
+    if (isPanelPath(path) || isPanelHost()) {
         return;
     }
     
@@ -311,6 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const path = window.location.pathname;
     const isPanelPage = isPanelPath(path);
+    if (isPanelHost()) return;
     
     let isPanelUser = false;
     if (isPanelPage) {
