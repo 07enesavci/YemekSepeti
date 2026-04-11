@@ -3,7 +3,7 @@ const router=express.Router();
 const db=require("../../config/database");
 const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
-const { User, Seller, Courier, Order, Meal, Review }=require("../../models");
+const { User, Seller, Courier, Order, Meal, Review, Address }=require("../../models");
 const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
 const { Op }=require("sequelize");
 const { Sequelize }=require("sequelize");
@@ -404,8 +404,33 @@ router.get("/pending-sellers", requireRole(['admin','super_admin','support']), a
                 attributes: ['email', 'fullname'] 
             }]
         });
+
+        const enrichedPending = await Promise.all((pending || []).map(async (seller) => {
+            const businessAddress = await Address.findOne({
+                where: {
+                    user_id: seller.user_id,
+                    title: 'İşyeri Adresi'
+                },
+                attributes: ['id', 'title', 'full_address', 'district', 'city', 'is_default', 'created_at'],
+                order: [['is_default', 'DESC'], ['id', 'DESC']]
+            });
+
+            const sellerJson = seller.toJSON();
+            sellerJson.business_address = businessAddress ? {
+                id: businessAddress.id,
+                title: businessAddress.title,
+                full_address: businessAddress.full_address,
+                district: businessAddress.district,
+                city: businessAddress.city,
+                is_default: businessAddress.is_default,
+                created_at: businessAddress.created_at
+            } : null;
+
+            return sellerJson;
+        }));
+
         console.log("Onay bekleyen satıcı sayısı:", pending.length);
-        res.json({ success: true, data: pending });
+        res.json({ success: true, data: enrichedPending });
     } catch (error) {
         console.error("Liste Hatası Detayı:", error);
         res.status(500).json({ success: false, message: "Liste çekilemedi." });

@@ -59,6 +59,24 @@ async function ensureOrderPaymentMethodEnum() {
 }
 
 /**
+ * Eski veritabanlarinda orders.delivery_type kolonu olmadiginda siparis olusturma 500 verir.
+ * Pickup akisinin da sorunsuz calismasi icin address_id nullable olacak sekilde korunur.
+ */
+async function ensureOrderDeliveryTypeColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders MODIFY COLUMN address_id INT DEFAULT NULL`
+        );
+    } catch (_) {}
+
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders ADD COLUMN delivery_type ENUM('delivery','pickup') NOT NULL DEFAULT 'delivery' AFTER address_id`
+        );
+    } catch (_) {}
+}
+
+/**
  * meals.is_approved sütununun varlığını ve NOT NULL + DEFAULT 0 olmasını garanti eder.
  * Önce ADD (sütun yoksa); MODIFY yalnızca mevcut sütun için anlamlıdır — eski kodda
  * sadece MODIFY kullanıldığı için sütun hiç yokken hata yutuluyor ve public menü 500 veriyordu.
@@ -184,6 +202,7 @@ async function ensureUserOptionalColumns() {
 module.exports = {
     sequelize,
     testConnection,
+    ensureOrderDeliveryTypeColumn,
     ensureOrderPaymentMethodEnum,
     ensureMealIsApprovedColumn,
     ensureSellerIsOpenColumn,

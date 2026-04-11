@@ -441,8 +441,9 @@ function createOrderCardHTML(order) {
             <button class="btn btn-primary accept-order-btn" data-order-id="${order.id}">Onayla ve Hazırlamaya Başla</button>
         `;
     } else if (order.status === 'preparing') {
+        const readyButtonText = order.deliveryType === 'pickup' ? 'Alıcıya Hazır Olduğunu Bildir' : 'Kuryeye Hazır Olduğunu Bildir';
         actionButtons = `
-            <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}">Kuryeye Hazır Olduğunu Bildir</button>
+            <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}" data-delivery-type="${order.deliveryType || 'delivery'}">${readyButtonText}</button>
         `;
     } else if (order.status === 'ready' && !order.courierId) {
         if (order.deliveryType === 'pickup') {
@@ -592,9 +593,14 @@ function attachOrderEventListeners() {
     document.querySelectorAll('.ready-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            const deliveryType = e.target.getAttribute('data-delivery-type') || 'delivery';
             try {
                 await updateOrderStatus(orderId, 'ready');
-                showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
+                if (deliveryType === 'pickup') {
+                    showSellerActionNotification('success', 'Alıcıya Bildirildi', '#' + orderId + ' numaralı gel al siparişi hazır. Müşteriye bildirim gönderildi.');
+                } else {
+                    showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
+                }
                 await loadOrdersForTab('preparing');
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
@@ -630,7 +636,7 @@ function attachOrderEventListeners() {
             } catch (error) {
                 showSellerActionNotification('error', 'Kurye Atama Hatası', error.message || 'Kurye atanamadı.');
                 button.disabled = false;
-                button.textContent = 'Kuryeye Bildir';
+                button.textContent = button.getAttribute('data-delivery-type') === 'pickup' ? 'Alıcıya Hazır Olduğunu Bildir' : 'Kuryeye Bildir';
             }
         });
     });

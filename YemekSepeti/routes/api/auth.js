@@ -105,10 +105,14 @@ function getPostLoginRedirect(userData) {
     if (!userData) return '/';
     if (userData.role === 'admin' || userData.role === 'super_admin' || userData.role === 'support') return '/admin/users';
     if (userData.role === 'seller') {
+        if (!userData.sellerId) return '/register/documents';
+        if (!userData.sellerApproved) return '/seller/pending-approval';
         if (userData.sellerId) return `/seller/${userData.sellerId}/dashboard`;
         return '/seller/dashboard';
     }
     if (userData.role === 'courier') {
+        if (!userData.courierId) return '/register/documents';
+        if (!userData.courierApproved) return '/courier/pending-approval';
         const courierId = userData.courierId || userData.id;
         return `/courier/${courierId}/dashboard`;
     }
@@ -470,7 +474,8 @@ router.post("/verify-email", async (req, res) => {
                 success: true,
                 user: userData,
                 token,
-                needsDocuments: false
+                needsDocuments: true,
+                redirectUrl: '/register/documents'
             });
         }
 

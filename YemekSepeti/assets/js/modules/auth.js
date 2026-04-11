@@ -102,7 +102,15 @@ document.addEventListener("DOMContentLoaded", function ()
                     else if (role === "seller") 
                     {
                         var sellerId=result.user.sellerId;
-                        if (sellerId) 
+                        if (!sellerId)
+                        {
+                            window.location.href=`${baseUrl}/register/documents`;
+                        }
+                        else if (result.user.sellerApproved === false)
+                        {
+                            window.location.href=`${baseUrl}/seller/pending-approval`;
+                        }
+                        else if (sellerId) 
                         {
                             window.location.href=`${baseUrl}/seller/${sellerId}/dashboard`;
                         } 
@@ -114,7 +122,18 @@ document.addEventListener("DOMContentLoaded", function ()
                     else if (role === "courier") 
                     {
                         var courierId=result.user.courierId || result.user.id;
-                        window.location.href=`${baseUrl}/courier/${courierId}/dashboard`;
+                        if (!result.user.courierId)
+                        {
+                            window.location.href=`${baseUrl}/register/documents`;
+                        }
+                        else if (result.user.courierApproved === false)
+                        {
+                            window.location.href=`${baseUrl}/courier/pending-approval`;
+                        }
+                        else
+                        {
+                            window.location.href=`${baseUrl}/courier/${courierId}/dashboard`;
+                        }
                     } 
                     else if (role === "buyer")
                     {

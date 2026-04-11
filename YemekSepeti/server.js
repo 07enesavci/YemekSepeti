@@ -64,6 +64,7 @@ try {
             // alter: true -> Modellerdeki yeni sütunları SQL'e otomatik ekler.
             // "Too many keys" hatası: unique alanlar artık indexes içinde tanımlı; hâlâ oluşursa alter olmadan sync yapılır.
             const {
+                ensureOrderDeliveryTypeColumn,
                 ensureOrderPaymentMethodEnum,
                 ensureMealIsApprovedColumn,
                 ensureSellerIsOpenColumn,
@@ -76,6 +77,7 @@ try {
             const useAlterSync = process.env.SEQUELIZE_ALTER_SYNC === 'true';
             sequelize.sync({ alter: useAlterSync })
                 .then(async () => {
+                    await ensureOrderDeliveryTypeColumn();
                     if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
                         await ensureOrderPaymentMethodEnum();
                     }
@@ -95,6 +97,7 @@ try {
                         writeLog('WARN', 'Sequelize alter atlandı (çok fazla indeks). Tablolar mevcut haliyle kullanılıyor.', { error: err.message });
                         console.warn("⚠️ SQL alter atlandı (çok fazla indeks). Tablolar mevcut haliyle kullanılıyor. Veritabanında gereksiz indeksleri temizleyebilirsiniz.");
                         return sequelize.sync({ alter: false }).then(async () => {
+                            await ensureOrderDeliveryTypeColumn();
                             if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
                                 await ensureOrderPaymentMethodEnum();
                             }

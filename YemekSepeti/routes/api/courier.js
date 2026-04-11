@@ -53,6 +53,7 @@ router.get("/available", async (req, res) => {
             where: {
                 courier_id: null,
                 status: 'ready',
+                delivery_type: { [Op.ne]: 'pickup' },
                 created_at: { [Op.gte]: twoHoursAgo }
             },
             include: [
@@ -134,8 +135,8 @@ router.post("/tasks/:id/accept", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id || req.session.user.courierId;
-        const orderRecord = await Order.findByPk(orderId, {
-            attributes: ['id', 'user_id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time'],
+            const orderRecord = await Order.findByPk(orderId, {
+                attributes: ['id', 'user_id', 'courier_id', 'status', 'delivery_fee', 'estimated_delivery_time', 'delivery_type'],
             include: [
                 { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
                 { model: Address, as: 'address', attributes: ['district', 'city'], required: false }
@@ -144,6 +145,10 @@ router.post("/tasks/:id/accept", async (req, res) => {
 
         if (!orderRecord) {
             return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
+        }
+
+        if (orderRecord.delivery_type === 'pickup') {
+            return res.status(400).json({ success: false, message: "Bu sipariş gel al siparişi olduğu için kurye görevine açılamaz." });
         }
 
         if (orderRecord.courier_id !== null) {
@@ -214,6 +219,7 @@ router.get("/tasks/active", async (req, res) => {
         const tasksRaw = await Order.findAll({
             where: {
                 courier_id: courierId,
+                delivery_type: { [Op.ne]: 'pickup' },
                 status: { [Op.in]: ['on_delivery', 'ready'] }
             },
             include: [
@@ -307,10 +313,11 @@ router.put("/tasks/:id/pickup", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id;
-        const orderCheck = await Order.findByPk(orderId, { attributes: ['id', 'courier_id', 'status'] });
+            const orderCheck = await Order.findByPk(orderId, { attributes: ['id', 'courier_id', 'status', 'delivery_type'] });
 
         if (!orderCheck) return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
         if (orderCheck.courier_id !== courierId) return res.status(403).json({ success: false, message: "Bu sipariş size ait değil." });
+        if (orderCheck.delivery_type === 'pickup') return res.status(400).json({ success: false, message: "Gel al siparişlerde kurye teslim işlemi kullanılmaz." });
         if (orderCheck.status !== 'on_delivery' && orderCheck.status !== 'ready') {
             return res.status(400).json({ success: false, message: "Bu sipariş alınabilir durumda değil." });
         }
@@ -347,10 +354,11 @@ router.put("/tasks/:id/complete", async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
         const courierId = req.session.user.id;
-        const orderCheck = await Order.findByPk(orderId, { attributes: ['id', 'user_id', 'courier_id', 'status'] });
+            const orderCheck = await Order.findByPk(orderId, { attributes: ['id', 'user_id', 'courier_id', 'status', 'delivery_type'] });
 
         if (!orderCheck) return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
         if (orderCheck.courier_id !== courierId) return res.status(403).json({ success: false, message: "Bu sipariş size ait değil." });
+        if (orderCheck.delivery_type === 'pickup') return res.status(400).json({ success: false, message: "Gel al siparişlerde kurye teslimi tamamlanamaz." });
 
         await Order.update({ status: 'delivered', delivered_at: new Date() }, { where: { id: orderId } });
         const taskRow = await CourierTask.findOne({ where: { order_id: orderId, courier_id: courierId }, attributes: ['id', 'estimated_payout'] });

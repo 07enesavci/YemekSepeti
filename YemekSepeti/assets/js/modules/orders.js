@@ -25,6 +25,12 @@ async function showOrderDetail(orderId) {
         return;
     }
     
+    const isPickup = orderDetail.deliveryType === 'pickup';
+    const deliverySectionTitle = isPickup ? 'Gel Al Noktası' : 'Teslimat Adresi';
+    const deliveryAddressText = isPickup
+        ? (orderDetail.seller?.location || 'Restorandan teslim alın')
+        : (orderDetail.address?.full || orderDetail.address?.addressLine || 'Adres bilgisi yok');
+
     const modalHTML = `
         <div id="order-detail-modal" class="order-detail-modal" style="display: flex;">
             <div class="order-detail-modal-content">
@@ -34,13 +40,13 @@ async function showOrderDetail(orderId) {
                 </div>
                 <div class="order-detail-modal-body">
                     <div class="order-detail-section order-status-timeline">
-                        <h3>Sipariş Durumu</h3>
+                        <h3>${isPickup ? 'Gel Al Durumu' : 'Sipariş Durumu'}</h3>
                         <div class="timeline-steps">
                             ${(orderDetail.deliveryType === 'pickup' 
                                 ? ['pending', 'confirmed', 'preparing', 'ready', 'delivered'] 
                                 : ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered']
                             ).map((st, i) => {
-                                const labels = { pending: 'Alındı', confirmed: 'Onaylandı', preparing: 'Hazırlanıyor', ready: 'Hazır', on_delivery: 'Yolda', delivered: orderDetail.deliveryType === 'pickup' ? 'Teslim Alındı' : 'Teslim Edildi' };
+                                const labels = { pending: 'Alındı', confirmed: 'Onaylandı', preparing: 'Hazırlanıyor', ready: orderDetail.deliveryType === 'pickup' ? 'Teslim Alınabilir' : 'Hazır', on_delivery: orderDetail.deliveryType === 'pickup' ? 'Teslim Alınabilir' : 'Yolda', delivered: orderDetail.deliveryType === 'pickup' ? 'Teslim Alındı' : 'Teslim Edildi' };
                                 const orderFlow = orderDetail.deliveryType === 'pickup' ? ['pending', 'confirmed', 'preparing', 'ready', 'delivered'] : ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered'];
                                 const done = orderDetail.status === 'cancelled' ? (st === 'pending') : (orderFlow.indexOf(orderDetail.status) >= i);
                                 const current = orderDetail.status === st;
@@ -54,6 +60,7 @@ async function showOrderDetail(orderId) {
                             <p><strong>Durum:</strong> <span class="order-status ${orderDetail.status}">${orderDetail.statusText}</span></p>
                             <p><strong>Tarih:</strong> ${orderDetail.date}</p>
                             <p><strong>Ödeme Yöntemi:</strong> ${orderDetail.paymentMethod === 'credit_card' ? 'Kredi Kartı' : orderDetail.paymentMethod === 'cash' ? 'Nakit' : orderDetail.paymentMethod}</p>
+                            ${isPickup ? '<p><strong>Not:</strong> Bu sipariş gel al siparişidir. Restorana giderek teslim alabilirsiniz.</p>' : ''}
                         </div>
                     </div>
                     
@@ -66,9 +73,9 @@ async function showOrderDetail(orderId) {
                     </div>
                     
                     <div class="order-detail-section">
-                        <h3>Teslimat Adresi</h3>
+                        <h3>${deliverySectionTitle}</h3>
                         <div class="order-detail-info">
-                            <p>${orderDetail.address?.full || 'Adres bilgisi yok'}</p>
+                            <p>${deliveryAddressText}</p>
                         </div>
                     </div>
                     
@@ -562,6 +569,56 @@ function createOrderCard(order) {
     return card;
 }
 
+function getBuyerOrdersCacheKey(userId) {
+    return `buyer-orders-snapshot:${userId}`;
+}
+
+function readBuyerOrdersSnapshot(userId) {
+    try {
+        if (!window.sessionStorage || !userId) return null;
+        const raw = window.sessionStorage.getItem(getBuyerOrdersCacheKey(userId));
+        if (!raw) return null;
+        const snapshot = JSON.parse(raw);
+        if (!snapshot || !Array.isArray(snapshot.activeOrders) || !Array.isArray(snapshot.pastOrders)) {
+            return null;
+        }
+        return snapshot;
+    } catch (error) {
+        return null;
+    }
+}
+
+function writeBuyerOrdersSnapshot(userId, activeOrders, pastOrders) {
+    try {
+        if (!window.sessionStorage || !userId) return;
+        window.sessionStorage.setItem(getBuyerOrdersCacheKey(userId), JSON.stringify({
+            savedAt: Date.now(),
+            activeOrders: Array.isArray(activeOrders) ? activeOrders : [],
+            pastOrders: Array.isArray(pastOrders) ? pastOrders : []
+        }));
+    } catch (error) {}
+}
+
+function renderBuyerOrdersSection(section, orders, emptyText, orderType) {
+    if (!section) return;
+
+    section.querySelectorAll('.order-card').forEach(card => card.remove());
+    section.querySelectorAll('.buyer-orders-empty-state').forEach(node => node.remove());
+
+    if (!orders || orders.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'buyer-orders-empty-state';
+        empty.textContent = emptyText;
+        section.appendChild(empty);
+        return;
+    }
+
+    orders.forEach(order => {
+        const card = createOrderCard(Object.assign({ type: orderType }, order));
+        section.appendChild(card);
+    });
+}
+
 async function renderOrders() {
     const activeSection = document.getElementById('active-orders');
     const pastSection = document.getElementById('past-orders');
@@ -602,65 +659,80 @@ async function renderOrders() {
         return;
     }
 
+    const cachedSnapshot = readBuyerOrdersSnapshot(userId);
+    if (cachedSnapshot) {
+        renderBuyerOrdersSection(activeSection, cachedSnapshot.activeOrders, 'Aktif siparişiniz bulunmamaktadır.', 'active');
+        renderBuyerOrdersSection(pastSection, cachedSnapshot.pastOrders, 'Geçmiş siparişiniz bulunmamaktadır.', 'past');
+    }
+
+    let latestActiveOrders = cachedSnapshot ? cachedSnapshot.activeOrders : [];
+    let latestPastOrders = cachedSnapshot ? cachedSnapshot.pastOrders : [];
+
     if (activeSection) {
         try {
             console.log(`📦 Aktif siparişler yükleniyor (User: ${userId})...`);
-            
-            activeSection.querySelectorAll('.order-card').forEach(card => card.remove());
-            activeSection.querySelectorAll('p').forEach(p => p.remove());
+
+            if (!cachedSnapshot) {
+                activeSection.querySelectorAll('.order-card').forEach(card => card.remove());
+                activeSection.querySelectorAll('p').forEach(p => p.remove());
+            }
             
             const activeResponse = await getActiveOrders(userId);
+            latestActiveOrders = activeResponse && activeResponse.success && Array.isArray(activeResponse.data)
+                ? activeResponse.data
+                : [];
             
             if (activeResponse.success && activeResponse.data && activeResponse.data.length > 0) {
-                activeResponse.data.forEach(order => {
-                    const card = createOrderCard(order);
-                    activeSection.appendChild(card);
-                });
+                renderBuyerOrdersSection(activeSection, activeResponse.data, 'Aktif siparişiniz bulunmamaktadır.', 'active');
                 console.log(`✅ ${activeResponse.data.length} aktif sipariş yüklendi`);
             } else {
-                const p = document.createElement('p');
-                p.textContent = 'Aktif siparişiniz bulunmamaktadır.';
-                activeSection.appendChild(p);
+                renderBuyerOrdersSection(activeSection, [], 'Aktif siparişiniz bulunmamaktadır.', 'active');
                 console.log('ℹ️  Aktif sipariş yok');
             }
         } catch(e) {
             console.error("Aktif siparişler yüklenirken hata oluştu:", e);
-            const p = document.createElement('p');
-            p.textContent = 'Siparişler yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin.';
-            p.style.color = 'red';
-            activeSection.appendChild(p);
+            if (!cachedSnapshot) {
+                const p = document.createElement('p');
+                p.textContent = 'Siparişler yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin.';
+                p.style.color = 'red';
+                activeSection.appendChild(p);
+            }
         }
     }
 
     if (pastSection) {
         try {
             console.log(`📦 Geçmiş siparişler yükleniyor (User: ${userId})...`);
-            
-            pastSection.querySelectorAll('.order-card').forEach(card => card.remove());
-            pastSection.querySelectorAll('p').forEach(p => p.remove());
+
+            if (!cachedSnapshot) {
+                pastSection.querySelectorAll('.order-card').forEach(card => card.remove());
+                pastSection.querySelectorAll('p').forEach(p => p.remove());
+            }
 
             const pastResponse = await getPastOrders(userId);
+            latestPastOrders = pastResponse && pastResponse.success && Array.isArray(pastResponse.data)
+                ? pastResponse.data
+                : [];
             
             if (pastResponse.success && pastResponse.data && pastResponse.data.length > 0) {
-                pastResponse.data.forEach(order => {
-                    const card = createOrderCard(order);
-                    pastSection.appendChild(card);
-                });
+                renderBuyerOrdersSection(pastSection, pastResponse.data, 'Geçmiş siparişiniz bulunmamaktadır.', 'past');
                 console.log(`✅ ${pastResponse.data.length} geçmiş sipariş yüklendi`);
             } else {
-                const p = document.createElement('p');
-                p.textContent = 'Geçmiş siparişiniz bulunmamaktadır.';
-                pastSection.appendChild(p);
+                renderBuyerOrdersSection(pastSection, [], 'Geçmiş siparişiniz bulunmamaktadır.', 'past');
                 console.log('ℹ️  Geçmiş sipariş yok');
             }
         } catch(e) {
             console.error("Geçmiş siparişler yüklenirken hata oluştu:", e);
-            const p = document.createElement('p');
-            p.textContent = 'Siparişler yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin.';
-            p.style.color = 'red';
-            pastSection.appendChild(p);
+            if (!cachedSnapshot) {
+                const p = document.createElement('p');
+                p.textContent = 'Siparişler yüklenirken bir hata oluştu. Lütfen sayfayı yenileyin.';
+                p.style.color = 'red';
+                pastSection.appendChild(p);
+            }
         }
     }
+
+    writeBuyerOrdersSnapshot(userId, latestActiveOrders, latestPastOrders);
 }
 
 function playBuyerOrderSound() {

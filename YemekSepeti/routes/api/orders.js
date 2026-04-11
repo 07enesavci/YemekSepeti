@@ -1064,9 +1064,10 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
         
         if (status === 'ready') {
             try {
-                const currentOrder = await Order.findByPk(orderId, { attributes: ['courier_id', 'status'] });
+                const currentOrder = await Order.findByPk(orderId, { attributes: ['courier_id', 'status', 'delivery_type'] });
+                const isPickupOrder = currentOrder && currentOrder.delivery_type === 'pickup';
 
-                if (currentOrder && currentOrder.courier_id !== null) {
+                if (currentOrder && currentOrder.courier_id !== null && !isPickupOrder) {
                     await Order.update({ status }, { where: { id: orderId, seller_id: shopId } });
 
                     res.json({
@@ -1118,19 +1119,37 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
         }
         await Order.update(updateData, { where: { id: orderId, seller_id: shopId } });
         const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number', 'courier_id', 'delivery_type'] });
+        const isPickupOrder = updatedOrder && updatedOrder.delivery_type === 'pickup';
         
-        if (status === 'ready' && updatedOrder && updatedOrder.courier_id === null && updatedOrder.delivery_type !== 'pickup' && global.io) {
+        if (status === 'ready' && updatedOrder && updatedOrder.courier_id === null && !isPickupOrder && global.io) {
             global.io.emit('order_pool_added', { orderId: orderId });
         }
-        const statusTitles = { confirmed: 'Sipariş onaylandı', preparing: 'Sipariş hazırlanıyor', ready: 'Sipariş hazır', on_delivery: 'Sipariş yolda', delivered: 'Sipariş teslim edildi', cancelled: 'Sipariş iptal edildi' };
+        const statusTitles = isPickupOrder ? {
+            confirmed: 'Sipariş onaylandı',
+            preparing: 'Sipariş hazırlanıyor',
+            ready: 'Siparişiniz hazır',
+            delivered: 'Sipariş teslim alındı',
+            cancelled: 'Sipariş iptal edildi'
+        } : {
+            confirmed: 'Sipariş onaylandı',
+            preparing: 'Sipariş hazırlanıyor',
+            ready: 'Sipariş hazır',
+            on_delivery: 'Sipariş yolda',
+            delivered: 'Sipariş teslim edildi',
+            cancelled: 'Sipariş iptal edildi'
+        };
         if (updatedOrder && statusTitles[status]) {
-            createNotification(updatedOrder.user_id, 'order', statusTitles[status], `Sipariş #${orderId} durumu: ${statusTitles[status]}.`, orderId).catch(() => {});
+            const notificationMessage = isPickupOrder && status === 'ready'
+                ? `Sipariş #${orderId} hazır. Lütfen restorandan teslim alın.`
+                : `Sipariş #${orderId} durumu: ${statusTitles[status]}.`;
+            createNotification(updatedOrder.user_id, 'order', statusTitles[status], notificationMessage, orderId).catch(() => {});
             
             if (global.io) {
                 global.io.to(`buyer-${updatedOrder.user_id}`).emit('order_status_updated', {
                     orderId: orderId,
                     status: status,
-                    orderNumber: updatedOrder.order_number
+                    orderNumber: updatedOrder.order_number,
+                    message: notificationMessage
                 });
             }
         }
@@ -1185,7 +1204,7 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         }
         
         const shopId = sellerRecord.id;
-        const order = await Order.findOne({ where: { id: orderId, seller_id: shopId }, attributes: ['id', 'courier_id', 'status'] });
+        const order = await Order.findOne({ where: { id: orderId, seller_id: shopId }, attributes: ['id', 'courier_id', 'status', 'delivery_type'] });
 
         if (!order) {
             return res.status(404).json({ success: false, message: "Sipariş bulunamadı veya size ait değil." });
@@ -1193,6 +1212,10 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         
         if (order.status !== 'ready') {
             return res.status(400).json({ success: false, message: "Sipariş hazır durumunda değil. Önce siparişi hazır durumuna getirin." });
+        }
+
+        if (order.delivery_type === 'pickup') {
+            return res.status(400).json({ success: false, message: "Gel Al siparişlerde kuryeye bildirim gönderilmez. Müşteriye hazır bildirimi gönderilir." });
         }
         
         if (order.courier_id !== null) {
@@ -1356,6 +1379,7 @@ router.get("/:id", requireAuth, async (req, res) => {
                     o.user_id,
                     o.seller_id,
                     s.shop_name as seller_name,
+                    s.location as seller_location,
                     u_seller.phone as seller_phone,
                     u.fullname as customer_name,
                     u.email as customer_email,
@@ -1423,11 +1447,15 @@ router.get("/:id", requireAuth, async (req, res) => {
 
             const [itemsRows] = await connection.execute(itemsQuery, [orderId]);
 
+            const normalizedStatus = order.delivery_type === 'pickup' && order.status === 'preparing'
+                ? 'ready'
+                : order.status;
+
             const orderDetail = {
                 id: order.id,
                 orderNumber: order.order_number,
-                status: order.status,
-                statusText: getStatusText(order.status),
+                status: normalizedStatus,
+                statusText: getStatusText(normalizedStatus),
                 date: new Date(order.date).toLocaleString('tr-TR'),
                 total: parseFloat(order.total) || 0,
                 subtotal: parseFloat(order.subtotal) || 0,
@@ -1438,7 +1466,8 @@ router.get("/:id", requireAuth, async (req, res) => {
                 seller: {
                     id: order.seller_id,
                     name: order.seller_name || "Ev Lezzetleri",
-                    phone: order.seller_phone
+                    phone: order.seller_phone,
+                    location: order.seller_location || null
                 },
                 customer: {
                     name: order.customer_name,
