@@ -14,7 +14,8 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
             attributes: [
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
-                'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled'
+                'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled',
+                'delivery_radius_km', 'latitude', 'longitude'
             ],
             order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
         });
@@ -35,18 +36,18 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
             }
             
             // Satıcının koordinatlarını belirle (DB'den veya location string'inden)
-            let sellerLat = null;
-            let sellerLng = null;
+            let sellerLat = seller.latitude != null ? parseFloat(seller.latitude) : null;
+            let sellerLng = seller.longitude != null ? parseFloat(seller.longitude) : null;
             
-            if ((!sellerLat || !sellerLng) && seller.location) {
+            if ((sellerLat === null || sellerLng === null) && seller.location) {
                 const coords = getCityCoordinates(seller.location);
                 if (coords) {
-                    sellerLat = coords.lat;
-                    sellerLng = coords.lng;
+                    if (sellerLat === null) sellerLat = coords.lat;
+                    if (sellerLng === null) sellerLng = coords.lng;
                 }
             }
             
-            const radiusKm = 0;
+            const radiusKm = parseInt(seller.delivery_radius_km || 0, 10);
             
             // Mesafe hesapla ve yarıçap filtresi uygula
             let distance = null;
@@ -160,7 +161,8 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             attributes: [
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
-                'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled'
+                'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled',
+                'delivery_radius_km', 'latitude', 'longitude'
             ]
         });
 

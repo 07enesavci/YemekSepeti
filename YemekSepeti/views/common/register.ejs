@@ -29,44 +29,31 @@
                         <input type="password" id="confirm-password" class="form-input" placeholder="Şifrenizi doğrulayın" required>
                     </div>
 
-                    <hr class="divider"> 
-                    
-                    <div class="form-group">
-                        <label class="form-label">Hesap Türü Seçin:</label>
-                        <div class="role-selector"> 
-                            <% if (!authType || authType === 'buyer') { %>
-                            <div class="form-check form-check-radio">
-                                <input type="radio" id="role-buyer" name="user-role" value="buyer" checked>
-                                <label for="role-buyer">
-                                    <span class="icon">🛒</span> 
-                                    <strong>Alıcıyım</strong> 
-                                    <span>(Yemek sipariş vermek istiyorum)</span>
-                                </label>
+                    <% if (authType === 'partner') { %>
+                        <hr class="divider"> 
+                        <div class="form-group">
+                            <div class="role-selector"> 
+                                <div class="form-check form-check-radio">
+                                    <input type="radio" id="role-seller" name="user-role" value="seller" checked>
+                                    <label for="role-seller">
+                                        <span class="icon">🍲</span> 
+                                        <strong>Satıcıyım</strong> 
+                                        <span>(Yemek satmak istiyorum)</span>
+                                    </label>
+                                </div>
+                                <div class="form-check form-check-radio">
+                                    <input type="radio" id="role-courier" name="user-role" value="courier">
+                                    <label for="role-courier">
+                                        <span class="icon">🚚</span> 
+                                        <strong>Kuryeyim</strong> 
+                                        <span>(Sipariş teslimatı yapmak istiyorum)</span>
+                                    </label>
+                                </div>
                             </div>
-                            <% } %>
-                            
-                            <% if (authType === 'partner') { %>
-                            <div class="form-check form-check-radio">
-                                <input type="radio" id="role-seller" name="user-role" value="seller" checked>
-                                <label for="role-seller">
-                                    <span class="icon">🍲</span> 
-                                    <strong>Satıcıyım</strong> 
-                                    <span>(Yemek satmak istiyorum)</span>
-                                </label>
-                            </div>
-                            
-                            <div class="form-check form-check-radio">
-                                <input type="radio" id="role-courier" name="user-role" value="courier">
-                                <label for="role-courier">
-                                    <span class="icon">🚚</span> 
-                                    <strong>Kuryeyim</strong> 
-                                    <span>(Sipariş teslimatı yapmak istiyorum)</span>
-                                </label>
-                            </div>
-                            <% } %>
                         </div>
-                        <p class="text-muted" style="margin-top: 8px; font-size: 0.9rem;">Satıcı ve kurye seçeneklerinde e-posta doğrulamasından sonra belgeleriniz istenecektir.</p>
-                    </div>
+                    <% } else { %>
+                        <input type="hidden" name="user-role" value="buyer">
+                    <% } %>
 
                     <div class="form-group">
                         <div class="form-check">

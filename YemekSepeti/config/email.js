@@ -385,6 +385,44 @@ async function sendCourierRejectionEmail(email) {
     return await sendEmail(email, 'Kurye Başvuru Sonucu - Ev Lezzetleri', html);
 }
 
+async function sendPickupReadyEmail(email, orderNumber, shopName) {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                .order-id { font-size: 20px; font-weight: bold; color: #DC2626; margin: 15px 0; }
+                .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Ev Lezzetleri</h1>
+                    <p>Siparişiniz Hazır!</p>
+                </div>
+                <div class="content">
+                    <p>Merhaba,</p>
+                    <p><strong>${shopName}</strong> restoranından verdiğiniz <strong>${orderNumber}</strong> numaralı Gel Al siparişiniz hazırlanmıştır.</p>
+                    <div class="order-id">Sipariş Hazır!</div>
+                    <p>Dilediğiniz zaman restorandan siparişinizi teslim alabilirsiniz.</p>
+                    <p>Afiyet olsun!</p>
+                </div>
+                <div class="footer">
+                    <p>© ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    return await sendEmail(email, `Siparişiniz Hazır - ${orderNumber}`, html);
+}
+
 module.exports = {
     sendEmail,
     sendVerificationCode,
@@ -392,5 +430,6 @@ module.exports = {
     sendSellerApprovalEmail,
     sendSellerRejectionEmail,
     sendCourierApprovalEmail,
-    sendCourierRejectionEmail
+    sendCourierRejectionEmail,
+    sendPickupReadyEmail
 };

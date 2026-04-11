@@ -9,6 +9,7 @@ const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 const { refundIyzicoPaymentForOrder } = require("../../lib/iyzicoRefund");
 const { decryptText } = require("../../lib/cardCrypto");
+const { sendPickupReadyEmail } = require("../../config/email");
 
 const iyzipay = new Iyzipay({
     apiKey: process.env.IYZICO_API_KEY || "",
@@ -1139,11 +1140,29 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
             cancelled: 'Sipariş iptal edildi'
         };
         if (updatedOrder && statusTitles[status]) {
-            const notificationMessage = isPickupOrder && status === 'ready'
+            const isPickupStatusReady = isPickupOrder && status === 'ready';
+            const notificationTitle = isPickupStatusReady ? 'Siparişiniz Teslim Alınabilir' : statusTitles[status];
+            const notificationMessage = isPickupStatusReady
                 ? `Sipariş #${orderId} hazır. Lütfen restorandan teslim alın.`
                 : `Sipariş #${orderId} durumu: ${statusTitles[status]}.`;
-            createNotification(updatedOrder.user_id, 'order', statusTitles[status], notificationMessage, orderId).catch(() => {});
             
+            createNotification(updatedOrder.user_id, 'order', notificationTitle, notificationMessage, orderId).catch(() => {});
+            
+            // "Gel Al" siparişi hazır olduğunda e-posta gönder
+            if (isPickupStatusReady) {
+                (async () => {
+                    try {
+                        const buyerUser = await User.findByPk(updatedOrder.user_id, { attributes: ['email'] });
+                        const shop = await Seller.findByPk(shopId, { attributes: ['shop_name'] });
+                        if (buyerUser && buyerUser.email && shop) {
+                            await sendPickupReadyEmail(buyerUser.email, updatedOrder.order_number, shop.shop_name);
+                        }
+                    } catch (emailErr) {
+                        console.error('Gel Al hazır e-postası gönderilemedi:', emailErr);
+                    }
+                })();
+            }
+
             if (global.io) {
                 global.io.to(`buyer-${updatedOrder.user_id}`).emit('order_status_updated', {
                     orderId: orderId,
@@ -1447,9 +1466,7 @@ router.get("/:id", requireAuth, async (req, res) => {
 
             const [itemsRows] = await connection.execute(itemsQuery, [orderId]);
 
-            const normalizedStatus = order.delivery_type === 'pickup' && order.status === 'preparing'
-                ? 'ready'
-                : order.status;
+            const normalizedStatus = order.status;
 
             const orderDetail = {
                 id: order.id,
