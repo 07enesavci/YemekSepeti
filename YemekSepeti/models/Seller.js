@@ -101,6 +101,12 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.BOOLEAN,
             defaultValue: true,
             allowNull: false
+        },
+        /** Uzak Mesafe Kargo — satıcı kargo ile Türkiye geneline ürün gönderebilir */
+        uzak_mesafe_enabled: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            allowNull: false
         }
     }, {
         tableName: 'sellers',

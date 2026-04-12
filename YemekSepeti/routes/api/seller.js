@@ -25,7 +25,7 @@ router.get("/menu", async (req, res) => {
         }
         const meals = await Meal.findAll({
             where: { seller_id: seller.id },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved'],
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved', 'is_uzak_mesafe'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
         
@@ -44,7 +44,8 @@ router.get("/menu", async (req, res) => {
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
                 isAvailable: meal.is_available,
-                isApproved: meal.is_approved
+                isApproved: meal.is_approved,
+                isUzakMesafe: !!meal.is_uzak_mesafe
             };
         });
         
@@ -64,7 +65,7 @@ router.post("/menu", async (req, res) => {
             });
         }
 
-        const { category, name, description, price, imageUrl, isAvailable = true } = req.body;
+        const { category, name, description, price, imageUrl, isAvailable = true, isUzakMesafe = false } = req.body;
         if (!category || !name || price === undefined || price === null || price === '') {
             return res.status(400).json({
                 success: false,
@@ -92,6 +93,7 @@ router.post("/menu", async (req, res) => {
         }
 
         const isAvailableBool = isAvailable === true || isAvailable === 'true' || String(isAvailable).toLowerCase() === 'true';
+        const isUzakMesafeBool = isUzakMesafe === true || isUzakMesafe === 'true' || isUzakMesafe === 1;
 
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
@@ -107,9 +109,9 @@ router.post("/menu", async (req, res) => {
 
         const shopId = sellerQuery[0].id;
         const result = await db.execute(
-            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, false, NOW(), NOW())`,
-            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool]
+            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, is_uzak_mesafe, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, false, ?, NOW(), NOW())`,
+            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool, isUzakMesafeBool]
         );
 
         const insertId = (result && result.insertId != null) ? Number(result.insertId) : 0;
@@ -147,6 +149,7 @@ router.post("/menu", async (req, res) => {
                 category, name, description, price: priceNum,
                 imageUrl: finalImageUrl,
                 isAvailable: isAvailableBool,
+                isUzakMesafe: isUzakMesafeBool,
                 isApproved: false
             }
         });
@@ -163,19 +166,19 @@ router.put("/menu/:id", async (req, res) => {
     try {
         const mealId = parseInt(req.params.id);
         const userId = req.session.user.id;
-        const { category, name, description, price, imageUrl, isAvailable } = req.body;
+        const { category, name, description, price, imageUrl, isAvailable, isUzakMesafe } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
         );
-        
+
         if (sellerQuery.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "Satıcı kaydı bulunamadı."
             });
         }
-        
+
         const shopId = sellerQuery[0].id;
         const mealCheck = await db.query(
             "SELECT id FROM meals WHERE id = ? AND seller_id = ?",
@@ -226,7 +229,11 @@ router.put("/menu/:id", async (req, res) => {
             updateFields.push("is_available = ?");
             updateValues.push(isAvailable);
         }
-        
+        if (isUzakMesafe !== undefined) {
+            updateFields.push("is_uzak_mesafe = ?");
+            updateValues.push(isUzakMesafe === true || isUzakMesafe === 'true' || isUzakMesafe === 1 ? 1 : 0);
+        }
+
         if (updateFields.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -458,7 +465,7 @@ router.get("/dashboard", async (req, res) => {
 router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
-        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled } = req.body;
+        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled, uzakMesafeEnabled } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -543,6 +550,10 @@ router.put("/profile", async (req, res) => {
             updateFields.push("pickup_enabled = ?");
             updateValues.push(pickupEnabled === true || pickupEnabled === 1 || pickupEnabled === '1' ? 1 : 0);
         }
+        if (uzakMesafeEnabled !== undefined) {
+            updateFields.push("uzak_mesafe_enabled = ?");
+            updateValues.push(uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1' ? 1 : 0);
+        }
         if (workingHours !== undefined) {
             let hoursValue = null;
             if (workingHours === '' || workingHours === null || workingHours === undefined) {
@@ -624,7 +635,12 @@ router.put("/profile", async (req, res) => {
             `UPDATE sellers SET ${updateFields.join(", ")} WHERE id = ?`,
             updateValues
         );
-        
+
+        if (global.io && uzakMesafeEnabled !== undefined) {
+            const enabled = uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1';
+            global.io.emit('uzak_mesafe_toggle', { sellerId: shopId, enabled });
+        }
+
         res.json({
             success: true,
             message: "Profil başarıyla güncellendi."
@@ -681,9 +697,10 @@ router.get("/profile", async (req, res) => {
                 banner_url as bannerUrl,
                 delivery_radius_km as deliveryRadiusKm,
                 pickup_enabled as pickupEnabled,
+                uzak_mesafe_enabled as uzakMesafeEnabled,
                 latitude,
                 longitude
-            FROM sellers 
+            FROM sellers
             WHERE id = ?`,
             [shopId]
         );

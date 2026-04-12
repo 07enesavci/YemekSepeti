@@ -1,6 +1,24 @@
 // Satıcı modülü: menü, sipariş, kazanç, profil, kuponlar
 // Base URL ve kimlikli istekler window yardımcılarından alınır
 
+function updateSidebarUzakMesafe(enabled) {
+    const li = document.getElementById('sidebar-uzak-mesafe-li');
+    if (li) li.style.display = enabled ? 'block' : 'none';
+}
+
+async function fetchAndApplyUzakMesafeSidebar(baseUrl) {
+    try {
+        baseUrl = baseUrl || (window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : ''));
+        const res = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.profile) {
+            window.__sellerUzakMesafeEnabled = !!data.profile.uzakMesafeEnabled;
+            updateSidebarUzakMesafe(!!data.profile.uzakMesafeEnabled);
+        }
+    } catch (e) {}
+}
+
 async function fetchSellerMenu() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -139,10 +157,11 @@ function createMealCardHTML(meal) {
                 <span>${meal.category}</span>
             </div>
             <div class="menu-item-status">
-                ${meal.isApproved === false ? 
-                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' : 
+                ${meal.isApproved === false ?
+                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' :
                     `<span class="status-dot ${statusClass}">${statusText}</span>`
                 }
+                ${meal.isUzakMesafe ? '<span class="status-dot" style="background-color: #7c3aed; margin-left: 4px;">📦 Uzak Mesafe</span>' : ''}
             </div>
             <div class="menu-item-price">
                 ${parseFloat(meal.price || 0).toFixed(2)} TL
@@ -161,17 +180,22 @@ function createMealCardHTML(meal) {
 }
 
 async function loadMenuPage() {
-    const menuListContainer = document.querySelector('.menu-list');
-    if (!menuListContainer) {
-        return;
-    }
+    const isUzakMesafePage = !!window.__uzakMesafePage;
+    const containerId = isUzakMesafePage ? '#uzak-mesafe-menu-list' : '.menu-list';
+    const menuListContainer = document.querySelector(containerId) || document.querySelector('.menu-list');
+    if (!menuListContainer) return;
     menuListContainer.innerHTML = '<p>Yükleniyor...</p>';
     try {
-        const menu = await fetchSellerMenu();
+        const allMenu = await fetchSellerMenu();
+        const menu = isUzakMesafePage
+            ? allMenu.filter(m => !!m.isUzakMesafe)
+            : allMenu.filter(m => !m.isUzakMesafe);
         menuListContainer.innerHTML = '';
-
         if (menu.length === 0) {
-            menuListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz menü eklenmemiş. Yeni yemek eklemek için yukarıdaki butona tıklayın.</p>';
+            const emptyMsg = isUzakMesafePage
+                ? 'Henüz Uzak Mesafe ürünü eklenmemiş. Yukarıdaki butona tıklayın.'
+                : 'Henüz menü eklenmemiş. Yeni yemek eklemek için yukarıdaki butona tıklayın.';
+            menuListContainer.innerHTML = `<p style="text-align: center; padding: 2rem; color: #666;">${emptyMsg}</p>`;
         } else {
             menu.forEach(meal => {
                 menuListContainer.insertAdjacentHTML('beforeend', createMealCardHTML(meal));
@@ -441,7 +465,10 @@ function createOrderCardHTML(order) {
             <button class="btn btn-primary accept-order-btn" data-order-id="${order.id}">Onayla ve Hazırlamaya Başla</button>
         `;
     } else if (order.status === 'preparing') {
-        const readyButtonText = order.deliveryType === 'pickup' ? 'Alıcıya Hazır Olduğunu Bildir' : 'Kuryeye Hazır Olduğunu Bildir';
+        let readyButtonText;
+        if (order.deliveryType === 'pickup') readyButtonText = 'Alıcıya Hazır Olduğunu Bildir';
+        else if (order.deliveryType === 'cargo') readyButtonText = 'Kargoya Verilecek';
+        else readyButtonText = 'Kuryeye Hazır Olduğunu Bildir';
         actionButtons = `
             <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}" data-delivery-type="${order.deliveryType || 'delivery'}">${readyButtonText}</button>
         `;
@@ -450,11 +477,19 @@ function createOrderCardHTML(order) {
             actionButtons = `
                 <button class="btn btn-success custom-delivered-btn" style="background-color: #27AE60; border-color: #27AE60;" data-order-id="${order.id}">Teslim Edildi</button>
             `;
+        } else if (order.deliveryType === 'cargo') {
+            actionButtons = `
+                <button class="btn btn-primary cargo-ship-btn" data-order-id="${order.id}" style="background:#8e44ad;border-color:#8e44ad;">📦 Kargoya Verildi</button>
+            `;
         } else {
             actionButtons = `
                 <button class="btn btn-primary assign-courier-btn" data-order-id="${order.id}">Kuryeye Bildir</button>
             `;
         }
+    } else if (order.status === 'on_delivery' && order.deliveryType === 'cargo') {
+        actionButtons = `
+            <button class="btn btn-success custom-delivered-btn" style="background-color: #27AE60; border-color: #27AE60;" data-order-id="${order.id}">Teslim Edildi</button>
+        `;
     }
     
     return `
@@ -473,6 +508,7 @@ function createOrderCardHTML(order) {
                 ${discount > 0 ? `<p><strong>Tutar:</strong> ${subtotal.toFixed(2)} + ${deliveryFee.toFixed(2)} - ${discount.toFixed(2)} = <strong>${(parseFloat(order.total) || 0).toFixed(2)} TL</strong></p>` : ''}
                 ${order.statusText ? `<p><strong>Durum:</strong> ${order.statusText}</p>` : ''}
                 ${order.courierId && order.courierName ? `<p><strong>Kurye:</strong> ${order.courierName} (ID: ${order.courierId})</p>` : ''}
+                ${order.deliveryType === 'cargo' && order.cargoCompany ? `<p><strong>Kargo Firması:</strong> ${order.cargoCompany}${order.cargoTrackingNumber ? ` • Takip: <strong>${order.cargoTrackingNumber}</strong>` : ''}</p>` : ''}
             </div>
             ${actionButtons ? `
             <div class="order-card-actions">
@@ -531,6 +567,8 @@ async function loadOrdersForTab(tab, isSilent = false) {
             const tabNames = {
                 'new': 'Yeni sipariş',
                 'preparing': 'Hazırlanan sipariş',
+                'cargo_ready': 'Kargoya verilecek sipariş',
+                'shipped': 'Kargodaki sipariş',
                 'history': 'Geçmiş sipariş'
             };
             newHtml = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
@@ -598,10 +636,13 @@ function attachOrderEventListeners() {
                 await updateOrderStatus(orderId, 'ready');
                 if (deliveryType === 'pickup') {
                     showSellerActionNotification('success', 'Alıcıya Bildirildi', '#' + orderId + ' numaralı gel al siparişi hazır. Müşteriye bildirim gönderildi.');
+                } else if (deliveryType === 'cargo') {
+                    showSellerActionNotification('success', 'Kargoya Hazır', '#' + orderId + ' kargoya verilecekler listesine taşındı.');
                 } else {
                     showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
                 }
                 await loadOrdersForTab('preparing');
+                if (deliveryType === 'cargo') await loadOrdersForTab('cargo_ready');
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
@@ -641,6 +682,13 @@ function attachOrderEventListeners() {
         });
     });
 
+    document.querySelectorAll('.cargo-ship-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            showCargoShipModal(orderId);
+        });
+    });
+
     document.querySelectorAll('.custom-delivered-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
@@ -648,10 +696,74 @@ function attachOrderEventListeners() {
                 await updateOrderStatus(orderId, 'delivered');
                 showSellerActionNotification('success', 'Sipariş Teslim Edildi', '#' + orderId + ' müşteriye teslim edildi.');
                 await loadOrdersForTab('preparing');
+                await loadOrdersForTab('shipped');
+                await loadOrdersForTab('history');
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
         });
+    });
+}
+
+function showCargoShipModal(orderId) {
+    const existing = document.getElementById('cargo-ship-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'cargo-ship-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:2rem;min-width:320px;max-width:460px;width:90%;">
+            <h3 style="margin:0 0 1rem 0;">📦 Kargoya Ver</h3>
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.4rem;">Kargo Firması *</label>
+                <input id="cargo-company-input" type="text" placeholder="Örn: Yurtiçi Kargo" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.4rem;">Takip Numarası (opsiyonel)</label>
+                <input id="cargo-tracking-input" type="text" placeholder="Takip numarası" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button id="cargo-ship-cancel" class="btn btn-secondary">İptal</button>
+                <button id="cargo-ship-confirm" class="btn btn-primary" style="background:#8e44ad;border-color:#8e44ad;">Kargoya Ver</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('cargo-ship-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('cargo-ship-confirm').addEventListener('click', async () => {
+        const cargoCompany = document.getElementById('cargo-company-input').value.trim();
+        const cargoTrackingNumber = document.getElementById('cargo-tracking-input').value.trim();
+        if (!cargoCompany) {
+            alert('Kargo firması zorunludur.');
+            return;
+        }
+        const btn = document.getElementById('cargo-ship-confirm');
+        btn.disabled = true;
+        btn.textContent = 'Gönderiliyor...';
+        try {
+            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            const res = await fetch(`${baseUrl}/api/orders/seller/cargo-ship/${orderId}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cargoCompany, cargoTrackingNumber })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Hata oluştu');
+            modal.remove();
+            showSellerActionNotification('success', 'Kargoya Verildi', `#${orderId} kargoya verildi. Firma: ${cargoCompany}`);
+            await loadOrdersForTab('preparing');
+            await loadOrdersForTab('cargo_ready');
+            await loadOrdersForTab('shipped');
+        } catch (err) {
+            showSellerActionNotification('error', 'Hata', err.message);
+            btn.disabled = false;
+            btn.textContent = 'Kargoya Ver';
+        }
     });
 }
 
@@ -984,6 +1096,16 @@ async function loadProfilePage() {
             radiusSlider.value = profile.deliveryRadiusKm || 0;
             const pickupCb = document.getElementById('pickup-enabled');
             if (pickupCb) pickupCb.checked = profile.pickupEnabled !== false;
+            const uzakMesafeCb = document.getElementById('uzak-mesafe-enabled');
+            if (uzakMesafeCb) {
+                uzakMesafeCb.checked = !!profile.uzakMesafeEnabled;
+                uzakMesafeCb.addEventListener('change', function() {
+                    window.__sellerUzakMesafeEnabled = this.checked;
+                    updateSidebarUzakMesafe(this.checked);
+                });
+            }
+            window.__sellerUzakMesafeEnabled = !!profile.uzakMesafeEnabled;
+            updateSidebarUzakMesafe(!!profile.uzakMesafeEnabled);
             updateRadiusUI(radiusSlider.value);
             radiusSlider.addEventListener('input', function() {
                 updateRadiusUI(this.value);
@@ -1053,6 +1175,7 @@ async function loadProfilePage() {
                 }
                 
                 const pickupCb = document.getElementById('pickup-enabled');
+                const uzakMesafeCb = document.getElementById('uzak-mesafe-enabled');
                 const profileData = {
                     fullname: fullnameInput?.value || '',
                     email: emailInput?.value || '',
@@ -1061,8 +1184,11 @@ async function loadProfilePage() {
                     location: locationInput?.value || '',
                     workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined,
                     deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined,
-                    pickupEnabled: pickupCb ? pickupCb.checked : true
+                    pickupEnabled: pickupCb ? pickupCb.checked : true,
+                    uzakMesafeEnabled: uzakMesafeCb ? uzakMesafeCb.checked : false
                 };
+                window.__sellerUzakMesafeEnabled = uzakMesafeCb ? uzakMesafeCb.checked : false;
+                updateSidebarUzakMesafe(window.__sellerUzakMesafeEnabled);
                 
                 if (finalLogoUrl !== undefined) profileData.logoUrl = finalLogoUrl;
                 if (finalBannerUrl !== undefined) profileData.bannerUrl = finalBannerUrl;
@@ -1475,6 +1601,8 @@ async function updateSellerSidebarOwnerName() {
                 const dashboardData = await dashboardResponse.json();
                 if (dashboardData.success && dashboardData.fullname) {
                     ownerNameEl.textContent = dashboardData.fullname;
+                    // uzak_mesafe durumunu ayrıca profile'dan çek (dashboard bunu dönmüyor)
+                    fetchAndApplyUzakMesafeSidebar(baseUrl);
                     return;
                 }
             }
@@ -1483,8 +1611,10 @@ async function updateSellerSidebarOwnerName() {
             const response = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
             if (response.ok) {
                 const data = await response.json();
-                if (data.success && data.profile && data.profile.fullname) {
-                    ownerNameEl.textContent = data.profile.fullname;
+                if (data.success && data.profile) {
+                    if (data.profile.fullname) ownerNameEl.textContent = data.profile.fullname;
+                    window.__sellerUzakMesafeEnabled = !!data.profile.uzakMesafeEnabled;
+                    updateSidebarUzakMesafe(!!data.profile.uzakMesafeEnabled);
                     return;
                 }
             }
@@ -1498,7 +1628,7 @@ async function updateSellerSidebarOwnerName() {
     }
 }
 
-const PAGE_NAMES = ['dashboard', 'orders', 'menu', 'earnings', 'profile', 'coupons'];
+const PAGE_NAMES = ['dashboard', 'orders', 'menu', 'earnings', 'profile', 'coupons', 'uzak-mesafe'];
 
 function getSellerIdFromUrl() {
     const pathParts = window.location.pathname.split('/');
@@ -1525,6 +1655,7 @@ async function initializeSellerPages() {
     const path = window.location.pathname;
     if (path.includes('/seller/')) {
         startSellerAutoSyncFallback();
+        fetchAndApplyUzakMesafeSidebar();
     }
     
     let sellerId = getSellerIdFromUrl();
@@ -2128,6 +2259,7 @@ function playSpeechFallback(type) {
 document.addEventListener('DOMContentLoaded', () => {
     if (window.location.pathname.includes('/seller')) {
         initializeSellerRealTimeUpdates();
+        initUzakMesafeSocket();
     }
 });
 
@@ -2137,5 +2269,25 @@ window.addEventListener('load', () => {
         setTimeout(() => initializeSellerRealTimeUpdates(), 500);
     }
 });
+
+function initUzakMesafeSocket() {
+    let attempts = 0;
+    const tryConnect = setInterval(function() {
+        attempts++;
+        if (typeof io !== 'undefined') {
+            clearInterval(tryConnect);
+            try {
+                const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                const sock = io(baseUrl, { transports: ['websocket', 'polling'], reconnection: true });
+                sock.on('uzak_mesafe_toggle', function(data) {
+                    window.__sellerUzakMesafeEnabled = !!data.enabled;
+                    updateSidebarUzakMesafe(!!data.enabled);
+                });
+            } catch(e) {}
+        } else if (attempts >= 30) {
+            clearInterval(tryConnect);
+        }
+    }, 200);
+}
 
 

@@ -7,7 +7,7 @@ const { getCityCoordinates, haversineDistance } = require("../../data/turkey-coo
 
 router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
     try {
-        const { location, rating, q, min_order, userLat, userLng } = req.query;
+        const { location, rating, q, min_order, userLat, userLng, uzak_mesafe } = req.query;
         const deliveryArea = req.session && req.session.deliveryArea ? req.session.deliveryArea : null;
         const dbSellers = await Seller.findAll({
             where: { is_active: true },
@@ -15,7 +15,7 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
                 'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled',
-                'delivery_radius_km', 'latitude', 'longitude'
+                'delivery_radius_km', 'latitude', 'longitude', 'uzak_mesafe_enabled'
             ],
             order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
         });
@@ -83,12 +83,16 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 totalReviews: parseInt(seller.total_reviews) || 0,
                 isOpen: seller.is_open !== false && seller.is_open !== 0,
                 pickupEnabled: seller.pickup_enabled !== false && seller.pickup_enabled !== 0,
+                uzakMesafeEnabled: !!seller.uzak_mesafe_enabled,
                 deliveryRadiusKm: radiusKm,
                 distance: distance // Alıcıya mesafe (km) — null ise bilinmiyor
             };
         }).filter(Boolean);
 
         let filteredSellers = sellers;
+        if (uzak_mesafe === 'true') {
+            filteredSellers = filteredSellers.filter(s => s.uzakMesafeEnabled);
+        }
         if (location) {
             const locationLower = location.toLowerCase();
             filteredSellers = filteredSellers.filter(s => 
@@ -162,7 +166,7 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
                 'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled',
-                'delivery_radius_km', 'latitude', 'longitude'
+                'delivery_radius_km', 'latitude', 'longitude', 'uzak_mesafe_enabled'
             ]
         });
 
@@ -195,7 +199,8 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             minOrderAmount: parseFloat(seller.min_order_amount) || 50.00,
             totalReviews: parseInt(seller.total_reviews) || 0,
             isOpen: seller.is_open !== false && seller.is_open !== 0,
-            pickupEnabled: seller.pickup_enabled !== false && seller.pickup_enabled !== 0
+            pickupEnabled: seller.pickup_enabled !== false && seller.pickup_enabled !== 0,
+            uzakMesafeEnabled: !!seller.uzak_mesafe_enabled
         });
     } catch (error) {
         res.status(500).json({
@@ -210,9 +215,10 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
         const sellerId = parseInt(req.params.id, 10);
         const { Meal } = require("../../models");
 
+        const isUzakMesafeMode = req.query.mode === 'uzak_mesafe';
         const meals = await Meal.findAll({
-            where: { seller_id: sellerId, is_approved: true },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available'],
+            where: { seller_id: sellerId, is_approved: true, is_uzak_mesafe: isUzakMesafeMode },
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_uzak_mesafe'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
 
@@ -228,7 +234,8 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
                 description: meal.description || "",
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
-                isAvailable: !!meal.is_available
+                isAvailable: !!meal.is_available,
+                isUzakMesafe: !!meal.is_uzak_mesafe
             };
         });
 

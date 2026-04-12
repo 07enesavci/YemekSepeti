@@ -639,6 +639,7 @@ try {
     app.get("/seller/earnings", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js" }));
     app.get("/seller/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js" }));
     app.get("/seller/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
+    app.get("/seller/uzak-mesafe", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js" }));
 
     app.get("/seller/:id/dashboard", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/orders", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
@@ -646,6 +647,7 @@ try {
     app.get("/seller/:id/earnings", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/uzak-mesafe", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
 
     // --- KURYE (COURIER) ROUTE'LARI ---
     app.get("/courier/pending-approval", requireRole('courier'), async (req, res) => {
@@ -701,6 +703,7 @@ try {
     app.get("/admin/couriers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/couriers", { title: "Kurye Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/all-couriers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/all-couriers", { title: "Tüm Kuryeler", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/menu-control", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/menu-control", { title: "Menü Kontrol", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/uzak-mesafe-menu-control", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/uzak-mesafe-menu-control", { title: "Uzak Mesafe Menü Kontrol", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/reports", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/reports", { title: "Raporlar", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---

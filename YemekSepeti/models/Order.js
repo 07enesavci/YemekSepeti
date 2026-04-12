@@ -27,8 +27,18 @@ module.exports=(sequelize, DataTypes)=>{
             allowNull: true
         },
         delivery_type: {
-            type: DataTypes.ENUM('delivery', 'pickup'),
+            type: DataTypes.ENUM('delivery', 'pickup', 'cargo'),
             defaultValue: 'delivery'
+        },
+        cargo_company: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+            comment: 'Uzak mesafe kargo firması adı'
+        },
+        cargo_tracking_number: {
+            type: DataTypes.STRING(100),
+            allowNull: true,
+            comment: 'Kargo takip numarası'
         },
         payment_method: {
             type: DataTypes.ENUM('credit_card', 'cash', 'wallet', 'iyzico'),

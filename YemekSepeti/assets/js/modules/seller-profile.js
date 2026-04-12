@@ -217,7 +217,10 @@ function initializeTabs() {
 async function loadSellerMenu(sellerId, seller) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const menuResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/menu`);
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode');
+        const modeParam = mode === 'uzak_mesafe' && seller && seller.uzakMesafeEnabled ? '?mode=uzak_mesafe' : '';
+        const menuResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/menu${modeParam}`);
         
         if (!menuResponse.ok) {
             throw new Error('Menü yüklenemedi');

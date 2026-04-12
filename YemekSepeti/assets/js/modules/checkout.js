@@ -619,7 +619,7 @@ const NEW_ADDRESS_FORM_CHECKOUT = `
     </div>
 `;
 
-/** Satıcı veritabanındaki pickupEnabled=false ise Gel Al seçeneğini kapatır */
+/** Satıcı veritabanındaki pickupEnabled/uzakMesafeEnabled değerlerine göre teslimat seçeneklerini günceller */
 async function applySellerPickupToCheckout() {
     try {
         const sepet = window.getSepet ? window.getSepet() : [];
@@ -631,26 +631,45 @@ async function applySellerPickupToCheckout() {
         const r = await fetch(`${baseUrl}/api/sellers/${sid}`, { credentials: 'include' });
         if (!r.ok) return;
         const s = await r.json();
-        if (s.pickupEnabled === false) {
-            const pickupRadio = document.getElementById('delivery-type-pickup');
-            const deliveryRadio = document.getElementById('delivery-type-delivery');
-            const pickupRow = pickupRadio ? pickupRadio.closest('.form-check') : null;
+
+        // Sepette uzak mesafe ürünü var mı kontrol et
+        const hasUzakMesafe = sepet.some(item => item.urun?.isUzakMesafe || item.isUzakMesafe);
+        const cargoRow = document.getElementById('delivery-type-cargo-row');
+        const cargoRadio = document.getElementById('delivery-type-cargo');
+        const deliveryRadio = document.getElementById('delivery-type-delivery');
+        const pickupRadio = document.getElementById('delivery-type-pickup');
+        const pickupRow = pickupRadio ? pickupRadio.closest('.form-check') : null;
+        const deliveryCard = document.getElementById('address-card');
+        const pickupMsg = document.getElementById('pickup-discount-message');
+
+        if (hasUzakMesafe && s.uzakMesafeEnabled) {
+            // Kargo modunda: sadece kargo seçeneği göster, diğerlerini gizle
+            if (cargoRow) cargoRow.style.display = 'block';
+            if (cargoRadio) { cargoRadio.disabled = false; cargoRadio.checked = true; }
             if (pickupRow) pickupRow.style.display = 'none';
-            if (pickupRadio) {
-                pickupRadio.disabled = true;
-                pickupRadio.checked = false;
-            }
-            if (deliveryRadio) {
-                deliveryRadio.checked = true;
-            }
-            window.forcePickupDeliveryFee = false;
-            const pickupMsg = document.getElementById('pickup-discount-message');
+            if (pickupRadio) { pickupRadio.disabled = true; pickupRadio.checked = false; }
+            const normalDeliveryRow = deliveryRadio ? deliveryRadio.closest('.form-check') : null;
+            if (normalDeliveryRow) normalDeliveryRow.style.display = 'none';
+            if (deliveryRadio) { deliveryRadio.disabled = true; deliveryRadio.checked = false; }
             if (pickupMsg) pickupMsg.style.display = 'none';
-            const deliveryCard = document.getElementById('address-card');
+            window.forcePickupDeliveryFee = true; // cargo = free delivery
+            if (deliveryCard) deliveryCard.style.display = 'block'; // still need address
+            await cizOdemeSayfasi();
+        } else {
+            if (cargoRow) cargoRow.style.display = 'none';
+            if (cargoRadio) { cargoRadio.disabled = true; cargoRadio.checked = false; }
+        }
+
+        if (s.pickupEnabled === false && !hasUzakMesafe) {
+            if (pickupRow) pickupRow.style.display = 'none';
+            if (pickupRadio) { pickupRadio.disabled = true; pickupRadio.checked = false; }
+            if (deliveryRadio) deliveryRadio.checked = true;
+            window.forcePickupDeliveryFee = false;
+            if (pickupMsg) pickupMsg.style.display = 'none';
             if (deliveryCard) deliveryCard.style.display = 'block';
         }
     } catch (e) {
-        console.warn('Gel Al (satıcı) ayarı yüklenemedi', e);
+        console.warn('Teslimat ayarı yüklenemedi', e);
     }
 }
 
@@ -725,6 +744,10 @@ document.addEventListener('DOMContentLoaded', async function(){
                     if (deliveryCard) deliveryCard.style.display = 'none';
                     if (pickupMessage) pickupMessage.style.display = 'block';
                     window.forcePickupDeliveryFee = true;
+                } else if (type === 'cargo') {
+                    if (deliveryCard) deliveryCard.style.display = 'block';
+                    if (pickupMessage) pickupMessage.style.display = 'none';
+                    window.forcePickupDeliveryFee = true; // cargo has no delivery fee
                 } else {
                     if (deliveryCard) deliveryCard.style.display = 'block';
                     if (pickupMessage) pickupMessage.style.display = 'none';

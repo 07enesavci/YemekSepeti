@@ -99,7 +99,7 @@ function isDeadlockError(err) {
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
         const { cart, address, paymentMethod, couponCode, iyzicoCard, iyzicoSavedCardId, iyzicoSavedCardCvc, deliveryType } = req.body;
-    const finalDeliveryType = (deliveryType === 'pickup') ? 'pickup' : 'delivery';
+    const finalDeliveryType = (deliveryType === 'pickup') ? 'pickup' : (deliveryType === 'cargo') ? 'cargo' : 'delivery';
 
         
         const userId = req.session.user.id;
@@ -111,7 +111,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
         }
 
-        if (!address && finalDeliveryType !== 'pickup') {
+        if (!address && finalDeliveryType !== 'pickup' && finalDeliveryType !== 'cargo') {
             return res.status(400).json({ 
                 success: false, 
                 message: "Adres bilgisi gereklidir." 
@@ -201,7 +201,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     id: { [Op.in]: mealIds },
                     is_available: true
                 },
-                attributes: ['id', 'name', 'price']
+                attributes: ['id', 'name', 'price', 'is_uzak_mesafe', 'seller_id']
             });
 
             const mealPriceMap = {};
@@ -210,6 +210,32 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 mealPriceMap[meal.id] = parseFloat(meal.price);
                 mealNameMap[meal.id] = meal.name;
             });
+
+            // Karışık sepet kontrolü
+            if (meals.length > 0) {
+                const firstIsUzakMesafe = !!meals[0].is_uzak_mesafe;
+                const mixedProducts = meals.filter(m => !!m.is_uzak_mesafe !== firstIsUzakMesafe);
+                if (mixedProducts.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Kargo ürünleri (Uzak Mesafe) ile normal ürünler aynı siparişte bulunamaz. Lütfen sepetinizi düzenleyin."
+                    });
+                }
+            }
+
+            // Karışık satıcı kontrolü
+            if (meals.length > 0) {
+                const firstSellerId = meals[0].seller_id;
+                const mixedSellers = meals.filter(m => m.seller_id !== firstSellerId);
+                if (mixedSellers.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Farklı restoranlardan ürünler aynı siparişte bulunamaz. Lütfen sepetinizi düzenleyin."
+                    });
+                }
+            }
+            
+            const isCargoOrder = meals.length > 0 && !!meals[0].is_uzak_mesafe;
 
             const missingMeals = mealIds.filter(id => !mealPriceMap[id]);
             if (missingMeals.length > 0) {
@@ -262,8 +288,8 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 subtotal += mealPrice * quantity;
             }
             subtotal = Math.round(subtotal * 100) / 100;
-            if (finalDeliveryType === 'pickup') {
-                deliveryFee = 0;
+            if (finalDeliveryType === 'pickup' || finalDeliveryType === 'cargo' || isCargoOrder) {
+                deliveryFee = 0; // kargo ücreti satıcı belirler, sipariş ücreti yok
             } else {
                 deliveryFee = Math.round(deliveryFee * 100) / 100;
             }
@@ -966,9 +992,13 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
         if (tab === 'new') {
             statuses = ['pending', 'confirmed'];
         } else if (tab === 'preparing') {
-            statuses = ['preparing', 'ready'];
+            statuses = ['preparing'];
+        } else if (tab === 'cargo_ready') {
+            statuses = ['ready'];
+        } else if (tab === 'shipped') {
+            statuses = ['on_delivery'];
         } else if (tab === 'history') {
-            statuses = ['delivered', 'cancelled', 'on_delivery'];
+            statuses = ['delivered', 'cancelled'];
         }
         const ordersRaw = await Order.findAll({
             where: {
@@ -985,10 +1015,13 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
         });
             const formattedOrders = ordersRaw.map(order => {
             const fullname = order.buyer?.fullname || 'Müşteri';
-            const customerName = `${(fullname.charAt(0) || '')}*** ${(fullname.charAt(fullname.length - 1) || '')}`;
-            const deliveryTypeDisplay = order.delivery_type === 'pickup' ? '<span class="badge badge-warning" style="background:#f39c12;color:white;padding:2px 6px;border-radius:4px;font-size:0.8rem;">Gel Al</span>' : '';
-            const deliveryAddress = order.delivery_type === 'pickup' ? 'Gel Al (Mağazadan Teslim)' : (order.address ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || order.address.full_address : `Adres ID: ${order.address_id}`);
-            const customerNameWithBadge = deliveryTypeDisplay ? `${customerName} ${deliveryTypeDisplay}` : customerName;
+            const isCargo = order.delivery_type === 'cargo';
+            const customerName = isCargo ? fullname : `${(fullname.charAt(0) || '')}*** ${(fullname.charAt(fullname.length - 1) || '')}`;
+            let deliveryTypeBadge = '';
+            if (order.delivery_type === 'pickup') deliveryTypeBadge = '<span class="badge badge-warning" style="background:#f39c12;color:white;padding:2px 6px;border-radius:4px;font-size:0.8rem;">Gel Al</span>';
+            else if (isCargo) deliveryTypeBadge = '<span class="badge" style="background:#8e44ad;color:white;padding:2px 6px;border-radius:4px;font-size:0.8rem;">📦 Kargo</span>';
+            const deliveryAddress = order.delivery_type === 'pickup' ? 'Gel Al (Mağazadan Teslim)' : isCargo ? (order.address ? order.address.full_address || `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : '') : (order.address ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || order.address.full_address : `Adres ID: ${order.address_id}`);
+            const customerNameWithBadge = deliveryTypeBadge ? `${customerName} ${deliveryTypeBadge}` : customerName;
             const itemsStr = (order.items || []).map(i => `${i.quantity} x ${i.meal_name}`).join(', ') || 'Belirtilmemiş';
 
             return {
@@ -1007,7 +1040,9 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
                 subtotal: parseFloat(order.subtotal) || 0,
                 deliveryFee: parseFloat(order.delivery_fee) || 0,
                 discount: parseFloat(order.discount_amount) || 0,
-                couponCode: order.coupon_code || null
+                couponCode: order.coupon_code || null,
+                cargoCompany: order.cargo_company || null,
+                cargoTrackingNumber: order.cargo_tracking_number || null
             };
         });
         
@@ -1257,6 +1292,50 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
     }
 });
 
+router.post("/seller/cargo-ship/:id", requireRole('seller'), async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const userId = req.session.user.id;
+        const { cargoCompany, cargoTrackingNumber } = req.body;
+
+        if (!cargoCompany || !cargoCompany.trim()) {
+            return res.status(400).json({ success: false, message: "Kargo firması zorunludur." });
+        }
+
+        const sellerRecord = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        if (!sellerRecord) {
+            return res.status(404).json({ success: false, message: "Satıcı kaydı bulunamadı." });
+        }
+
+        const shopId = sellerRecord.id;
+        const order = await Order.findOne({
+            where: { id: orderId, seller_id: shopId, delivery_type: 'cargo' },
+            attributes: ['id', 'status', 'delivery_type']
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Kargo siparişi bulunamadı." });
+        }
+
+        if (!['confirmed', 'preparing', 'ready'].includes(order.status)) {
+            return res.status(400).json({ success: false, message: "Sipariş kargoya verilemez durumda." });
+        }
+
+        await db.execute(
+            `UPDATE orders SET cargo_company=?, cargo_tracking_number=?, status='on_delivery' WHERE id=?`,
+            [cargoCompany.trim(), cargoTrackingNumber ? cargoTrackingNumber.trim() : null, orderId]
+        );
+
+        if (global.io) {
+            global.io.emit('order_status_update', { orderId, status: 'on_delivery' });
+        }
+
+        res.json({ success: true, message: "Sipariş kargoya verildi." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message || "Sunucu hatası." });
+    }
+});
+
 router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
     try {
         const orderId = parseInt(req.params.id);
@@ -1394,6 +1473,8 @@ router.get("/:id", requireAuth, async (req, res) => {
                     o.discount_amount,
                     o.payment_method,
                     o.delivery_type,
+                    o.cargo_company,
+                    o.cargo_tracking_number,
                     o.address_id,
                     o.user_id,
                     o.seller_id,
@@ -1504,6 +1585,8 @@ router.get("/:id", requireAuth, async (req, res) => {
                 },
                 courierLatitude: order.courier_latitude != null ? parseFloat(order.courier_latitude) : null,
                 courierLongitude: order.courier_longitude != null ? parseFloat(order.courier_longitude) : null,
+                cargoCompany: order.cargo_company || null,
+                cargoTrackingNumber: order.cargo_tracking_number || null,
                 items: (itemsRows || []).map(item => ({
                     id: item.id,
                     mealId: item.meal_id,

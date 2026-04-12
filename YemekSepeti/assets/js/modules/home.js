@@ -272,7 +272,7 @@ function applyQuickFilterFromUrl() {
         var params = new URLSearchParams(window.location.search || '');
         var qf = (params.get('quickFilter') || '').trim();
         if (!qf) return;
-        var allowed = ['all', 'discount', 'new', 'top_rated', 'deals'];
+        var allowed = ['all', 'discount', 'new', 'top_rated', 'deals', 'uzak_mesafe'];
         if (allowed.indexOf(qf) === -1) return;
         currentFilters.quickFilter = qf;
     } catch (e) {}
@@ -369,6 +369,8 @@ function filterAndDisplayRestaurants(append) {
     } else if (q === 'deals') {
         list = list.filter(function(r) { return sellerIdsWithCoupons.has(parseInt(r.id, 10)); });
         if (list.length === 0) list = allRestaurants.slice();
+    } else if (q === 'uzak_mesafe') {
+        list = list.filter(function(r) { return !!r.uzakMesafeEnabled; });
     }
     
     let filtered = list.filter(restaurant => {
@@ -552,7 +554,7 @@ function displayRestaurants(sellers, append) {
                         <span>📍 ${seller.location || 'Konum belirtilmemiş'}</span>
                         ${seller.distance !== null && seller.distance !== undefined ? `<span style="background: rgba(59, 130, 246, 0.1); color: #2563eb; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 0.8rem;">📏 ${seller.distance < 1 ? (seller.distance * 1000).toFixed(0) + ' m' : seller.distance.toFixed(1) + ' km'}</span>` : ''}
                     </div>
-                    <a href="/buyer/seller-profile/${seller.id}" 
+                    <a href="/buyer/seller-profile/${seller.id}${currentFilters.quickFilter === 'uzak_mesafe' ? '?mode=uzak_mesafe' : ''}"
                        class="btn btn-primary btn-full"
                        style="text-decoration: none; display: block; text-align: center;"
                        onclick="event.stopPropagation();">
@@ -570,7 +572,8 @@ function displayRestaurants(sellers, append) {
                 if (!e.target.closest('a') && !e.target.closest('.favorite-heart-btn')) {
                     const sellerId = card.getAttribute('data-seller-id');
                     const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                    window.location.href = baseUrl + '/buyer/seller-profile/' + sellerId;
+                    const modeParam = currentFilters.quickFilter === 'uzak_mesafe' ? '?mode=uzak_mesafe' : '';
+                    window.location.href = baseUrl + '/buyer/seller-profile/' + sellerId + modeParam;
                 }
             });
         });

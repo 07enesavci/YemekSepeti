@@ -97,7 +97,9 @@ async function urunBul(id)
    			satici: yemek.satici || 'Ev Lezzetleri',
    			fiyat: yemek.fiyat || yemek.price,
    			gorsel: yemek.gorsel || yemek.imageUrl,
-   			ad: yemek.ad || yemek.name
+   			ad: yemek.ad || yemek.name,
+            is_uzak_mesafe: !!yemek.is_uzak_mesafe,
+            sellerId: yemek.sellerId || yemek.seller_id
    		};
    		
    		return klonYemek;
@@ -148,6 +150,27 @@ async function sepeteEkle(id, adet)
 
    	id = Number(id);
    	adet = Math.max(1, Number(adet) || 1);
+
+    // Karışık sepet kontrolü
+    var urun = await urunBul(id);
+    if(!urun) return;
+
+    if (sepet.length > 0) {
+        var currentIsCargo = !!sepet[0].urun.is_uzak_mesafe;
+        var newItemIsCargo = !!urun.is_uzak_mesafe;
+        if (currentIsCargo !== newItemIsCargo) {
+            alert('⚠️ Kargo ürünleri (Uzak Mesafe) ile normal ürünler aynı sepette olamaz! Lütfen sepetinizi temizleyin veya türü aynı olan ürünler ekleyin.');
+            return;
+        }
+
+        var currentSellerId = sepet[0].urun.sellerId || sepet[0].urun.seller_id;
+        var newSellerId = urun.sellerId || urun.seller_id;
+        if (currentSellerId && newSellerId && currentSellerId !== newSellerId) {
+            alert('⚠️ Farklı restoranlardan ürünler aynı sepette olamaz! Farklı bir restorandan ürün eklemek için sepetinizi boşaltmanız gerekmektedir.');
+            return;
+        }
+    }
+
    	var i = sepetIndex(id);
    	
    	if(i > -1)
@@ -165,7 +188,6 @@ async function sepeteEkle(id, adet)
  	else
 	{
    	 	// Ürünü bulma ve sepete ekleme
-   	 	var urun = await urunBul(id); 
    	 	if(urun)
 		{
 			sepet.push(new SepetKalemi(urun, adet));
@@ -214,6 +236,29 @@ async function addToCart(mealId, sellerId, quantity) {
     mealId = Number(mealId);
     sellerId = Number(sellerId);
     quantity = Math.max(1, Number(quantity) || 1);
+
+    // Ürün bilgilerini önden al (Kontrol için)
+    var urunInfo = await urunBul(mealId);
+    if (!urunInfo) {
+        alert('Ürün bilgisi alınamadı.');
+        return;
+    }
+
+    if (sepet.length > 0) {
+        var currentIsCargo = !!sepet[0].urun.is_uzak_mesafe;
+        var newItemIsCargo = !!urunInfo.is_uzak_mesafe;
+        if (currentIsCargo !== newItemIsCargo) {
+            alert('⚠️ Kargo ürünleri (Uzak Mesafe) ile normal ürünler aynı sepette olamaz! Lütfen sepetinizi temizleyin veya türü aynı olan ürünler ekleyin.');
+            return;
+        }
+
+        var currentSellerId = sepet[0].urun.sellerId || sepet[0].urun.seller_id;
+        var newSellerId = urunInfo.sellerId || urunInfo.seller_id;
+        if (currentSellerId && newSellerId && currentSellerId !== newSellerId) {
+            alert('⚠️ Farklı restoranlardan ürünler aynı sepette olamaz! Farklı bir restorandan ürün eklemek için sepetinizi boşaltmanız gerekmektedir.');
+            return;
+        }
+    }
     
     try {
         var i = sepetIndex(mealId);
@@ -229,7 +274,7 @@ async function addToCart(mealId, sellerId, quantity) {
         }
         
         if (!sellerId) {
-            var urun = await urunBul(mealId);
+            var urun = urunInfo;
             if (urun) {
                 sepet.push(new SepetKalemi(urun, quantity));
                 sepetiKaydet();
@@ -255,7 +300,7 @@ async function addToCart(mealId, sellerId, quantity) {
         const meal = menu.find(m => m.id === mealId);
         
         if (!meal) {
-            var urun = await urunBul(mealId);
+            var urun = urunInfo;
             if (urun) {
                 sepet.push(new SepetKalemi(urun, quantity));
                 sepetiKaydet();
@@ -285,6 +330,7 @@ async function addToCart(mealId, sellerId, quantity) {
             id: meal.id,
             name: meal.name,
             ad: meal.name,
+            is_uzak_mesafe: !!meal.is_uzak_mesafe,
             price: parseFloat(meal.price) || 0,
             fiyat: parseFloat(meal.price) || 0,
             description: meal.description || '',
@@ -323,7 +369,7 @@ async function addToCart(mealId, sellerId, quantity) {
         
     } catch (error) {
         console.error('Sepete ekleme hatası:', error);
-        var urun = await urunBul(mealId);
+        var urun = urunInfo;
         if (urun) {
             sepet.push(new SepetKalemi(urun, quantity));
             sepetiKaydet();
@@ -395,9 +441,12 @@ async function sepetiYenile()
    	var teslimatUcreti = 15.00;
    	if (sepet.length > 0) {
    	    var firstItem = sepet[0];
+        var isCargo = !!(firstItem.urun?.is_uzak_mesafe);
    	    var sellerId = firstItem.urun?.sellerId || firstItem.urun?.seller_id || null;
    	    
-   	    if (cachedDeliveryFee && cachedSellerId === sellerId) {
+        if (isCargo) {
+            teslimatUcreti = 0.00;
+        } else if (cachedDeliveryFee && cachedSellerId === sellerId) {
    	        teslimatUcreti = cachedDeliveryFee;
    	    } else if (sellerId) {
    	        try {
@@ -428,6 +477,73 @@ async function sepetiYenile()
     var cartCountSpan = document.getElementById('cart-count');
     var cartButtonLi = document.getElementById('cart-button-li');
     var cartButton = document.getElementById('cart-button');
+    var checkoutBtn = document.querySelector('.order-summary .btn-primary');
+    var couponInput = document.getElementById('coupon');
+    var couponBtn = document.querySelector('.coupon-form .btn-secondary');
+    var summaryCard = document.querySelector('.order-summary .card-content');
+    
+    // Karışık sepet kontrolü
+    var isMixed = false;
+    var isMixedSeller = false;
+    if (sepet.length > 1) {
+        var firstIsCargo = !!sepet[0].urun.is_uzak_mesafe;
+        var firstSellerId = sepet[0].urun.sellerId || sepet[0].urun.seller_id;
+        for (var i = 1; i < sepet.length; i++) {
+            if (!!sepet[i].urun.is_uzak_mesafe !== firstIsCargo) {
+                isMixed = true;
+            }
+            if ((sepet[i].urun.sellerId || sepet[i].urun.seller_id) !== firstSellerId) {
+                isMixedSeller = true;
+            }
+            if (isMixed || isMixedSeller) break;
+        }
+    }
+
+    // Uyarı mesajını yönet
+    var mixedWarning = document.getElementById('cart-mixed-warning');
+    if (isMixed || isMixedSeller) {
+        if (!mixedWarning) {
+            mixedWarning = document.createElement('div');
+            mixedWarning.id = 'cart-mixed-warning';
+            mixedWarning.className = 'error-alert';
+            mixedWarning.style.cssText = 'background: #FEE2E2; color: #DC2626; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; border: 1px solid #FECACA; font-weight: 600;';
+            
+            if (isMixedSeller) {
+                mixedWarning.innerHTML = '⚠️ Sepetinizde farklı restoranlardan ürünler bulunuyor. Lütfen devam etmek için ürünleri tek bir restoranla sınırlayın.';
+            } else {
+                mixedWarning.innerHTML = '⚠️ Sepetinizde kargo ürünleri ve normal ürünler bir arada bulunuyor. Lütfen devam etmek için ürünlerden birini sepetten çıkarın veya sepetinizi temizleyin.';
+            }
+            
+            var cartList = document.querySelector('.cart-items-list');
+            if (cartList) cartList.insertAdjacentElement('beforebegin', mixedWarning);
+        } else {
+            mixedWarning.style.display = 'block';
+            if (isMixedSeller) {
+                mixedWarning.innerHTML = '⚠️ Sepetinizde farklı restoranlardan ürünler bulunuyor. Lütfen devam etmek için ürünleri tek bir restoranla sınırlayın.';
+            } else {
+                mixedWarning.innerHTML = '⚠️ Sepetinizde kargo ürünleri ve normal ürünler bir arada bulunuyor. Lütfen devam etmek için ürünlerden birini sepetten çıkarın veya sepetinizi temizleyin.';
+            }
+        }
+        
+        if (checkoutBtn) {
+            checkoutBtn.classList.add('btn-disabled');
+            checkoutBtn.style.pointerEvents = 'none';
+            checkoutBtn.style.opacity = '0.5';
+            checkoutBtn.textContent = 'ÖDEME YAPILAMAZ';
+        }
+        if (couponInput) couponInput.disabled = true;
+        if (couponBtn) couponBtn.disabled = true;
+    } else {
+        if (mixedWarning) mixedWarning.style.display = 'none';
+        if (checkoutBtn) {
+            checkoutBtn.classList.remove('btn-disabled');
+            checkoutBtn.style.pointerEvents = 'auto';
+            checkoutBtn.style.opacity = '1';
+            checkoutBtn.textContent = 'Ödemeye Geç';
+        }
+        if (couponInput) couponInput.disabled = false;
+        if (couponBtn) couponBtn.disabled = false;
+    }
 
     if (cartCountSpan) {
         cartCountSpan.textContent = adetTop;
@@ -576,9 +692,12 @@ window.getSepetTotals = async function(){
    	var teslimatUcreti = 15.00;
    	if (sepet.length > 0) {
    	    var firstItem = sepet[0];
+        var isCargo = !!(firstItem.urun?.is_uzak_mesafe);
    	    var sellerId = firstItem.urun?.sellerId || firstItem.urun?.seller_id || null;
    	    
-   	    if (cachedDeliveryFee && cachedSellerId === sellerId) {
+        if (isCargo) {
+            teslimatUcreti = 0.00;
+        } else if (cachedDeliveryFee && cachedSellerId === sellerId) {
    	        teslimatUcreti = cachedDeliveryFee;
    	    } else if (sellerId) {
    	        try {

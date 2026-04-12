@@ -1,0 +1,42 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/seller-menu.css">
+<link rel="stylesheet" href="/assets/css/pages/modal.css">
+
+<div class="panel-layout">
+
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+
+        <div class="panel-header">
+            <h1 class="panel-title">📦 Uzak Mesafe Kargo Menüsü</h1>
+            <button id="add-new-meal-btn" class="btn btn-primary">Yeni Uzak Mesafe Ürünü Ekle</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 1rem; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.2);">
+            <div class="card-content" style="padding: 1rem 1.5rem;">
+                <p style="margin: 0; font-size: 0.9rem; color: #7c3aed;">
+                    📦 Bu sayfadaki ürünler yalnızca <strong>Uzak Mesafe Kargo</strong> siparişlerinde müşterilere görünür.
+                    Normal sipariş sayfasında gözükmez.
+                </p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-content">
+                <div class="menu-list" id="uzak-mesafe-menu-list">
+                    <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="/assets/js/modules/ys-select.js"></script>
+<script src="/assets/js/modules/meal-modal.js?v=2"></script>
+<script>
+// Bu sayfada eklenen/düzenlenen tüm ürünler otomatik olarak is_uzak_mesafe=true
+window.__sellerUzakMesafeEnabled = true;
+window.__uzakMesafePage = true;
+</script>

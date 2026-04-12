@@ -345,36 +345,67 @@ function requireRole(allowedRoles)
 
 function getDomainType(req) {
     const host = String((req.headers && req.headers.host) || '').split(':')[0].toLowerCase();
-    const buyerDomain = String(process.env.BUYER_DOMAIN || 'evlezzetleri.site').toLowerCase();
-    const partnerDomain = String(process.env.PARTNER_DOMAIN || 'partner.evlezzetleri.site').toLowerCase();
-    const adminDomain = String(process.env.ADMIN_DOMAIN || 'admin.evlezzetleri.site').toLowerCase();
-    if (!host || host === 'localhost' || host === '127.0.0.1') return 'local';
-    if (host === adminDomain) return 'admin';
-    if (host === partnerDomain) return 'partner';
-    if (host === buyerDomain) return 'buyer';
-    return 'unknown';
+    
+    let type = 'unknown';
+    if (host.startsWith('admin.')) {
+        type = 'admin';
+    } else if (host.startsWith('partner.')) {
+        type = 'partner';
+    } else {
+        const buyerDomain = String(process.env.BUYER_DOMAIN || 'evlezzetleri.site').toLowerCase();
+        const partnerDomain = String(process.env.PARTNER_DOMAIN || 'partner.evlezzetleri.site').toLowerCase();
+        const adminDomain = String(process.env.ADMIN_DOMAIN || 'admin.evlezzetleri.site').toLowerCase();
+        
+        if (host === adminDomain) type = 'admin';
+        else if (host === partnerDomain) type = 'partner';
+        else if (host === buyerDomain || host === 'localhost' || host === '127.0.0.1') type = 'buyer';
+    }
+    
+    return type;
 }
 
 function roleAllowedOnDomain(role, domainType) {
-    if (domainType === 'local' || domainType === 'unknown') return true;
     if (domainType === 'buyer') return role === 'buyer';
     if (domainType === 'partner') return role === 'seller' || role === 'courier';
     if (domainType === 'admin') return role === 'admin' || role === 'super_admin' || role === 'support';
-    return true;
+    return false;
 }
 
 function enforceRoleDomain(req, res, next) {
     const user = req.session && req.session.user;
     if (!user || !user.role) return next();
+    
     const dt = getDomainType(req);
     if (roleAllowedOnDomain(user.role, dt)) return next();
+    
+    // Looping prevention: If we are already redirecting, stop.
+    // However, relative redirects are tricky. 
+    // If the role is not allowed on this domain, we should ideally redirect to their correct domain.
+    
     const isApi = req.originalUrl && String(req.originalUrl).indexOf('/api/') === 0;
     if (isApi) {
         return res.status(403).json({ success: false, message: 'Bu rolde bu domainden erişim izni yok.' });
     }
-    if (dt === 'admin') return res.redirect(302, '/admin/users');
-    if (dt === 'partner') return res.redirect(302, '/login');
-    return res.redirect(302, '/');
+
+    // Role-based home paths
+    if (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support') {
+        if (dt !== 'admin') {
+            const adminDomain = (process.env.ADMIN_DOMAIN || 'admin.localhost:3000').replace(/\/$/, '');
+            return res.redirect(`http://${adminDomain}/admin/users`);
+        }
+    } else if (user.role === 'seller' || user.role === 'courier') {
+        if (dt !== 'partner') {
+            const partnerDomain = (process.env.PARTNER_DOMAIN || 'partner.localhost:3000').replace(/\/$/, '');
+            return res.redirect(`http://${partnerDomain}/login`);
+        }
+    } else if (user.role === 'buyer') {
+        if (dt !== 'buyer') {
+            const buyerDomain = (process.env.BUYER_DOMAIN || 'localhost:3000').replace(/\/$/, '');
+            return res.redirect(`http://${buyerDomain}/`);
+        }
+    }
+
+    return next();
 }
 
 /**

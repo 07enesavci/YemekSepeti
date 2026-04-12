@@ -887,7 +887,7 @@ router.get("/reports/chart", async (req, res) => {
 // Tüm satıcıların menülerini listele (filtre: sellerId, search, isAvailable, isApproved)
 router.get("/menu-items", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
-        const { sellerId, search, isAvailable, isApproved, province, district } = req.query;
+        const { sellerId, search, isAvailable, isApproved, province, district, isUzakMesafe } = req.query;
 
         let whereClause = {};
         if (sellerId) whereClause.seller_id = parseInt(sellerId);
@@ -895,6 +895,14 @@ router.get("/menu-items", requireRole(['admin','super_admin','support']), async 
         else if (isAvailable === 'false') whereClause.is_available = false;
         if (isApproved === 'true') whereClause.is_approved = true;
         else if (isApproved === 'false') whereClause.is_approved = false;
+        
+        // Uzak mesafe filtresi
+        if (isUzakMesafe === 'true') {
+            whereClause.is_uzak_mesafe = true;
+        } else {
+            // Hiç geçilmezse veya false ise normal ürünleri getir (user'ın isteği üzerine cargo'yu dışla)
+            whereClause.is_uzak_mesafe = false;
+        }
         
         if (search && search.trim()) {
             whereClause[Op.or] = [
