@@ -1,5 +1,6 @@
-(function() {
+(function () {
     const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+
     function getAuthHeaders() {
         const token = window.localStorage && window.localStorage.getItem('token');
         const h = { 'Content-Type': 'application/json' };
@@ -32,13 +33,13 @@
     async function markRead(id) {
         try {
             await fetch(baseUrl + '/api/notifications/' + id + '/read', { method: 'PUT', credentials: 'include', headers: getAuthHeaders() });
-        } catch (e) {}
+        } catch (e) { }
     }
 
     async function markAllRead() {
         try {
             await fetch(baseUrl + '/api/notifications/read-all', { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
-        } catch (e) {}
+        } catch (e) { }
     }
 
     function formatDate(d) {
@@ -50,6 +51,13 @@
         if (diff < 3600000) return Math.floor(diff / 60000) + ' dk önce';
         if (diff < 86400000) return Math.floor(diff / 3600000) + ' saat önce';
         return date.toLocaleDateString('tr-TR');
+    }
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
     }
 
     function renderList(notifications) {
@@ -70,7 +78,7 @@
             </div>
         `).join('');
         listEl.querySelectorAll('.notifications-item').forEach(el => {
-            el.addEventListener('click', function() {
+            el.addEventListener('click', function () {
                 const id = this.dataset.id;
                 markRead(id).then(() => updateUnreadBadge());
                 this.classList.add('read');
@@ -78,16 +86,14 @@
         });
     }
 
-    function escapeHtml(s) {
-        if (!s) return '';
-        const div = document.createElement('div');
-        div.textContent = s;
-        return div.innerHTML;
-    }
-
-    function updateUnreadBadge() {
+    function updateUnreadBadge(countOverride) {
         const badge = document.getElementById('header-notifications-badge');
         if (!badge) return;
+        if (countOverride !== undefined) {
+            badge.textContent = countOverride > 99 ? '99+' : countOverride;
+            badge.style.display = countOverride > 0 ? 'inline' : 'none';
+            return;
+        }
         fetchUnreadCount().then(count => {
             badge.textContent = count > 99 ? '99+' : count;
             badge.style.display = count > 0 ? 'inline' : 'none';
@@ -119,34 +125,69 @@
         if (dd && btn && wrap && !wrap.contains(e.target)) dd.style.display = 'none';
     }
 
+    function initSocketListener() {
+        // socket-manager hazır değilse bekle
+        if (!window.__socketManager) {
+            setTimeout(initSocketListener, 300);
+            return;
+        }
+
+        // 'notification' eventi - createNotification her çağrıldığında gelir
+        window.__socketManager.on('notification', function (data) {
+            // Rozeti güncelle
+            updateUnreadBadge();
+
+            // Dropdown açıksa listeyi de yenile
+            const dd = document.getElementById('header-notifications-dropdown');
+            if (dd && dd.style.display === 'block') {
+                fetchNotifications().then(({ notifications }) => renderList(notifications));
+            }
+        });
+
+        // Satıcı: hesabı onaylandı/reddedildi bildirim
+        window.__socketManager.on('account_approved', function (data) {
+            updateUnreadBadge();
+            // Eğer satıcı/kurye paneli açıksa bildirimi göster
+            if (window.__socketManager && window.__socketManager.notifyQueue) {
+                window.__socketManager.notifyQueue('status_update', null,
+                    data && data.message ? data.message : 'Hesabınız onaylandı!');
+            }
+        });
+        window.__socketManager.on('account_rejected', function (data) {
+            updateUnreadBadge();
+            if (window.__socketManager && window.__socketManager.notifyQueue) {
+                window.__socketManager.notifyQueue('order_cancelled', null,
+                    data && data.message ? data.message : 'Hesabınız reddedildi.');
+            }
+        });
+    }
+
     function init() {
         const btn = document.getElementById('header-notifications-btn');
         const wrap = btn ? btn.closest('.header-notifications-wrap') : null;
         if (!btn || !wrap) return;
+
         updateUnreadBadge();
-        btn.addEventListener('click', function(e) {
+
+        btn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
             toggleDropdown();
         });
-        document.getElementById('notifications-mark-all-read')?.addEventListener('click', function() {
+
+        document.getElementById('notifications-mark-all-read')?.addEventListener('click', function () {
             markAllRead().then(() => {
                 fetchNotifications().then(({ notifications }) => {
                     renderList(notifications.map(n => ({ ...n, isRead: true })));
-                    updateUnreadBadge();
+                    updateUnreadBadge(0);
                 });
             });
         });
+
         document.addEventListener('click', closeDropdown);
-        if (typeof io !== 'undefined') {
-            const socket = (typeof window.createAppSocket === 'function'
-                ? window.createAppSocket({ query: { userId: window.__userId || '', role: window.__userRole || '' } })
-                : io(window.location.origin, { query: { userId: window.__userId || '', role: window.__userRole || '' } }));
-            if (!socket) return;
-            socket.on('notification', function() {
-                updateUnreadBadge();
-            });
-        }
+
+        // __socketManager üzerinden dinle (ayrı socket açma!)
+        initSocketListener();
     }
 
     if (document.readyState === 'loading') {
@@ -154,5 +195,6 @@
     } else {
         init();
     }
+
     window.updateNotificationsBadge = updateUnreadBadge;
 })();

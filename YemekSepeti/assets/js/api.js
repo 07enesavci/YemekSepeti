@@ -375,7 +375,7 @@ async function getSellerMenu(sellerId)
 }
 
 // Order functions
-async function createOrder(cart, address, paymentMethod = 'credit_card', paymentPayload = null, deliveryType = 'delivery') 
+async function createOrder(cart, address, paymentMethod = 'credit_card', paymentPayload = null, deliveryType = 'delivery', cashPaymentMethod = null) 
 {
     try 
     {
@@ -403,6 +403,9 @@ async function createOrder(cart, address, paymentMethod = 'credit_card', payment
         
         // Kupon bilgisini ekle
         const orderData = { cart, address, paymentMethod, deliveryType };
+        if (paymentMethod === 'cash' && cashPaymentMethod) {
+            orderData.cashPaymentMethod = cashPaymentMethod;
+        }
         if (paymentPayload && typeof paymentPayload === 'object') {
             orderData.iyzicoCard = paymentPayload.iyzicoCard || undefined;
             orderData.iyzicoSavedCardId = paymentPayload.iyzicoSavedCardId || undefined;

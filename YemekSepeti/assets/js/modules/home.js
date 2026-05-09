@@ -807,5 +807,26 @@ document.addEventListener('DOMContentLoaded', () => {
     handleHeroSearch();
     
     initPromotionsBanner();
+    
+    initHomeSocket();
 });
 
+function initHomeSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initHomeSocket, 500);
+        return;
+    }
+
+    // Genel eventler için dinleyiciler (F5 atmadan listeyi yenilemek için)
+    window.__socketManager.on('admin_sellers_updated', () => {
+        loadRestaurants(false);
+    });
+
+    window.__socketManager.on('seller_status_updated', () => {
+        loadRestaurants(false);
+    });
+
+    window.__socketManager.on('menu_updated', () => {
+        loadRestaurants(false);
+    });
+}

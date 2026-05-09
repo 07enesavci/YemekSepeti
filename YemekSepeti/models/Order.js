@@ -44,6 +44,11 @@ module.exports=(sequelize, DataTypes)=>{
             type: DataTypes.ENUM('credit_card', 'cash', 'wallet', 'iyzico'),
             allowNull: false
         },
+        cash_payment_method: {
+            type: DataTypes.ENUM('cash', 'card'),
+            allowNull: true,
+            comment: 'Kapıda ödeme alt seçeneği'
+        },
         subtotal: {
             type: DataTypes.DECIMAL(10, 2),
             allowNull: false

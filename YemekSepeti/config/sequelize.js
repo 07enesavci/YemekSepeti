@@ -76,6 +76,20 @@ async function ensureOrderDeliveryTypeColumn() {
     } catch (_) {}
 }
 
+/** Kapıda ödeme alt seçeneği (nakit/kart) */
+async function ensureOrderCashPaymentMethodColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders ADD COLUMN cash_payment_method ENUM('cash','card') NULL AFTER payment_method`
+        );
+    } catch (_) {}
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders MODIFY COLUMN cash_payment_method ENUM('cash','card') NULL`
+        );
+    } catch (_) {}
+}
+
 /**
  * meals.is_approved sütununun varlığını ve NOT NULL + DEFAULT 0 olmasını garanti eder.
  * Önce ADD (sütun yoksa); MODIFY yalnızca mevcut sütun için anlamlıdır — eski kodda
@@ -204,6 +218,7 @@ module.exports = {
     testConnection,
     ensureOrderDeliveryTypeColumn,
     ensureOrderPaymentMethodEnum,
+    ensureOrderCashPaymentMethodColumn,
     ensureMealIsApprovedColumn,
     ensureSellerIsOpenColumn,
     ensureSellerGeoColumns,

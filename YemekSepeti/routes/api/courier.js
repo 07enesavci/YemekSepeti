@@ -112,7 +112,9 @@ router.get("/available", async (req, res) => {
                 payout: parseFloat(task.delivery_fee) || 25.00,
                 estimatedTime: task.estimated_delivery_time || '30 dakika',
                 createdAt: task.created_at,
-                distanceKm: taskDistance
+                distanceKm: taskDistance,
+                paymentMethod: task.payment_method || 'credit_card',
+                cashPaymentMethod: task.cash_payment_method || null
             });
         });
 
@@ -377,6 +379,15 @@ router.put("/tasks/:id/complete", async (req, res) => {
                 `Sipariş #${orderId} teslim edilmiştir. Afiyet olsun!`, 
                 orderId
             ).catch(() => {});
+
+            // Müşteriye socket bildirimi gönder
+            if (global.io) {
+                global.io.to(`buyer-${orderCheck.user_id}`).emit('order_status_updated', {
+                    orderId: orderId,
+                    status: 'delivered',
+                    message: 'Siparişiniz teslim edildi. Afiyet olsun!'
+                });
+            }
         }
 
         res.json({ success: true, message: 'Görev başarıyla tamamlandı.' });

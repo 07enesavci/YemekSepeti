@@ -368,6 +368,21 @@ function createOrderCardHTML(order) {
         ? `<div style="display:inline-block; margin-top:6px; background:#e0f7fa; color:#00796b; padding:4px 8px; border-radius:12px; font-size:0.8rem; font-weight:bold;">🛵 Size ${parseFloat(order.distanceKm).toFixed(1)} km mesafede</div>`
         : '';
 
+    // Ödeme yöntemi bilgisini oluştur
+    let paymentInfo = '';
+    if (order.paymentMethod === 'cash') {
+        const method = order.cashPaymentMethod === 'card' ? 'Kartla' : 'Nakit';
+        paymentInfo = `💵 Kapıda Ödeme - ${method}`;
+    } else if (order.paymentMethod === 'iyzico') {
+        paymentInfo = '💳 İyzico (Kredi Kartı)';
+    } else if (order.paymentMethod === 'wallet') {
+        paymentInfo = '💰 Cüzdan';
+    } else if (order.paymentMethod === 'credit_card') {
+        paymentInfo = '💳 Kredi Kartı';
+    } else {
+        paymentInfo = 'Belirtilmemiş';
+    }
+
     return `
         <div class="card available-order-card" data-order-id="${order.id}">
             <div class="order-route">
@@ -381,6 +396,9 @@ function createOrderCardHTML(order) {
                 ${distanceBadge}
             </div>
             <div id="available-map-${order.id}" class="available-order-map" style="height: 0; overflow: hidden; transition: height 0.3s ease; border-radius: 8px; margin: 8px 0;"></div>
+            <div style="padding: 0.75rem; background: var(--bg-color); border-radius: 8px; margin: 0.5rem 0; border-left: 3px solid #FF9800;">
+                <strong>Ödeme Yöntemi:</strong> ${paymentInfo}
+            </div>
             <div class="order-payout">
                 <span>Tahmini Kazanç</span>
                 <strong>${(order.payout || 0).toFixed(2)} TL</strong>
@@ -692,115 +710,95 @@ async function resolveCourierSocketUserId() {
 }
 
 function connectCourierSocketWhenReady() {
-    if (courierSocket) return;
-    let retries = 0;
-    const maxRetries = 50;
-    const interval = setInterval(async () => {
-        retries++;
-        if (typeof io === 'undefined') {
-            if (retries >= maxRetries) clearInterval(interval);
-            return;
-        }
-        clearInterval(interval);
-        await connectCourierSocket();
-    }, 100);
+    initCourierSocket();
 }
 window.connectCourierSocketWhenReady = connectCourierSocketWhenReady;
 
-async function connectCourierSocket() {
-    if (courierSocket) return;
-    if (typeof io === 'undefined') {
-        connectCourierSocketWhenReady();
+// connectCourierSocket: initializeAvailablePage ve initializeDashboardPage tarafından çağrılır
+function connectCourierSocket() {
+    initCourierSocket();
+}
+window.connectCourierSocket = connectCourierSocket;
+
+function initCourierSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initCourierSocket, 500);
         return;
     }
 
-    const userId = await resolveCourierSocketUserId();
-    if (!userId) return;
+    // 1) Kurye doğrudan atandı (satıcı kurye atama sistem için)
+    window.__socketManager.on('courier_task_assigned', async (payload) => {
+        lastRenderedActiveTaskKey = null;
+        lastRenderedDashboardMode = null;
 
-    try {
-        courierSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
-            query: { userId, role: 'courier' },
-            transports: ['polling'],
-            upgrade: false,
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        }) : io({
-            query: { userId, role: 'courier' },
-            transports: ['polling'],
-            upgrade: false,
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        }));
+        window.__socketManager.notifyQueue('courier_task', payload);
 
-        if (!courierSocket) return;
-        courierSocket.on('courier_task_assigned', async (payload) => {
-            lastRenderedActiveTaskKey = null;
-            lastRenderedDashboardMode = null;
-            const path = window.location.pathname || '';
-            if (path.includes('/courier/available')) {
-                loadAvailableOrders();
-            }
-            if (path.includes('/courier/dashboard')) {
-                loadActiveTasks();
-                loadCourierStatusIndicator();
-            }
-            playCourierTaskSound();
-            const taskId = payload && payload.taskId ? payload.taskId : null;
-            if (!taskId) {
-                displayMessage('🆕 Yeni görev atandı! Panel güncellendi.', 'success');
-                return;
-            }
+        const path = window.location.pathname || '';
+        if (path.includes('/courier/available')) loadAvailableOrders();
+        if (path.includes('/courier/dashboard')) {
+            loadActiveTasks();
+            if (typeof loadCourierStatusIndicator === 'function') loadCourierStatusIndicator();
+        }
 
-            const confirmed = await askCourierTaskApproval(taskId);
-            if (confirmed === true) {
-                await acceptAssignedTask(taskId);
-            } else if (confirmed === false) {
-                await rejectAssignedTask(taskId);
-            }
-        });
+        const taskId = payload && payload.taskId ? payload.taskId : null;
+        if (!taskId) return;
 
-        courierSocket.on('order_pool_removed', (payload) => {
-            const path = window.location.pathname || '';
-            if (path.includes('/courier/available') || path.endsWith('/available')) {
-                const orderId = payload && payload.orderId ? payload.orderId : null;
-                if (orderId) {
-                    const card = document.querySelector(`.available-order-card[data-order-id="${orderId}"]`);
-                    if (card) {
-                        card.style.transition = 'all 0.3s ease';
-                        card.style.opacity = '0';
-                        card.style.transform = 'scale(0.95)';
-                        setTimeout(() => {
-                            if (card) card.remove();
-                            const container = document.querySelector('.available-orders-list');
-                            if (container && container.children.length === 0) {
-                                loadAvailableOrders();
-                            }
-                        }, 300);
-                    }
+        const confirmed = await askCourierTaskApproval(taskId);
+        if (confirmed === true) await acceptAssignedTask(taskId);
+        else if (confirmed === false) await rejectAssignedTask(taskId);
+    });
+
+    // 2) Sipariş havuza eklendi (satıcı "Kuryeye Bildir" bastı)
+    window.__socketManager.on('order_pool_added', (payload) => {
+        const path = window.location.pathname || '';
+        // Ses + toast: yeni iş var
+        window.__socketManager.notifyQueue('courier_available', payload);
+        if (path.includes('/courier/available') || path.endsWith('/available')) {
+            loadAvailableOrders();
+        }
+    });
+
+    // 3) Sipariş havuzdan kalktı (başka kurye aldı)
+    window.__socketManager.on('order_pool_removed', (payload) => {
+        const path = window.location.pathname || '';
+        if (path.includes('/courier/available') || path.endsWith('/available')) {
+            const orderId = payload && payload.orderId ? payload.orderId : null;
+            if (orderId) {
+                const card = document.querySelector(`.available-order-card[data-order-id="${orderId}"]`);
+                if (card) {
+                    card.style.transition = 'all 0.3s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        card.remove();
+                        const container = document.querySelector('.available-orders-list');
+                        if (container && container.children.length === 0) loadAvailableOrders();
+                    }, 300);
                 }
             }
-        });
+        }
+    });
 
-        courierSocket.on('order_pool_added', (payload) => {
-            const path = window.location.pathname || '';
-            if (path.includes('/courier/available') || path.endsWith('/available')) {
-                loadAvailableOrders();
-            }
-        });
+    // 4) Sipariş iptal edildi (kurye görevdeyken)
+    window.__socketManager.on('order_cancelled', (payload) => {
+        const path = window.location.pathname || '';
+        window.__socketManager.notifyQueue('order_cancelled', payload);
+        if (path.includes('/courier/dashboard')) {
+            lastRenderedActiveTaskKey = null;
+            loadActiveTasks();
+        }
+        if (path.includes('/courier/available')) {
+            loadAvailableOrders();
+        }
+    });
 
-        courierSocket.on('disconnect', () => {
-            courierSocket = null;
-            setTimeout(() => connectCourierSocket(), 1500);
-        });
-
-        courierSocket.on('connect_error', () => {
-            courierSocket = null;
-        });
-    } catch (e) {
-        courierSocket = null;
-    }
+    // 5) Sipariş durumu değişti (bilgi amaçlı)
+    window.__socketManager.on('order_status_updated', (payload) => {
+        const path = window.location.pathname || '';
+        if (path.includes('/courier/dashboard')) {
+            loadActiveTasks();
+        }
+    });
 }
 
 async function askCourierTaskApproval(taskId) {

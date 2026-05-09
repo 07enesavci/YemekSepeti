@@ -370,6 +370,11 @@ router.put("/toggle-shop-status", async (req, res) => {
             return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
         }
 
+        // Ana sayfa restoran listesi anlık güncellensin
+        if (global.io) {
+            global.io.emit('seller_status_updated', { userId, isOpen: is_open });
+        }
+
         res.json({ success: true, message: "Dükkan durumu güncellendi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });

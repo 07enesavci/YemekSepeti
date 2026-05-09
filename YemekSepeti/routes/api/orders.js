@@ -98,10 +98,12 @@ function isDeadlockError(err) {
 
 router.post("/", requireRole('buyer'), async (req, res) => {
     try {
-        const { cart, address, paymentMethod, couponCode, iyzicoCard, iyzicoSavedCardId, iyzicoSavedCardCvc, deliveryType } = req.body;
-    const finalDeliveryType = (deliveryType === 'pickup') ? 'pickup' : (deliveryType === 'cargo') ? 'cargo' : 'delivery';
+        const { cart, address, paymentMethod, couponCode, iyzicoCard, iyzicoSavedCardId, iyzicoSavedCardCvc, deliveryType, cashPaymentMethod } = req.body;
+        const finalDeliveryType = (deliveryType === 'pickup') ? 'pickup' : (deliveryType === 'cargo') ? 'cargo' : 'delivery';
+        const finalCashPaymentMethod = paymentMethod === 'cash'
+            ? (cashPaymentMethod === 'card' ? 'card' : 'cash')
+            : null;
 
-        
         const userId = req.session.user.id;
 
         if (!cart || !Array.isArray(cart) || cart.length === 0) {
@@ -581,6 +583,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         address_id: addressId,
                         delivery_type: finalDeliveryType,
                         payment_method: paymentMethod || 'credit_card',
+                        cash_payment_method: finalCashPaymentMethod,
                         subtotal: subtotal.toFixed(2),
                         delivery_fee: deliveryFee.toFixed(2),
                         discount_amount: discountAmount.toFixed(2),
@@ -1042,7 +1045,9 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
                 discount: parseFloat(order.discount_amount) || 0,
                 couponCode: order.coupon_code || null,
                 cargoCompany: order.cargo_company || null,
-                cargoTrackingNumber: order.cargo_tracking_number || null
+                cargoTrackingNumber: order.cargo_tracking_number || null,
+                paymentMethod: order.payment_method || 'credit_card',
+                cashPaymentMethod: order.cash_payment_method || null
             };
         });
         
@@ -1277,7 +1282,9 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
         }
         
         if (global.io) {
+            // Tüm aktif kuryeler bu olayı dinler (Yeni iş havuzu)
             global.io.emit('order_pool_added', { orderId: orderId });
+            console.log(`🚨 Kurye bildirim yayıldı - order_pool_added: sipariş #${orderId}`);
         }
         
         res.json({
@@ -1327,7 +1334,15 @@ router.post("/seller/cargo-ship/:id", requireRole('seller'), async (req, res) =>
         );
 
         if (global.io) {
-            global.io.emit('order_status_update', { orderId, status: 'on_delivery' });
+            // Satıcıya güncelleme - sipariş listesi yenilensin
+            const cargoOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number'] });
+            if (cargoOrder) {
+                global.io.to(`buyer-${cargoOrder.user_id}`).emit('order_status_updated', {
+                    orderId,
+                    status: 'on_delivery',
+                    message: 'Siparişiniz kargoya verildi. Takip numarası: ' + (cargoTrackingNumber || 'Belirtilmedi')
+                });
+            }
         }
 
         res.json({ success: true, message: "Sipariş kargoya verildi." });
@@ -1472,6 +1487,7 @@ router.get("/:id", requireAuth, async (req, res) => {
                     o.delivery_fee,
                     o.discount_amount,
                     o.payment_method,
+                    o.cash_payment_method,
                     o.delivery_type,
                     o.cargo_company,
                     o.cargo_tracking_number,
@@ -1561,6 +1577,7 @@ router.get("/:id", requireAuth, async (req, res) => {
                 discount: parseFloat(order.discount_amount) || 0,
                 deliveryType: order.delivery_type || 'delivery',
                 paymentMethod: order.payment_method || 'credit_card',
+                cashPaymentMethod: order.cash_payment_method || null,
                 seller: {
                     id: order.seller_id,
                     name: order.seller_name || "Ev Lezzetleri",

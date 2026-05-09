@@ -443,18 +443,30 @@ async function loadSellerMenu(sellerId, seller) {
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('seller-name')) {
         loadSellerProfile();
-        
-        // Socket.io ile anlık menü güncellemesi (F5'siz)
-        if (typeof io !== 'undefined') {
-            const socket = io();
-            const currentSellerId = getSellerIdFromUrl();
-            socket.on('menu_updated', (data) => {
-                if (data && data.sellerId && String(data.sellerId) === String(currentSellerId)) {
-                    console.log('🔄 Satıcı paneli üzerinden menü güncellendi, liste yeniden yükleniyor...');
-                    loadSellerProfile(); // Sadece veriyi çeker ve içeriği günceller, sayfa atlamaz.
-                }
-            });
-        }
+        initSellerProfileSocket();
     }
 });
+
+function initSellerProfileSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initSellerProfileSocket, 300);
+        return;
+    }
+    const currentSellerId = getSellerIdFromUrl();
+
+    // Menü güncellenince sayfayı yenile
+    window.__socketManager.on('menu_updated', (data) => {
+        if (data && data.sellerId && String(data.sellerId) === String(currentSellerId)) {
+            loadSellerProfile();
+        }
+    });
+
+    // Satıcı açık/kapalı durumu değişince güncelle
+    window.__socketManager.on('seller_status_updated', (data) => {
+        if (data && data.userId) {
+            // Hangi satıcı olduğunu bilemeyiz ama güncelle
+            loadSellerProfile();
+        }
+    });
+}
 

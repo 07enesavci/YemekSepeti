@@ -59,7 +59,7 @@ async function showOrderDetail(orderId) {
                         <div class="order-detail-info">
                             <p><strong>Durum:</strong> <span class="order-status ${orderDetail.status}">${orderDetail.statusText}</span></p>
                             <p><strong>Tarih:</strong> ${orderDetail.date}</p>
-                            <p><strong>Ödeme Yöntemi:</strong> ${orderDetail.paymentMethod === 'credit_card' ? 'Kredi Kartı' : orderDetail.paymentMethod === 'cash' ? 'Nakit' : orderDetail.paymentMethod}</p>
+                            <p><strong>Ödeme Yöntemi:</strong> ${orderDetail.paymentMethod === 'credit_card' ? 'Kredi Kartı' : orderDetail.paymentMethod === 'cash' ? `Kapıda Ödeme${orderDetail.cashPaymentMethod === 'card' ? ' - Kartla' : ' - Nakit'}` : orderDetail.paymentMethod}</p>
                             ${isPickup ? '<p><strong>Not:</strong> Bu sipariş gel al siparişidir. Restorana giderek teslim alabilirsiniz.</p>' : ''}
                         </div>
                     </div>
@@ -735,90 +735,70 @@ async function renderOrders() {
     writeBuyerOrdersSnapshot(userId, latestActiveOrders, latestPastOrders);
 }
 
-function playBuyerOrderSound() {
-    try {
-        var synth = window.speechSynthesis;
-        if (synth) {
-            synth.cancel();
-            var u = new SpeechSynthesisUtterance('Siparişiniz alındı.');
-            u.lang = 'tr-TR';
-            u.rate = 1.0;
-            u.volume = 1;
-            synth.speak(u);
-        }
-    } catch (e) {}
-}
-
-function showBuyerOrderToast(data) {
-    var toast = document.createElement('div');
-    toast.className = 'buyer-order-toast';
-    toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#4CAF50;color:#fff;padding:16px 24px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:10000;font-size:14px;animation:slideIn 0.3s ease-out;';
-    toast.innerHTML = '<strong>Siparişiniz alındı</strong><br><small>#' + (data.orderNumber || data.id) + ' - ' + (data.totalAmount || '') + ' TL</small>';
-    if (!document.querySelector('style[data-buyer-toast]')) {
-        var style = document.createElement('style');
-        style.setAttribute('data-buyer-toast', '');
-        style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
-        document.head.appendChild(style);
+function initBuyerSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initBuyerSocket, 500);
+        return;
     }
-    document.body.appendChild(toast);
-    setTimeout(function() { toast.remove(); }, 5000);
+
+    const isOrderPage = window.location.pathname.includes('/buyer/orders') ||
+                        window.location.pathname.includes('/buyer/order-confirmation');
+
+    // Sipariş başarıyla verildi
+    window.__socketManager.on('order_placed', (payload) => {
+        window.__socketManager.notifyQueue('status_update', null, 'Siparişiniz alındı!');
+        if (isOrderPage && typeof renderOrders === 'function') renderOrders();
+        if (window.updateHeader) window.updateHeader(); // Header'daki aktif sipariş linkini güncelle
+    });
+
+    // Sipariş durumu değişti
+    window.__socketManager.on('order_status_updated', (payload) => {
+        const orderId = payload && payload.orderId ? payload.orderId : null;
+        const status = payload && payload.status ? payload.status : '';
+        
+        // Teslim edildiyse özel ses/toast
+        if (status === 'delivered') {
+            window.__socketManager.notifyQueue('delivered', payload, 'Siparişiniz teslim edildi. Afiyet olsun!');
+        } else if (status === 'cancelled') {
+            window.__socketManager.notifyQueue('order_cancelled', payload, 'Siparişiniz iptal edildi.');
+        } else {
+            const statusMessages = {
+                confirmed: 'Siparişiniz onayandı',
+                preparing: 'Siparişiniz hazırlanıyor',
+                ready: 'Siparişiniz hazır, kurye alıyor',
+                on_delivery: 'Siparişiniz yolda!'
+            };
+            const msg = (payload && payload.message) || statusMessages[status] || 'Sipariş durumunuz güncellendi';
+            window.__socketManager.notifyQueue('status_update', null, msg);
+        }
+
+        if (isOrderPage) {
+            if (typeof renderOrders === 'function') renderOrders();
+            // Detay modalı açıksa güncelle
+            const detailModal = document.getElementById('order-detail-modal');
+            if (detailModal && detailModal.style.display !== 'none' && orderId) {
+                closeOrderDetailModal();
+                setTimeout(() => showOrderDetail(orderId), 300);
+            }
+        }
+
+        if (window.updateHeader) window.updateHeader(); // Header'daki aktif sipariş linkini güncelle
+    });
+
+    // Sipariş iptal edildi
+    window.__socketManager.on('order_cancelled', (payload) => {
+        window.__socketManager.notifyQueue('order_cancelled', payload);
+        if (isOrderPage && typeof renderOrders === 'function') renderOrders();
+        if (window.updateHeader) window.updateHeader();
+    });
 }
 
-function initializeBuyerOrderUpdates() {
-    if (!window.location.pathname.includes('/buyer/orders') && !window.location.pathname.includes('/buyer/order-confirmation')) return;
-    var retries = 0;
-    var maxRetries = 50;
-    var interval = setInterval(function() {
-        retries++;
-        if (typeof io === 'undefined') {
-            if (retries >= maxRetries) clearInterval(interval);
-            return;
-        }
-        clearInterval(interval);
-        var baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        fetch(baseUrl + '/api/auth/me', { credentials: 'include' })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data.success || !data.user || !data.user.id) return;
-                var userId = data.user.id;
-                window.buyerOrderSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
-                    query: { userId: String(userId), role: 'buyer' },
-                    reconnection: true,
-                    reconnectionDelay: 1000,
-                    transports: ['polling'],
-                    upgrade: false
-                }) : io({
-                    query: { userId: String(userId), role: 'buyer' },
-                    reconnection: true,
-                    reconnectionDelay: 1000,
-                    transports: ['polling'],
-                    upgrade: false
-                }));
-                if (!window.buyerOrderSocket) return;
-                window.buyerOrderSocket.on('connect', function() {
-                    console.log('Alıcı Socket.IO bağlandı - sipariş güncellemeleri açık.');
-                });
-                window.buyerOrderSocket.on('order_placed', function(payload) {
-                    console.log('Yeni sipariş bildirimi:', payload);
-                    playBuyerOrderSound();
-                    showBuyerOrderToast(payload);
-                    if (typeof renderOrders === 'function') {
-                        renderOrders();
-                    }
-                });
-                window.buyerOrderSocket.on('connect_error', function(err) {
-                    console.warn('Alıcı Socket bağlantı hatası:', err.message);
-                });
-            })
-            .catch(function() {});
-    }, 100);
-}
 
 window.renderOrders = renderOrders;
 
 document.addEventListener('DOMContentLoaded', function() {
     renderOrders();
-    initializeBuyerOrderUpdates();
+    initBuyerSocket();
 
     var logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {

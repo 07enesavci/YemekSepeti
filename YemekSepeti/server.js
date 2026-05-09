@@ -66,6 +66,7 @@ try {
             const {
                 ensureOrderDeliveryTypeColumn,
                 ensureOrderPaymentMethodEnum,
+                ensureOrderCashPaymentMethodColumn,
                 ensureMealIsApprovedColumn,
                 ensureSellerIsOpenColumn,
                 ensureSellerGeoColumns,
@@ -81,6 +82,7 @@ try {
                     if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
                         await ensureOrderPaymentMethodEnum();
                     }
+                    await ensureOrderCashPaymentMethodColumn();
                     await ensureMealIsApprovedColumn();
                     await ensureSellerIsOpenColumn();
                     await ensureSellerGeoColumns();
@@ -101,6 +103,7 @@ try {
                             if (process.env.SKIP_ORDER_PAYMENT_ENUM_FIX !== 'true') {
                                 await ensureOrderPaymentMethodEnum();
                             }
+                            await ensureOrderCashPaymentMethodColumn();
                             await ensureMealIsApprovedColumn();
                             await ensureSellerIsOpenColumn();
                             await ensureSellerGeoColumns();
@@ -748,21 +751,28 @@ try {
         const userRole = socket.handshake.query.role;
         console.log(`🟢 Socket.IO client bağlandı - Socket ID: ${socket.id}, User ID: ${userId}, Role: ${userRole || 'unknown'}`);
         
-        if (userId) {
+        if (userId && userId !== 'guest') {
+            // Her kullanıcı kendi user ID ile genel odaya girer
             socket.join(`user-${userId}`);
-            const roomName = `seller-${userId}`;
-            socket.join(roomName);
-            console.log(`   ✅ Room'a katıldı: ${roomName}`);
 
+            if (userRole === 'seller') {
+                const sellerRoom = `seller-${userId}`;
+                socket.join(sellerRoom);
+                console.log(`   ✅ Room'a katıldı: ${sellerRoom}`);
+            }
             if (userRole === 'courier') {
                 const courierRoom = `courier-${userId}`;
                 socket.join(courierRoom);
                 console.log(`   ✅ Room'a katıldı: ${courierRoom}`);
             }
-            if (userRole === 'buyer') {
+            if (userRole === 'buyer' || userRole === 'user') {
                 const buyerRoom = `buyer-${userId}`;
                 socket.join(buyerRoom);
                 console.log(`   ✅ Room'a katıldı: ${buyerRoom}`);
+            }
+            if (userRole === 'admin' || userRole === 'super_admin') {
+                socket.join('admin');
+                console.log(`   ✅ Room'a katıldı: admin`);
             }
         } else {
             console.warn(`   ⚠️ User ID geçilmedi`);

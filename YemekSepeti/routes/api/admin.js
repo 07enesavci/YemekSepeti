@@ -125,6 +125,7 @@ router.post("/users", async (req, res) => {
             });
         }
 
+        if (global.io) global.io.to('admin').emit('admin_users_updated', {});
         res.json({
             success: true,
             user: { id: newUserId, fullname, email, role, status: 'active' }
@@ -179,6 +180,7 @@ router.put("/users/:id/suspend", async (req, res) => {
         {
             newStatus = 'suspended';
         }
+        if (global.io) global.io.to('admin').emit('admin_users_updated', {});
         res.json({ success: true, status: newStatus });
     } 
     catch (error) 
@@ -213,6 +215,7 @@ router.delete("/users/:id", async (req, res) => {
             await recalculateSellerRatings(sellerIds);
         }
 
+        if (global.io) global.io.to('admin').emit('admin_users_updated', {});
         res.json({ success: true, message: "Kullanıcı silindi." });
     } 
     catch (error) 
@@ -322,6 +325,7 @@ router.post("/coupons", createCouponValidation, handleValidationErrors, async (r
             createdBy
         ]);
         
+        if (global.io) global.io.to('admin').emit('admin_coupons_updated', {});
         res.json({ success: true, message: "Kupon başarıyla oluşturuldu." });
     } 
     catch (error) 
@@ -368,6 +372,7 @@ router.put("/coupons/:id", idParam, handleValidationErrors, async (req, res) => 
             "UPDATE coupons SET code = ?, description = ?, discount_type = ?, discount_value = ?, min_order_amount = ?, max_discount_amount = ?, applicable_seller_ids = ?, updated_at = NOW() WHERE id = ?",
             [String(code).trim(), description ? String(description).trim() : null, type, amount, isNaN(minOrder) ? 0 : minOrder, (maxDiscount != null && !isNaN(maxDiscount)) ? maxDiscount : null, sellerIdsJson, couponId]
         );
+        if (global.io) global.io.to('admin').emit('admin_coupons_updated', {});
         res.json({ success: true, message: "Kupon güncellendi." });
     } 
     catch (error) 
@@ -384,6 +389,7 @@ router.delete("/coupons/:id", idParam, handleValidationErrors, async (req, res) 
         const sql = "DELETE FROM coupons WHERE id = ?";
         const result = await db.execute(sql, [couponId]);
         if (result.affectedRows === 0) return res.status(404).json({ success: false, message: "Kupon bulunamadı." });
+        if (global.io) global.io.to('admin').emit('admin_coupons_updated', {});
         res.json({ success: true, message: "Kupon silindi." });
     } 
     catch (error) 
@@ -448,6 +454,12 @@ router.post("/approve-seller/:id", requireRole(['admin','super_admin','support']
         if (user && user.email) {
             await sendSellerApprovalEmail(user.email, seller.shop_name).catch(err => console.error('Onay e-postası gönderilemedi:', err));
         }
+        if (global.io) {
+            global.io.to('admin').emit('admin_sellers_updated', {});
+            global.io.to(`user-${seller.user_id}`).emit('account_approved', {
+                message: 'Hesabınız onayandı! Mağazanızı yönetmeye başlayabilirsiniz.'
+            });
+        }
         res.json({ success: true, message: "Satıcı onaylandı ve mağaza aktif edildi!" });
     } catch (error) {
         res.status(500).json({ success: false, message: "Onaylama işlemi sırasında hata oluştu." });
@@ -465,8 +477,15 @@ router.post("/reject-seller/:id", requireRole(['admin','super_admin','support'])
             await sendSellerRejectionEmail(user.email).catch(err => console.error('Red e-postası gönderilemedi:', err));
         }
         const userId = seller.user_id;
+        // Kullanıcıya bildir, sonra sil
+        if (global.io) {
+            global.io.to(`user-${userId}`).emit('account_rejected', {
+                message: 'Başvurunuz reddedildi. Detaylar için destek ile iletişime geçin.'
+            });
+        }
         await seller.destroy();
         await User.destroy({ where: { id: userId } });
+        if (global.io) global.io.to('admin').emit('admin_sellers_updated', {});
         res.json({ success: true, message: "Başvuru reddedildi ve sistemden silindi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Reddetme işlemi sırasında hata oluştu." });
@@ -592,14 +611,16 @@ router.get("/seller-stats/:id", requireRole(['admin','super_admin','support']), 
         let ordersReplacements = [sellerId];
         let ordersDateFilter = "";
         if (startDate && endDate) {
-            ordersDateFilter = " AND created_at >= ? AND created_at <= ?";
+            ordersDateFilter = " AND o.created_at >= ? AND o.created_at <= ?";
             ordersReplacements.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
         }
         const recentOrdersQuery = `
-            SELECT id, order_number, total_amount, status, created_at 
-            FROM orders 
-            WHERE seller_id = ?${ordersDateFilter}
-            ORDER BY created_at DESC 
+            SELECT o.id, o.order_number, o.total_amount, o.status, o.created_at, o.payment_method, o.delivery_type, u.fullname as customer_name, c.fullname as courier_name 
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN users c ON o.courier_id = c.id
+            WHERE o.seller_id = ?${ordersDateFilter}
+            ORDER BY o.created_at DESC 
         `;
         const recentOrdersRaw = await db.query(recentOrdersQuery, ordersReplacements);
         const recentOrders = Array.isArray(recentOrdersRaw) ? recentOrdersRaw : [];
@@ -689,6 +710,12 @@ router.post("/approve-courier/:id", requireRole(['admin','super_admin','support'
         await courier.update({ is_active: true });
         const user = courier.user || await User.findByPk(courier.user_id);
         if (user && user.email) await sendCourierApprovalEmail(user.email).catch(err => console.error('Onay e-postası gönderilemedi:', err));
+        if (global.io) {
+            global.io.to('admin').emit('admin_couriers_updated', {});
+            global.io.to(`user-${courier.user_id}`).emit('account_approved', {
+                message: 'Hesabınız onayandı! Artık teslimat görevleri alabilirsiniz.'
+            });
+        }
         res.json({ success: true, message: "Kurye onaylandı!" });
     } catch (error) {
         res.status(500).json({ success: false, message: "Onaylama işlemi sırasında hata oluştu." });
@@ -701,8 +728,14 @@ router.post("/reject-courier/:id", requireRole(['admin','super_admin','support']
         const user = await User.findByPk(courier.user_id);
         if (user && user.email) await sendCourierRejectionEmail(user.email).catch(err => console.error('Red e-postası gönderilemedi:', err));
         const userId = courier.user_id;
+        if (global.io) {
+            global.io.to(`user-${userId}`).emit('account_rejected', {
+                message: 'Kurye başvurunuz reddedildi. Destek ile iletişime geçebilirsiniz.'
+            });
+        }
         await courier.destroy();
         await User.destroy({ where: { id: userId } });
+        if (global.io) global.io.to('admin').emit('admin_couriers_updated', {});
         res.json({ success: true, message: "Kurye başvurusu reddedildi ve sistemden silindi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Reddetme işlemi sırasında hata oluştu." });

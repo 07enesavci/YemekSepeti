@@ -458,6 +458,21 @@ function createOrderCardHTML(order) {
     const deliveryFee = parseFloat(order.deliveryFee) || 0;
     const couponCode = order.couponCode || order.coupon_code || '';
     
+    // Ödeme yöntemi bilgisini oluştur
+    let paymentInfo = '';
+    if (order.paymentMethod === 'cash') {
+        const method = order.cashPaymentMethod === 'card' ? 'Kartla' : 'Nakit';
+        paymentInfo = `💵 Kapıda Ödeme - ${method}`;
+    } else if (order.paymentMethod === 'iyzico') {
+        paymentInfo = '💳 İyzico (Kredi Kartı)';
+    } else if (order.paymentMethod === 'wallet') {
+        paymentInfo = '💰 Cüzdan';
+    } else if (order.paymentMethod === 'credit_card') {
+        paymentInfo = '💳 Kredi Kartı';
+    } else {
+        paymentInfo = 'Belirtilmemiş';
+    }
+    
     let actionButtons = '';
     if (order.status === 'pending' || order.status === 'confirmed') {
         actionButtons = `
@@ -507,6 +522,7 @@ function createOrderCardHTML(order) {
                 ${discount > 0 ? `<p><strong>Kupon:</strong> ${couponCode || 'Uygulandı'} • <span style="color:#27AE60;">-${discount.toFixed(2)} TL</span></p>` : ''}
                 ${discount > 0 ? `<p><strong>Tutar:</strong> ${subtotal.toFixed(2)} + ${deliveryFee.toFixed(2)} - ${discount.toFixed(2)} = <strong>${(parseFloat(order.total) || 0).toFixed(2)} TL</strong></p>` : ''}
                 ${order.statusText ? `<p><strong>Durum:</strong> ${order.statusText}</p>` : ''}
+                <p><strong>Ödeme:</strong> ${paymentInfo}</p>
                 ${order.courierId && order.courierName ? `<p><strong>Kurye:</strong> ${order.courierName} (ID: ${order.courierId})</p>` : ''}
                 ${order.deliveryType === 'cargo' && order.cargoCompany ? `<p><strong>Kargo Firması:</strong> ${order.cargoCompany}${order.cargoTrackingNumber ? ` • Takip: <strong>${order.cargoTrackingNumber}</strong>` : ''}</p>` : ''}
             </div>
@@ -795,8 +811,8 @@ function showSellerActionNotification(type, title, message) {
         '</div>';
     document.body.appendChild(toast);
 
-    // Dikkat çekici ses: başarılı işlemde kısa zil, hata/rette alarm tonu
-    playOrderSound(isError ? 'cancel' : 'new');
+    // Ses bildirimi satıcının kendi yaptığı işlemlerde çalmıyor,
+    // yalnızca gelen socketevents için çalıyor (initSellerSocket içinde)
 
     setTimeout(function() {
         toast.style.animation = 'slideOut 0.25s ease-in';
@@ -1734,560 +1750,114 @@ async function initializeSellerPages() {
 }
 
 // ========== REAL-TIME SİPARİŞ TESLİMATI (SOCKET.IO) ==========
-function initializeSellerRealTimeUpdates() {
-    if (!window.location.pathname.includes('/seller')) return;
-    startSellerAutoSyncFallback();
-    // Production proxy/WebSocket sorunlarında ana akış polling fallback ile ilerler.
-    // Socket bağlantısı opsiyoneldir; gerektiğinde tekrar açılabilir.
-    const ENABLE_SELLER_SOCKET = false;
-    if (!ENABLE_SELLER_SOCKET) return;
-    
-    // Socket.IO client library'yi bekle
-    let retries = 0;
-    const maxRetries = 50;
-    
-    const waitForIO = setInterval(() => {
-        retries++;
-        if (typeof io !== 'undefined') {
-            clearInterval(waitForIO);
-            unlockNotificationAudio();
-            connectSellerSocket();
-        } else if (retries >= maxRetries) {
-            clearInterval(waitForIO);
-            console.error('Socket.IO library yüklenemedi');
-        }
-    }, 100);
-}
 
 let sellerAutoSyncInterval = null;
 let sellerKnownPendingOrderIds = new Set();
 let sellerAutoSyncInitialized = false;
 
-function normalizeSellerOrderForNotification(order) {
-    if (!order) return null;
-    return {
-        id: order.id,
-        orderNumber: order.orderNumber || order.order_number || ('#' + (order.id || '')),
-        buyerName: order.customer || order.buyerName || 'Müşteri',
-        totalAmount: (order.total != null ? order.total : (order.totalAmount != null ? order.totalAmount : 0))
-    };
-}
-
+// Fallback polling (Eğer socket çalışmıyorsa 30 saniyede bir kontrol et)
 async function runSellerAutoSync() {
     if (!window.location.pathname.includes('/seller')) return;
     if (document.hidden) return;
+    if (window.__socketManager && window.__socketManager.isConnected()) return; // Socket bağlıysa polling atla
 
     try {
         const pendingOrders = await fetchSellerOrders('pending');
-        const latestIds = new Set((pendingOrders || []).map(function(order) { return Number(order.id); }).filter(Boolean));
-
-        if (!sellerAutoSyncInitialized) {
-            sellerKnownPendingOrderIds = latestIds;
-            sellerAutoSyncInitialized = true;
-        } else {
-            (pendingOrders || []).forEach(function(order) {
-                const id = Number(order.id);
-                if (!id) return;
-                if (!sellerKnownPendingOrderIds.has(id)) {
-                    const orderData = normalizeSellerOrderForNotification(order);
-                    if (orderData) showOrderNotification(orderData);
-                }
-            });
-            sellerKnownPendingOrderIds = latestIds;
-        }
-
         const isOrdersPage = document.querySelector('.tabs') !== null;
         const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
         const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
 
-        if (isDashboardPage) {
-            await loadDashboardPage();
-        } else if (isEarningsPage) {
-            await loadRecentOrdersForPanel();
-        } else if (isOrdersPage) {
+        if (isDashboardPage) await loadDashboardPage();
+        else if (isEarningsPage) await loadRecentOrdersForPanel();
+        else if (isOrdersPage) {
             const activeTabBtn = document.querySelector('.tab-link.active');
-            if (activeTabBtn) {
-                const currentTab = activeTabBtn.getAttribute('data-tab');
-                if (typeof loadOrdersForTab === 'function') {
-                    await loadOrdersForTab(currentTab, true);
-                }
-            }
+            if (activeTabBtn) await loadOrdersForTab(activeTabBtn.getAttribute('data-tab'), true);
         }
     } catch (error) {}
 }
 
 function startSellerAutoSyncFallback() {
     if (sellerAutoSyncInterval) return;
-    runSellerAutoSync().catch(function() {});
-    sellerAutoSyncInterval = setInterval(function() {
-        runSellerAutoSync().catch(function() {});
-    }, 3000);
+    sellerAutoSyncInterval = setInterval(() => runSellerAutoSync().catch(() => {}), 30000); // 30s'e çekildi
 }
 
-async function resolveSellerUserId() {
-    try {
-        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        const response = await fetch(`${baseUrl}/api/auth/me`, { credentials: 'include' });
-        if (!response.ok) throw new Error('auth me failed');
-        const data = await response.json();
-        const fallbackUserId = data?.user?.id;
-        if (fallbackUserId) {
-            window.currentUserId = fallbackUserId;
-            if (window.sessionStorage) {
-                window.sessionStorage.setItem('userId', String(fallbackUserId));
-            }
-            return String(fallbackUserId);
-        }
-    } catch (error) {}
-
-    const directUserId = window.currentUserId ||
-        (window.sessionStorage && window.sessionStorage.getItem('userId')) ||
-        document.querySelector('[data-user-id]')?.dataset.userId;
-
-    if (directUserId && directUserId !== 'unknown') {
-        return String(directUserId);
+// Merkezi socket entegrasyonu
+function initSellerSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initSellerSocket, 500);
+        return;
     }
+    
+    // Fallback'i başlat
+    startSellerAutoSyncFallback();
 
-    return null;
+    window.__socketManager.on('new_order', async (orderData) => {
+        window.__socketManager.notifyQueue('new_order', orderData);
+        refreshSellerUI('new');
+    });
+
+    window.__socketManager.on('order_cancelled', async (orderData) => {
+        window.__socketManager.notifyQueue('order_cancelled', orderData);
+        // Her tabı yenile, iptal her sekmede olabilir
+        refreshSellerUI('current');
+    });
+
+    window.__socketManager.on('order_status_updated', async (orderData) => {
+        // Satıcı bir statü değişikliği alırsa (örn. kurye aldı) — ses çalma, sadece UI yenile
+        refreshSellerUI('current');
+    });
+
+    window.__socketManager.on('uzak_mesafe_toggle', (data) => {
+        window.__sellerUzakMesafeEnabled = !!data.enabled;
+        if(typeof updateSidebarUzakMesafe === 'function') updateSidebarUzakMesafe(!!data.enabled);
+    });
 }
 
-async function connectSellerSocket() {
-    if (window.sellerSocket) return;
+// UI Yenileme Fonksiyonu ("Yükleniyor" göstermeden gizlice günceller)
+async function refreshSellerUI(targetTab) {
+    const isOrdersPage = document.querySelector('.tabs') !== null; 
+    const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
+    const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
     
-    try {
-        const userId = await resolveSellerUserId();
-        if (!userId) {
-            console.warn('Socket.IO için userId alınamadı, tekrar denenecek');
-            setTimeout(() => connectSellerSocket(), 1200);
-            return;
-        }
-        
-        if (typeof io === 'undefined') {
-            console.error('Socket.IO client library yüklenmedi');
-            return;
-        }
-        
-        window.sellerSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
-            query: { userId },
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
-            transports: ['polling'],
-            upgrade: false
-        }) : io({
-            query: { userId },
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
-            transports: ['polling'],
-            upgrade: false
-        }));
-
-        if (!window.sellerSocket) {
-            console.error('Socket.IO başlatılamadı (client hazır değil)');
-            return;
-        }
-
-        window.sellerSocket.on('connect', () => {
-            console.log('Socket.IO bağlantısı kuruldu');
-        });
-
-        window.sellerSocket.on('new_order', async (orderData) => {
-            console.log('Yeni sipariş geldi:', orderData);
-            
-            const isOrdersPage = document.querySelector('.tabs') !== null; 
-            const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
-            const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
-            
-            showOrderNotification(orderData);
-            
-            // Dashboard'da ise tüm sayfayı yenile
-            if (isDashboardPage) {
-                loadDashboardPage().catch((error) => {
-                    console.error('Dashboard yenilenmesi hatası:', error);
-                });
-            }
-            // Kazanç sayfasında Son Gelen Siparişler'i yenile
-            if (isEarningsPage) {
-                loadRecentOrdersForPanel().catch((error) => {
-                    console.error('Son siparişler yenilenmesi hatası:', error);
-                });
-            }
-            
-            // Orders sayfasında ise siparişleri yenile
-            if (isOrdersPage) {
-                try {
-                    const tabContent = document.querySelector('.tab-content');
-                    if (tabContent) {
-                        const orders = await fetchSellerOrders('pending');
-                        if (orders.length > 0) {
-                            tabContent.innerHTML = '';
-                            orders.forEach(order => {
-                                tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                            });
-                            attachOrderEventListeners();
-                        }
+    if (isDashboardPage && typeof loadDashboardPage === 'function') {
+        loadDashboardPage();
+    }
+    if (isEarningsPage && typeof loadRecentOrdersForPanel === 'function') {
+        loadRecentOrdersForPanel();
+    }
+    if (isOrdersPage) {
+        try {
+            if (targetTab === 'new') {
+                // Spesifik olarak 'new' sekmesini güncelle (Yeni sipariş geldi)
+                await loadOrdersForTab('new', true);
+            } else if (targetTab === 'current') {
+                // Aktif görüntülenen sekmeyi güncelle
+                const activeTabBtn = document.querySelector('.tab-link.active');
+                if (activeTabBtn) {
+                    await loadOrdersForTab(activeTabBtn.getAttribute('data-tab'), true);
+                }
+            } else {
+                // Geçmiş davranış: pending'i yüklemeye çalış
+                const tabContent = document.querySelector('.tab-content');
+                if (tabContent) {
+                    const orders = await fetchSellerOrders('new');
+                    if (orders.length > 0) {
+                        tabContent.innerHTML = '';
+                        orders.forEach(order => tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order)));
+                        if(typeof attachOrderEventListeners === 'function') attachOrderEventListeners();
                     }
-                } catch (error) {
-                    console.error('Orders listesi güncellenirken hata:', error);
-                }
-            } 
-            
-        });
-
-        // Sipariş iptal edildiğinde
-        window.sellerSocket.on('order_cancelled', async (orderData) => {
-            console.log('Sipariş iptal edildi:', orderData);
-            
-            const isOrdersPage = document.querySelector('.tabs') !== null; 
-            const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
-            const cancelledBy = orderData.cancelledBy === 'buyer' ? 'Müşteri' : 'Satıcı';
-            
-            showCancelNotification(orderData, cancelledBy);
-            
-            // Dashboard'da ise tüm sayfayı yenile
-            if (isDashboardPage) {
-                loadDashboardPage().catch((error) => {
-                    console.error('Dashboard yenilenmesi hatası:', error);
-                });
-            }
-            
-            // Orders sayfasında ise siparişleri yenile
-            if (isOrdersPage) {
-                try {
-                    const tabContent = document.querySelector('.tab-content');
-                    if (tabContent) {
-                        const orders = await fetchSellerOrders('pending');
-                        if (orders.length > 0) {
-                            tabContent.innerHTML = '';
-                            orders.forEach(order => {
-                                tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                            });
-                            attachOrderEventListeners();
-                        } else {
-                            tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş yok</p>';
-                        }
-                    }
-                } catch (error) {
-                    console.error('İptal edilen sipariş güncellenirken hata:', error);
                 }
             }
-            
-        });
-
-        window.sellerSocket.on('connect_error', (error) => {
-            console.error('Socket.IO bağlantı hatası:', error.message);
-        });
-
-        window.sellerSocket.on('disconnect', (reason) => {
-            console.log('Socket.IO bağlantısı kesildi:', reason);
-        });
-
-    } catch (error) {
-        console.error('Socket.IO başlatma hatası:', error);
+        } catch (error) {
+            console.error('Sipariş listesi güncellenirken hata:', error);
+        }
     }
 }
 
-function showOrderNotification(orderData) {
-    // Toast notification göster
-    const notification = document.createElement('div');
-    notification.className = 'order-notification-toast';
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #4CAF50;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 14px;
-        animation: slideIn 0.3s ease-out;
-        font-weight: 500;
-        max-width: 400px;
-    `;
-    
-    notification.innerHTML = `
-        <span style="font-size: 20px;">🔔</span>
-        <div style="flex: 1;">
-            <strong>${orderData.orderNumber}</strong><br>
-            <small>${orderData.buyerName} - ${orderData.totalAmount} TL</small>
-        </div>
-        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0;">×</button>
-    `;
-    
-    // CSS Animation ekleme
-    if (!document.querySelector('style[data-notification-style]')) {
-        const style = document.createElement('style');
-        style.setAttribute('data-notification-style', '');
-        style.textContent = `
-            @keyframes slideIn {
-                from {
-                    transform: translateX(400px);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-            @keyframes slideOut {
-                from {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-                to {
-                    transform: translateX(400px);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    document.body.appendChild(notification);
-    
-    // Ses çal (yeni sipariş - bell sound)
-    playOrderSound('new');
-    
-    // 6 saniye sonra otomatik kapatılsın
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => notification.remove(), 300);
-    }, 6000);
-}
-
-function showCancelNotification(orderData, cancelledBy) {
-    const notification = document.createElement('div');
-    notification.className = 'order-notification-toast';
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #f44336;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 14px;
-        animation: slideIn 0.3s ease-out;
-        font-weight: 500;
-        max-width: 400px;
-    `;
-    
-    notification.innerHTML = `
-        <span style="font-size: 20px;">🚫</span>
-        <div style="flex: 1;">
-            <strong>Sipariş İptal Edildi</strong><br>
-            <small>${orderData.orderNumber} - ${cancelledBy} tarafından</small>
-        </div>
-        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0;">×</button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Ses çal (iptal - alarm sound)
-    playOrderSound('cancel');
-    
-    // 6 saniye sonra otomatik kapatılsın
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => notification.remove(), 300);
-    }, 6000);
-}
-
-function playOrderSound(type) {
-    try {
-        if (!notificationAudioUnlocked) {
-            pendingSoundType = type;
-            attachAudioUnlockListeners();
-            playSpeechFallback(type);
-            return;
-        }
-        const context = getNotificationAudioContext();
-        if (!context) {
-            playSpeechFallback(type);
-            return;
-        }
-
-        if (context.state !== 'running') {
-            pendingSoundType = type;
-            attachAudioUnlockListeners();
-            playSpeechFallback(type);
-            context.resume().then(() => {
-                const queuedType = pendingSoundType;
-                pendingSoundType = null;
-                if (queuedType) {
-                    playOrderSound(queuedType);
-                }
-            }).catch(() => {});
-            return;
-        }
-        
-        if (type === 'new') {
-            const start = context.currentTime;
-            const osc1 = context.createOscillator();
-            const gain1 = context.createGain();
-            osc1.frequency.value = 880;
-            osc1.type = 'triangle';
-            osc1.connect(gain1);
-            gain1.connect(context.destination);
-            gain1.gain.setValueAtTime(0.0001, start);
-            gain1.gain.exponentialRampToValueAtTime(0.85, start + 0.02);
-            gain1.gain.exponentialRampToValueAtTime(0.0001, start + 0.28);
-            osc1.start(start);
-            osc1.stop(start + 0.30);
-
-            const osc2 = context.createOscillator();
-            const gain2 = context.createGain();
-            osc2.frequency.value = 1174;
-            osc2.type = 'triangle';
-            osc2.connect(gain2);
-            gain2.connect(context.destination);
-            gain2.gain.setValueAtTime(0.0001, start + 0.18);
-            gain2.gain.exponentialRampToValueAtTime(0.75, start + 0.22);
-            gain2.gain.exponentialRampToValueAtTime(0.0001, start + 0.75);
-            osc2.start(start + 0.18);
-            osc2.stop(start + 0.78);
-        } else if (type === 'cancel') {
-            const start = context.currentTime;
-            const freqs = [420, 320, 420, 320];
-            freqs.forEach((frequency, index) => {
-                const beepStart = start + (index * 0.24);
-                const osc = context.createOscillator();
-                const gain = context.createGain();
-                osc.frequency.value = frequency;
-                osc.type = 'sawtooth';
-                osc.connect(gain);
-                gain.connect(context.destination);
-                gain.gain.setValueAtTime(0.0001, beepStart);
-                gain.gain.exponentialRampToValueAtTime(0.9, beepStart + 0.03);
-                gain.gain.exponentialRampToValueAtTime(0.0001, beepStart + 0.20);
-                osc.start(beepStart);
-                osc.stop(beepStart + 0.22);
-            });
-        }
-    } catch (error) {
-        console.error('Ses çalma hatası:', error);
-        playSpeechFallback(type);
-    }
-}
-
-let notificationAudioContext = null;
-let notificationAudioUnlocked = false;
-let pendingSoundType = null;
-let audioUnlockListenersAttached = false;
-let lastSpeechAt = 0;
-
-function getNotificationAudioContext() {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) {
-        console.warn('Web Audio API bu tarayıcıda desteklenmiyor');
-        return null;
-    }
-
-    if (!notificationAudioContext) {
-        notificationAudioContext = new AudioContext();
-    }
-
-    return notificationAudioContext;
-}
-
-function unlockNotificationAudio() {
-    attachAudioUnlockListeners();
-}
-
-function attachAudioUnlockListeners() {
-    if (audioUnlockListenersAttached) return;
-    audioUnlockListenersAttached = true;
-
-    const unlock = () => {
-        const context = getNotificationAudioContext();
-        if (context && context.state !== 'running') {
-            context.resume().catch(() => {});
-        }
-        
-        if (context && context.state === 'running') {
-            notificationAudioUnlocked = true;
-            if (pendingSoundType) {
-                const queuedType = pendingSoundType;
-                pendingSoundType = null;
-                playOrderSound(queuedType);
-            }
-        }
-    };
-
-    document.addEventListener('pointerdown', unlock, true);
-    document.addEventListener('keydown', unlock, true);
-    document.addEventListener('touchstart', unlock, true);
-    window.addEventListener('focus', unlock);
-}
-
-function playSpeechFallback(type) {
-    try {
-        const synth = window.speechSynthesis;
-        if (!synth) return;
-
-        const now = Date.now();
-        if (now - lastSpeechAt < 800) return;
-        lastSpeechAt = now;
-
-        const utterance = new SpeechSynthesisUtterance(
-            type === 'cancel' ? 'Sipariş iptal edildi' : 'Yeni sipariş geldi'
-        );
-        utterance.lang = 'tr-TR';
-        utterance.rate = type === 'cancel' ? 1.0 : 1.1;
-        utterance.pitch = type === 'cancel' ? 0.8 : 1.2;
-        utterance.volume = 1;
-
-        synth.cancel();
-        synth.speak(utterance);
-    } catch (error) {}
-}
-
-// Satıcı sayfası yüklendiğinde Socket.IO bağlantısını başlat
 document.addEventListener('DOMContentLoaded', () => {
     if (window.location.pathname.includes('/seller')) {
-        initializeSellerRealTimeUpdates();
-        initUzakMesafeSocket();
+        initSellerSocket();
     }
 });
-
-// Sayfa navigasyon sırasında da başlat (single page app içim)
-window.addEventListener('load', () => {
-    if (window.location.pathname.includes('/seller')) {
-        setTimeout(() => initializeSellerRealTimeUpdates(), 500);
-    }
-});
-
-function initUzakMesafeSocket() {
-    let attempts = 0;
-    const tryConnect = setInterval(function() {
-        attempts++;
-        if (typeof io !== 'undefined') {
-            clearInterval(tryConnect);
-            try {
-                const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                const sock = io(baseUrl, { transports: ['websocket', 'polling'], reconnection: true });
-                sock.on('uzak_mesafe_toggle', function(data) {
-                    window.__sellerUzakMesafeEnabled = !!data.enabled;
-                    updateSidebarUzakMesafe(!!data.enabled);
-                });
-            } catch(e) {}
-        } else if (attempts >= 30) {
-            clearInterval(tryConnect);
-        }
-    }, 200);
-}
 
 

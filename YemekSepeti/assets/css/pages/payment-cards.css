@@ -269,6 +269,62 @@
     max-width: 42rem;
 }
 
+/* Kapıda Ödeme — Alt seçenekler (Nakit/Kartla) */
+.payment-cash-options-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.payment-cash-options-container.payment-cash-options-hidden {
+    display: none;
+}
+
+.payment-cash-method-selector {
+    display: flex;
+    gap: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    background: var(--bg-color);
+    align-items: center;
+}
+
+.payment-cash-method-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.payment-cash-method-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.payment-cash-method-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.payment-cash-method-label strong {
+    font-size: 0.95rem;
+    color: var(--text-color);
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.payment-cash-method-desc {
+    font-size: 0.8rem;
+    color: var(--secondary-color, #6b7280);
+    line-height: 1.35;
+}
+
 @media (max-width: 640px) {
     .saved-card-tile {
         flex-direction: column;
@@ -279,6 +335,21 @@
     }
     .saved-card-actions .btn {
         flex: 1;
+    }
+    
+    .payment-cash-options-container {
+        width: 100%;
+        margin-top: 0.75rem;
+    }
+    
+    .payment-cash-method-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+    
+    .payment-cash-method-option {
+        width: 100%;
     }
 }
 

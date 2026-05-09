@@ -629,4 +629,33 @@ document.addEventListener("DOMContentLoaded", function()
             });
         }
     }
+    
+    initAdminSocket();
 });
+
+function initAdminSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initAdminSocket, 500);
+        return;
+    }
+
+    window.__socketManager.on('admin_users_updated', () => {
+        const kullaniciListesiSayfasi=document.getElementById("user-list");
+        if(kullaniciListesiSayfasi) kullanicilariYukleVeListele();
+    });
+
+    window.__socketManager.on('admin_coupons_updated', () => {
+        const kuponFormuSayfasi=document.getElementById("coupon-form");
+        if(kuponFormuSayfasi) kuponlariYukleVeListele();
+    });
+
+    window.__socketManager.on('admin_sellers_updated', () => {
+        const kullaniciListesiSayfasi=document.getElementById("user-list");
+        if(kullaniciListesiSayfasi && currentRoleFilter === 'seller') kullanicilariYukleVeListele();
+    });
+
+    window.__socketManager.on('admin_couriers_updated', () => {
+        const kullaniciListesiSayfasi=document.getElementById("user-list");
+        if(kullaniciListesiSayfasi && currentRoleFilter === 'courier') kullanicilariYukleVeListele();
+    });
+}
