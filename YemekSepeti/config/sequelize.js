@@ -194,6 +194,33 @@ async function approveAllSellersOnStartupIfEnabled() {
     } catch (_) {}
 }
 
+async function ensureSellerOwnCouriersColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE sellers ADD COLUMN has_own_couriers TINYINT(1) NOT NULL DEFAULT 0`
+        );
+    } catch (_) {}
+    try {
+        await sequelize.query(
+            `ALTER TABLE sellers MODIFY COLUMN has_own_couriers TINYINT(1) NOT NULL DEFAULT 0`
+        );
+    } catch (_) {}
+}
+
+async function ensureCourierSellerIdColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE couriers ADD COLUMN seller_id INT NULL DEFAULT NULL`
+        );
+    } catch (_) {}
+    // Index eklenmesi (sütun zaten varsa hata yutulur)
+    try {
+        await sequelize.query(
+            `ALTER TABLE couriers ADD INDEX idx_couriers_seller_id (seller_id)`
+        );
+    } catch (_) {}
+}
+
 async function ensureUserOptionalColumns() {
     const alters = [
         `ALTER TABLE users ADD COLUMN courier_status ENUM('online','offline') DEFAULT 'offline'`,
@@ -212,6 +239,13 @@ async function ensureUserOptionalColumns() {
         } catch (_) {}
     }
 }
+async function ensureOrderIsPoolRequestedColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders ADD COLUMN is_pool_requested TINYINT(1) DEFAULT 0`
+        );
+    } catch (_) {}
+}
 
 module.exports = {
     sequelize,
@@ -225,5 +259,8 @@ module.exports = {
     ensureSellerPickupEnabledColumn,
     approveAllSellersOnStartupIfEnabled,
     ensurePaymentCardsEncryptionColumns,
-    ensureUserOptionalColumns
+    ensureUserOptionalColumns,
+    ensureSellerOwnCouriersColumn,
+    ensureCourierSellerIdColumn,
+    ensureOrderIsPoolRequestedColumn
 };

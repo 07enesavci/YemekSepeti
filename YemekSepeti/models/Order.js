@@ -22,6 +22,11 @@ module.exports=(sequelize, DataTypes)=>{
             type: DataTypes.INTEGER,
             allowNull: true
         },
+        is_pool_requested: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            comment: 'Kendi kuryesi olan restoran manuel olarak havuza gönderdiğinde true olur'
+        },
         address_id: {
             type: DataTypes.INTEGER,
             allowNull: true

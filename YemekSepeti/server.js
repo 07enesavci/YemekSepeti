@@ -73,7 +73,10 @@ try {
                 ensureSellerPickupEnabledColumn,
                 approveAllSellersOnStartupIfEnabled,
                 ensurePaymentCardsEncryptionColumns,
-                ensureUserOptionalColumns
+                ensureUserOptionalColumns,
+                ensureSellerOwnCouriersColumn,
+                ensureCourierSellerIdColumn,
+                ensureOrderIsPoolRequestedColumn
             } = require('./config/sequelize');
             const useAlterSync = process.env.SEQUELIZE_ALTER_SYNC === 'true';
             sequelize.sync({ alter: useAlterSync })
@@ -90,6 +93,8 @@ try {
                     await approveAllSellersOnStartupIfEnabled();
                     await ensurePaymentCardsEncryptionColumns();
                     await ensureUserOptionalColumns();
+                    await ensureSellerOwnCouriersColumn();
+                    await ensureCourierSellerIdColumn();
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
                 })
@@ -111,6 +116,9 @@ try {
                             await approveAllSellersOnStartupIfEnabled();
                             await ensurePaymentCardsEncryptionColumns();
                             await ensureUserOptionalColumns();
+                            await ensureSellerOwnCouriersColumn();
+                            await ensureCourierSellerIdColumn();
+                            await ensureOrderIsPoolRequestedColumn();
                             console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
                         });
                     }
@@ -643,6 +651,7 @@ try {
     app.get("/seller/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js" }));
     app.get("/seller/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
     app.get("/seller/uzak-mesafe", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js" }));
+    app.get("/seller/own-couriers", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
 
     app.get("/seller/:id/dashboard", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/orders", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
@@ -651,6 +660,7 @@ try {
     app.get("/seller/:id/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/uzak-mesafe", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/own-couriers", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
 
     // --- KURYE (COURIER) ROUTE'LARI ---
     app.get("/courier/pending-approval", requireRole('courier'), async (req, res) => {

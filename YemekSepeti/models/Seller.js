@@ -107,6 +107,12 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.BOOLEAN,
             defaultValue: false,
             allowNull: false
+        },
+        /** Kendi Kuryesi — zincir restoran kendi kurye kadrosunu yönetir */
+        has_own_couriers: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            allowNull: false
         }
     }, {
         tableName: 'sellers',

@@ -27,6 +27,10 @@ Courier.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
 Seller.hasMany(Meal, {foreignKey: 'seller_id', as: 'meals'});
 Meal.belongsTo(Seller, {foreignKey: 'seller_id', as: 'seller'});
 
+// Zincir restoran kendi kuryesi ilişkisi
+Seller.hasMany(Courier, {foreignKey: 'seller_id', as: 'ownCouriers'});
+Courier.belongsTo(Seller, {foreignKey: 'seller_id', as: 'linkedSeller'});
+
 User.hasMany(Address, {foreignKey: 'user_id', as: 'addresses'});
 Address.belongsTo(User, {foreignKey: 'user_id', as: 'user'});
 

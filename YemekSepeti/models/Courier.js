@@ -22,6 +22,13 @@ module.exports = (sequelize, DataTypes) => {
         is_active: {
             type: DataTypes.BOOLEAN,
             defaultValue: false
+        },
+        /** Zincir restoran kuryesi ise bağlı olduğu satıcı ID'si; platform kuryesi ise null */
+        seller_id: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            defaultValue: null,
+            comment: "Bağlı olduğu satıcı (zincir restoran). NULL ise platform kuryesi."
         }
     }, {
         tableName: 'couriers',

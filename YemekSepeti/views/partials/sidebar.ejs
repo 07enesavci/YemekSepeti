@@ -58,6 +58,11 @@
                         <span>🎫</span> Kuponlar
                     </a>
                 </li>
+                <li id="sidebar-own-couriers-li" style="display: none;">
+                    <a href="/seller/own-couriers" class="<%= title === 'Kurye Yönetimi' ? 'active' : '' %>" id="sidebar-own-couriers-link">
+                        <span>🏍️</span> Kurye Yönetimi
+                    </a>
+                </li>
 
             <% } else if (user && user.role === 'courier') { %>
                 <% const courierId = user.courierId || user.id; %>

@@ -1228,6 +1228,20 @@ function createActiveTaskCard(order) {
         ? 'Durum: Restorandan alındı / Teslimata gidiliyor'
         : 'Durum: Restorana gidiliyor';
 
+    let paymentInfo = '';
+    if (order.paymentMethod === 'cash') {
+        const method = order.cashPaymentMethod === 'card' ? 'Kartla' : 'Nakit';
+        paymentInfo = `💵 Kapıda Ödeme - ${method}`;
+    } else if (order.paymentMethod === 'iyzico') {
+        paymentInfo = '💳 İyzico (Kredi Kartı)';
+    } else if (order.paymentMethod === 'wallet') {
+        paymentInfo = '💰 Cüzdan';
+    } else if (order.paymentMethod === 'credit_card') {
+        paymentInfo = '💳 Kredi Kartı';
+    } else {
+        paymentInfo = 'Belirtilmemiş';
+    }
+
     const cardHTML = `
         <div class="card-content">
             <h3 class="checkout-card-title">Aktif Görev: #${order.id}</h3>
@@ -1270,8 +1284,12 @@ function createActiveTaskCard(order) {
                 </div>
             </div>
             
-            <div class="courier-task-payout-box">
+            <div class="courier-task-payout-box" style="margin-bottom: 0;">
                 <strong>Bu Görev Kazancı:</strong> <span class="courier-task-payout-amount">${order.payout.toFixed(2)} TL</span>
+            </div>
+            
+            <div style="padding: 0.75rem; background: var(--bg-color); border-radius: 8px; margin: 0.5rem 0 1rem 0; border-left: 3px solid #FF9800;">
+                <strong>Müşteri Ödeme Yöntemi:</strong> ${paymentInfo}
             </div>
 
             ${isPickedUp

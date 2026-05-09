@@ -424,6 +424,10 @@ async function fetchSellerOrders(tab = 'new') {
         });
         if (!response.ok) throw new Error('Siparişler yüklenemedi');
         const data = await response.json();
+        // hasOwnCouriers bilgisini sakla
+        if (data.hasOwnCouriers !== undefined) {
+            window.__sellerHasOwnCouriers = !!data.hasOwnCouriers;
+        }
         return data.success ? data.orders : [];
     } catch (error) {
         return [];
@@ -495,6 +499,12 @@ function createOrderCardHTML(order) {
         } else if (order.deliveryType === 'cargo') {
             actionButtons = `
                 <button class="btn btn-primary cargo-ship-btn" data-order-id="${order.id}" style="background:#8e44ad;border-color:#8e44ad;">📦 Kargoya Verildi</button>
+            `;
+        } else if (window.__sellerHasOwnCouriers) {
+            // Kendi kuryesi olan restoran: kendi kuryesini seç + havuza da gönderebilir
+            actionButtons = `
+                <button class="btn btn-primary assign-own-courier-btn" data-order-id="${order.id}" style="background:#1565C0;border-color:#1565C0;">🏍️ Kendi Kuryemi Ata</button>
+                <button class="btn btn-secondary assign-courier-btn" data-order-id="${order.id}" style="margin-left:6px; font-size:0.8rem;">Havuza Gönder</button>
             `;
         } else {
             actionButtons = `
@@ -717,6 +727,14 @@ function attachOrderEventListeners() {
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
+        });
+    });
+
+    // Kendi kuryesini ata butonu (zincir restoran)
+    document.querySelectorAll('.assign-own-courier-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            showOwnCourierAssignModal(orderId);
         });
     });
 }
@@ -1672,6 +1690,7 @@ async function initializeSellerPages() {
     if (path.includes('/seller/')) {
         startSellerAutoSyncFallback();
         fetchAndApplyUzakMesafeSidebar();
+        fetchAndApplyOwnCouriersSidebar();
     }
     
     let sellerId = getSellerIdFromUrl();
@@ -1730,8 +1749,11 @@ async function initializeSellerPages() {
         initializeDashboardPage();
     } else if (path.includes('/seller/') && path.includes('/profile')) {
         initializeProfilePage();
+        initializeOwnCouriersToggle();
     } else if (path.includes('/seller/') && path.includes('/coupons')) {
         initializeCouponsPage();
+    } else if (path.includes('/seller/') && path.includes('/own-couriers')) {
+        initializeOwnCouriersPage();
     } else {
         if (path.includes('menu.html') || document.querySelector('.menu-list')) {
             initializeMenuPage();
@@ -1811,6 +1833,12 @@ function initSellerSocket() {
         window.__sellerUzakMesafeEnabled = !!data.enabled;
         if(typeof updateSidebarUzakMesafe === 'function') updateSidebarUzakMesafe(!!data.enabled);
     });
+
+    window.__socketManager.on('own_courier_status_changed', (data) => {
+        if (window.location.pathname.includes('/own-couriers') && typeof window.__reloadOwnCouriersList === 'function') {
+            window.__reloadOwnCouriersList();
+        }
+    });
 }
 
 // UI Yenileme Fonksiyonu ("Yükleniyor" göstermeden gizlice günceller)
@@ -1860,4 +1888,262 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════
+// KENDİ KURYE YÖNETİMİ MODAL & SAYFA FONKSİYONLARI
+// ═══════════════════════════════════════════════════════════
 
+// Kendi kuryesini atama modalı
+async function showOwnCourierAssignModal(orderId) {
+    const existing = document.getElementById('own-courier-assign-modal');
+    if (existing) existing.remove();
+
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+
+    // Kurye listesini çek
+    let couriers = [];
+    try {
+        const res = await fetch(`${baseUrl}/api/seller/own-couriers`, { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.couriers) couriers = data.couriers;
+    } catch (e) {}
+
+    const modal = document.createElement('div');
+    modal.id = 'own-courier-assign-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+
+    const onlineCouriers = couriers.filter(c => c.status === 'online');
+    const offlineCouriers = couriers.filter(c => c.status !== 'online');
+
+    let courierOptions = '';
+    if (couriers.length === 0) {
+        courierOptions = '<p style="color:#E74C3C; font-size:0.9rem;">Henüz kadronuzda kurye bulunmuyor. Kurye Yönetimi sayfasından kurye ekleyin.</p>';
+    } else {
+        courierOptions = '<select id="own-courier-select" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">';
+        if (onlineCouriers.length > 0) {
+            courierOptions += '<optgroup label="🟢 Çevrimiçi">';
+            onlineCouriers.forEach(c => {
+                courierOptions += `<option value="${c.id}">🟢 ${c.fullname} (${c.email})</option>`;
+            });
+            courierOptions += '</optgroup>';
+        }
+        if (offlineCouriers.length > 0) {
+            courierOptions += '<optgroup label="⚫ Çevrimdışı">';
+            offlineCouriers.forEach(c => {
+                courierOptions += `<option value="${c.id}">⚫ ${c.fullname} (${c.email})</option>`;
+            });
+            courierOptions += '</optgroup>';
+        }
+        courierOptions += '</select>';
+    }
+
+    modal.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:2rem;min-width:320px;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 1rem 0;font-size:1.15rem;">🏍️ Kendi Kuryeni Seç</h3>
+            <p style="font-size:0.9rem;color:#666;margin-bottom:1rem;">Sipariş <strong>#${orderId}</strong> için kurye seçin:</p>
+            <div style="margin-bottom:1.5rem;">
+                ${courierOptions}
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button id="own-courier-cancel" class="btn btn-secondary">İptal</button>
+                ${couriers.length > 0 ? '<button id="own-courier-confirm" class="btn btn-primary" style="background:#1565C0;border-color:#1565C0;">Kuryeyi Ata</button>' : ''}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('own-courier-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    const confirmBtn = document.getElementById('own-courier-confirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            const selectedCourierId = document.getElementById('own-courier-select').value;
+            if (!selectedCourierId) {
+                alert('Lütfen bir kurye seçin.');
+                return;
+            }
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Atanıyor...';
+
+            try {
+                const res = await fetch(`${baseUrl}/api/orders/seller/assign-own-courier/${orderId}`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courierId: parseInt(selectedCourierId) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Kurye atanamadı');
+                modal.remove();
+                showSellerActionNotification('success', 'Kurye Atandı', data.message || `Sipariş #${orderId} kuryeye atandı.`);
+                await loadOrdersForTab('preparing');
+                await loadOrdersForTab('history');
+            } catch (err) {
+                showSellerActionNotification('error', 'Kurye Atama Hatası', err.message);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Kuryeyi Ata';
+            }
+        });
+    }
+}
+
+// Kurye Yönetimi sayfası
+async function initializeOwnCouriersPage() {
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+    const listEl = document.getElementById('own-couriers-list');
+    const addBtn = document.getElementById('add-own-courier-btn');
+    const emailInput = document.getElementById('own-courier-email');
+    const statusEl = document.getElementById('own-courier-status');
+
+    if (!listEl) return;
+
+    async function loadCouriers(silent = false) {
+        if (!silent) {
+            listEl.innerHTML = '<p style="text-align:center;padding:1rem;color:#666;">Yükleniyor...</p>';
+        }
+        try {
+            const res = await fetch(`${baseUrl}/api/seller/own-couriers`, { credentials: 'include' });
+            const data = await res.json();
+            if (!data.success || !data.hasOwnCouriers) {
+                listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#999;">Önce profil sayfasından "Kendi Kuryem Var" seçeneğini aktifleştirin.</p>';
+                return;
+            }
+            if (data.couriers.length === 0) {
+                listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#999;">Henüz kadronuzda kurye yok. Aşağıdan e-posta ile kurye ekleyin.</p>';
+                return;
+            }
+            listEl.innerHTML = data.couriers.map(c => `
+                <div class="card" style="padding:1rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;border-radius:10px;">
+                    <div>
+                        <strong>${c.fullname}</strong>
+                        <span style="color:#888;font-size:0.85rem;margin-left:6px;">${c.email}</span>
+                        ${c.phone ? `<span style="color:#888;font-size:0.85rem;margin-left:6px;">📞 ${c.phone}</span>` : ''}
+                        <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:12px;font-size:0.8rem;font-weight:600;${c.status === 'online' ? 'background:#e8f5e9;color:#2e7d32;' : 'background:#fafafa;color:#999;'}">${c.status === 'online' ? '🟢 Aktif' : '⚫ Çevrimdışı'}</span>
+                    </div>
+                    <button class="btn btn-danger btn-sm remove-own-courier-btn" data-courier-id="${c.id}" data-courier-name="${c.fullname}" style="white-space:nowrap;">Çıkar</button>
+                </div>
+            `).join('');
+
+            // Çıkarma butonları
+            listEl.querySelectorAll('.remove-own-courier-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const cId = e.target.getAttribute('data-courier-id');
+                    const cName = e.target.getAttribute('data-courier-name');
+                    const confirmed = window.showConfirm ? await window.showConfirm(`${cName} kuryesini kadronuzdan çıkarmak istediğinize emin misiniz?`) : confirm(`${cName} kuryesini kadronuzdan çıkarmak istediğinize emin misiniz?`);
+                    if (!confirmed) return;
+                    try {
+                        const res = await fetch(`${baseUrl}/api/seller/own-couriers/${cId}`, { method: 'DELETE', credentials: 'include' });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.message || 'Hata');
+                        showSellerActionNotification('success', 'Kurye Çıkarıldı', data.message || `${cName} kadrodan çıkarıldı.`);
+                        loadCouriers();
+                    } catch (err) {
+                        showSellerActionNotification('error', 'Hata', err.message);
+                    }
+                });
+            });
+        } catch (err) {
+            listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#E74C3C;">Kurye listesi yüklenemedi.</p>';
+        }
+    }
+    
+    window.__reloadOwnCouriersList = () => loadCouriers(true);
+
+    if (addBtn) {
+        addBtn.addEventListener('click', async () => {
+            const email = emailInput?.value?.trim();
+            if (!email) {
+                if (statusEl) statusEl.textContent = 'E-posta adresi girin.';
+                return;
+            }
+            addBtn.disabled = true;
+            addBtn.textContent = 'Ekleniyor...';
+            if (statusEl) statusEl.textContent = '';
+            try {
+                const res = await fetch(`${baseUrl}/api/seller/own-couriers`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Kurye eklenemedi');
+                showSellerActionNotification('success', 'Kurye Eklendi', data.message);
+                emailInput.value = '';
+                loadCouriers();
+            } catch (err) {
+                showSellerActionNotification('error', 'Hata', err.message);
+                if (statusEl) statusEl.textContent = err.message;
+            } finally {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Kurye Ekle';
+            }
+        });
+    }
+
+    loadCouriers();
+}
+window.initializeOwnCouriersPage = initializeOwnCouriersPage;
+
+// Profil sayfasında hasOwnCouriers toggle desteği
+function initializeOwnCouriersToggle() {
+    const toggle = document.getElementById('has-own-couriers-toggle');
+    if (!toggle) return;
+
+    // Mevcut durumu yükle
+    fetchAndApplyUzakMesafeSidebar().then(() => {
+        // __sellerProfile'dan alınıyor
+    });
+
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+
+    fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.profile) {
+                toggle.checked = !!data.profile.hasOwnCouriers;
+                updateOwnCouriersSidebar(!!data.profile.hasOwnCouriers);
+            }
+        })
+        .catch(() => {});
+
+    toggle.addEventListener('change', async () => {
+        try {
+            const res = await fetch(`${baseUrl}/api/seller/profile`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hasOwnCouriers: toggle.checked })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Güncelleme başarısız');
+            updateOwnCouriersSidebar(toggle.checked);
+            showSellerActionNotification('success', 'Güncellendi', toggle.checked ? 'Kendi kurye özelliği aktifleştirildi.' : 'Kendi kurye özelliği kapatıldı.');
+        } catch (err) {
+            toggle.checked = !toggle.checked;
+            showSellerActionNotification('error', 'Hata', err.message);
+        }
+    });
+}
+window.initializeOwnCouriersToggle = initializeOwnCouriersToggle;
+
+function updateOwnCouriersSidebar(enabled) {
+    const li = document.getElementById('sidebar-own-couriers-li');
+    if (li) li.style.display = enabled ? 'block' : 'none';
+}
+window.updateOwnCouriersSidebar = updateOwnCouriersSidebar;
+
+// Sayfa yüklendiğinde sidebar durumunu güncelle
+async function fetchAndApplyOwnCouriersSidebar(baseUrl) {
+    try {
+        baseUrl = baseUrl || (window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : ''));
+        const res = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.profile) {
+            window.__sellerHasOwnCouriers = !!data.profile.hasOwnCouriers;
+            updateOwnCouriersSidebar(!!data.profile.hasOwnCouriers);
+        }
+    } catch (e) {}
+}
+window.fetchAndApplyOwnCouriersSidebar = fetchAndApplyOwnCouriersSidebar;

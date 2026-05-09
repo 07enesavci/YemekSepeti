@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireSellerApproved } = require("../../middleware/auth");
-const { Seller, Meal, UserFavoriteSeller, Order, sequelize } = require("../../models");
+const { Seller, Meal, UserFavoriteSeller, Order, Courier, User, sequelize } = require("../../models");
 const { Op } = require("sequelize");
 const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
@@ -559,6 +559,10 @@ router.put("/profile", async (req, res) => {
             updateFields.push("uzak_mesafe_enabled = ?");
             updateValues.push(uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1' ? 1 : 0);
         }
+        if (req.body.hasOwnCouriers !== undefined) {
+            updateFields.push("has_own_couriers = ?");
+            updateValues.push(req.body.hasOwnCouriers === true || req.body.hasOwnCouriers === 1 || req.body.hasOwnCouriers === '1' ? 1 : 0);
+        }
         if (workingHours !== undefined) {
             let hoursValue = null;
             if (workingHours === '' || workingHours === null || workingHours === undefined) {
@@ -703,6 +707,7 @@ router.get("/profile", async (req, res) => {
                 delivery_radius_km as deliveryRadiusKm,
                 pickup_enabled as pickupEnabled,
                 uzak_mesafe_enabled as uzakMesafeEnabled,
+                has_own_couriers as hasOwnCouriers,
                 latitude,
                 longitude
             FROM sellers
@@ -725,6 +730,7 @@ router.get("/profile", async (req, res) => {
         profileData.bannerUrl = profileData.bannerUrl || null;
         profileData.deliveryRadiusKm = parseInt(profileData.deliveryRadiusKm) || 0;
         profileData.pickupEnabled = profileData.pickupEnabled === 1 || profileData.pickupEnabled === true;
+        profileData.hasOwnCouriers = profileData.hasOwnCouriers === 1 || profileData.hasOwnCouriers === true;
         if (profileData.workingHours === null || profileData.workingHours === undefined) {
             profileData.workingHours = '';
         } else if (typeof profileData.workingHours === 'string') {
@@ -1007,6 +1013,166 @@ router.post("/menu/bulk-price", async (req, res) => {
     } catch (e) {
         console.error('Bulk price error:', e);
         res.status(500).json({ success: false, message: "Toplu fiyat güncellenemedi." });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// KENDİ KURYE YÖNETİMİ (Zincir Restoran)
+// ═══════════════════════════════════════════════════════════
+
+// Satıcının kendi kuryelerini listele
+router.get("/own-couriers", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'has_own_couriers'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        if (!seller.has_own_couriers) {
+            return res.json({ success: true, couriers: [], hasOwnCouriers: false, message: "Kendi kurye özelliği aktif değil." });
+        }
+
+        const couriers = await Courier.findAll({
+            where: { seller_id: seller.id },
+            include: [{ model: User, as: 'user', attributes: ['id', 'fullname', 'email', 'phone', 'courier_status'] }],
+            attributes: ['id', 'is_active', 'created_at']
+        });
+
+        const formatted = couriers.map(c => ({
+            id: c.id,
+            userId: c.user?.id || null,
+            fullname: c.user?.fullname || 'İsimsiz',
+            email: c.user?.email || '',
+            phone: c.user?.phone || '',
+            status: c.user?.courier_status || 'offline',
+            isActive: !!c.is_active,
+            addedAt: c.created_at
+        }));
+
+        res.json({ success: true, couriers: formatted, hasOwnCouriers: true });
+    } catch (error) {
+        console.error('GET /own-couriers error:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
+// E-posta ile kurye ekle (mevcut kurye hesabını satıcıya bağla)
+router.post("/own-couriers", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const { email } = req.body;
+        if (!email || !email.trim()) {
+            return res.status(400).json({ success: false, message: "E-posta adresi gereklidir." });
+        }
+
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'has_own_couriers', 'shop_name'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        if (!seller.has_own_couriers) {
+            return res.status(400).json({ success: false, message: "Önce profil sayfasından 'Kendi Kuryem Var' seçeneğini aktifleştirin." });
+        }
+
+        // Kurye kullanıcısını bul
+        const courierUser = await User.findOne({
+            where: { email: email.trim().toLowerCase(), role: 'courier' },
+            attributes: ['id', 'fullname', 'email']
+        });
+        if (!courierUser) {
+            return res.status(404).json({
+                success: false,
+                message: "Bu e-posta ile kayıtlı bir kurye hesabı bulunamadı. Kuryenin önce platforma kayıt olması gerekir."
+            });
+        }
+
+        // Kurye kaydını bul
+        let courier = await Courier.findOne({ where: { user_id: courierUser.id }, attributes: ['id', 'seller_id'] });
+        if (!courier) {
+            // Kurye kaydı yoksa oluştur
+            courier = await Courier.create({
+                user_id: courierUser.id,
+                seller_id: seller.id,
+                is_active: true
+            });
+        } else {
+            if (courier.seller_id && courier.seller_id !== seller.id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Bu kurye zaten başka bir restorana bağlı. Bir kurye sadece bir restorana bağlı olabilir."
+                });
+            }
+            if (courier.seller_id === seller.id) {
+                return res.status(400).json({ success: false, message: "Bu kurye zaten kadronuzda kayıtlı." });
+            }
+            await Courier.update(
+                { seller_id: seller.id, is_active: true },
+                { where: { id: courier.id } }
+            );
+        }
+
+        // Kuryeye bildirim gönder
+        const { createNotification } = require("../../lib/notificationHelper");
+        createNotification(
+            courierUser.id,
+            'info',
+            'Restorana Bağlandınız',
+            `${seller.shop_name} restoranının kurye kadrosuna eklendiniz.`,
+            seller.id
+        ).catch(() => {});
+
+        res.json({
+            success: true,
+            message: `${courierUser.fullname || courierUser.email} başarıyla kurye kadronuza eklendi.`,
+            courier: {
+                id: courier.id,
+                userId: courierUser.id,
+                fullname: courierUser.fullname,
+                email: courierUser.email
+            }
+        });
+    } catch (error) {
+        console.error('POST /own-couriers error:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
+// Kuryeyi kadrodan çıkar (seller_id'yi null yapar, kurye platform kuryesi olur)
+router.delete("/own-couriers/:id", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const courierId = parseInt(req.params.id);
+
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'shop_name'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+
+        const courier = await Courier.findOne({
+            where: { id: courierId, seller_id: seller.id },
+            include: [{ model: User, as: 'user', attributes: ['id', 'fullname'] }]
+        });
+        if (!courier) {
+            return res.status(404).json({ success: false, message: "Bu kurye kadronuzda bulunamadı." });
+        }
+
+        await Courier.update(
+            { seller_id: null },
+            { where: { id: courierId } }
+        );
+
+        // Kuryeye bildirim gönder
+        if (courier.user) {
+            const { createNotification } = require("../../lib/notificationHelper");
+            createNotification(
+                courier.user.id,
+                'info',
+                'Restoran Bağlantısı Kaldırıldı',
+                `${seller.shop_name} restoranının kurye kadrosundan çıkarıldınız. Artık platform kuryesi olarak çalışabilirsiniz.`,
+                seller.id
+            ).catch(() => {});
+        }
+
+        res.json({
+            success: true,
+            message: `${courier.user?.fullname || 'Kurye'} kadronuzdan çıkarıldı.`
+        });
+    } catch (error) {
+        console.error('DELETE /own-couriers error:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 

@@ -4,7 +4,7 @@ const db = require("../../config/database");
 const Iyzipay = require("iyzipay");
 const { authenticateToken, requireAuth, requireRole } = require("../../middleware/auth");
 const { sequelize } = require("../../config/database");
-const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, CourierTask, Review } = require("../../models");
+const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, CourierTask, Review, Courier } = require("../../models");
 const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 const { refundIyzicoPaymentForOrder } = require("../../lib/iyzicoRefund");
@@ -983,7 +983,7 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
     try {
         const userId = req.session.user.id;
         const { tab = 'new' } = req.query;
-        const sellerRecord = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        const sellerRecord = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'has_own_couriers'] });
         if (!sellerRecord) {
             return res.status(404).json({
                 success: false,
@@ -991,6 +991,7 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
             });
         }
         const shopId = sellerRecord.id;
+        const hasOwnCouriers = !!sellerRecord.has_own_couriers;
         let statuses = [];
         if (tab === 'new') {
             statuses = ['pending', 'confirmed'];
@@ -1055,7 +1056,8 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
         res.json({
             success: true,
             orders: formattedOrders,
-            tab: tab
+            tab: tab,
+            hasOwnCouriers: hasOwnCouriers
         });
     } catch (error) {
         res.status(500).json({
@@ -1163,7 +1165,17 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
         const isPickupOrder = updatedOrder && updatedOrder.delivery_type === 'pickup';
         
         if (status === 'ready' && updatedOrder && updatedOrder.courier_id === null && !isPickupOrder && global.io) {
-            global.io.emit('order_pool_added', { orderId: orderId });
+            // Kendi kuryesi olan satıcılar için havuza atma — satıcı kendi atayacak veya kuryeler kendisi seçecek
+            const sellerForPool = await Seller.findByPk(shopId, { attributes: ['has_own_couriers'] });
+            if (!sellerForPool || !sellerForPool.has_own_couriers) {
+                global.io.emit('order_pool_added', { orderId: orderId });
+            } else {
+                // Sadece kendi kuryelerine havuza eklendi bilgisini gönder (Uygun Siparişler'de görmeleri için)
+                const ownCouriers = await Courier.findAll({ where: { seller_id: shopId, is_active: true } });
+                ownCouriers.forEach(c => {
+                    global.io.to(`courier-${c.user_id}`).emit('order_pool_added', { orderId: orderId });
+                });
+            }
         }
         const statusTitles = isPickupOrder ? {
             confirmed: 'Sipariş onaylandı',
@@ -1281,6 +1293,11 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
             return res.status(400).json({ success: false, message: "Bu sipariş zaten bir kuryeye atanmış." });
         }
         
+        await Order.update(
+            { is_pool_requested: true },
+            { where: { id: orderId } }
+        );
+        
         if (global.io) {
             // Tüm aktif kuryeler bu olayı dinler (Yeni iş havuzu)
             global.io.emit('order_pool_added', { orderId: orderId });
@@ -1296,6 +1313,113 @@ router.post("/seller/assign-courier/:id", requireRole('seller'), async (req, res
             success: false,
             message: error.message || "Sunucu hatası."
         });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// KENDİ KURYESİNE SİPARİŞ ATA (Zincir Restoran)
+// ═══════════════════════════════════════════════════════════
+router.post("/seller/assign-own-courier/:id", requireRole('seller'), async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const userId = req.session.user.id;
+        const { courierId } = req.body;
+
+        if (!courierId) {
+            return res.status(400).json({ success: false, message: "Kurye seçimi gereklidir." });
+        }
+
+        const sellerRecord = await Seller.findOne({
+            where: { user_id: userId },
+            attributes: ['id', 'has_own_couriers', 'shop_name']
+        });
+        if (!sellerRecord) {
+            return res.status(404).json({ success: false, message: "Satıcı kaydı bulunamadı." });
+        }
+        if (!sellerRecord.has_own_couriers) {
+            return res.status(400).json({ success: false, message: "Kendi kurye özelliği aktif değil." });
+        }
+
+        const shopId = sellerRecord.id;
+
+        // Siparişi kontrol et
+        const order = await Order.findOne({
+            where: { id: orderId, seller_id: shopId },
+            attributes: ['id', 'courier_id', 'status', 'delivery_type', 'order_number']
+        });
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Sipariş bulunamadı veya size ait değil." });
+        }
+        if (!['preparing', 'ready'].includes(order.status)) {
+            return res.status(400).json({ success: false, message: "Sipariş henüz kurye atanamaz durumda. Önce hazırlama veya hazır durumuna getirin." });
+        }
+        if (order.courier_id !== null) {
+            return res.status(400).json({ success: false, message: "Bu sipariş zaten bir kuryeye atanmış." });
+        }
+        if (order.delivery_type === 'pickup') {
+            return res.status(400).json({ success: false, message: "Gel Al siparişlerde kurye atanamaz." });
+        }
+
+        // Kuryenin bu satıcıya ait olduğunu kontrol et
+        const courier = await Courier.findOne({
+            where: { id: parseInt(courierId), seller_id: shopId },
+            include: [{ model: User, as: 'user', attributes: ['id', 'fullname'] }]
+        });
+        if (!courier) {
+            return res.status(404).json({ success: false, message: "Bu kurye kadronuzda bulunamadı." });
+        }
+
+        // Siparişe kurye ata
+        await Order.update(
+            { courier_id: courier.user.id, status: 'ready' },
+            { where: { id: orderId } }
+        );
+
+        // CourierTask oluştur
+        try {
+            await CourierTask.create({
+                order_id: orderId,
+                courier_id: courier.user.id,
+                status: 'assigned'
+            });
+        } catch (taskErr) {
+            console.error('CourierTask oluşturma hatası:', taskErr);
+        }
+
+        // Socket.IO ile kuryeye bildir
+        if (global.io) {
+            global.io.to(`courier-${courier.user.id}`).emit('courier_task_assigned', {
+                taskId: orderId,
+                orderId: orderId,
+                orderNumber: order.order_number,
+                message: `${sellerRecord.shop_name} size sipariş #${order.order_number} atadı.`
+            });
+
+            // Alıcıya bildir
+            const buyerOrder = await Order.findByPk(orderId, { attributes: ['user_id'] });
+            if (buyerOrder) {
+                global.io.to(`buyer-${buyerOrder.user_id}`).emit('order_status_updated', {
+                    orderId: orderId,
+                    status: 'on_delivery',
+                    message: `Siparişiniz kuryeye atandı. Kurye: ${courier.user.fullname}`
+                });
+            }
+
+            // Satıcıya bildir (diğer sekmeler için)
+            global.io.to(`seller-${userId}`).emit('order_status_updated', {
+                orderId: orderId,
+                status: 'on_delivery'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: `Sipariş #${order.order_number} kuryeye ${courier.user.fullname} atandı.`,
+            courierName: courier.user.fullname
+        });
+    } catch (error) {
+        console.error('assign-own-courier error:', error);
+        res.status(500).json({ success: false, message: error.message || "Sunucu hatası." });
     }
 });
 
