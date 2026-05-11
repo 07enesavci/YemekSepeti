@@ -139,6 +139,12 @@ async function loadSellerReviews(sellerId) {
                 html += '<div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">';
                 html += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' + stars + ' <strong>' + escapeHtml(r.userName) + '</strong> <span style="font-size: 0.85rem; color: #888;">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : '') + '</span></div>';
                 if (r.comment) html += '<p style="margin: 0; font-size: 0.95rem;">' + escapeHtml(r.comment) + '</p>';
+                if (r.sellerReply) {
+                    html += '<div style="margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: var(--bg-color, #f8f9fa); border-left: 3px solid var(--primary-color, #e74c3c); border-radius: 4px;">';
+                    html += '<div style="font-size: 0.8rem; color: #666; margin-bottom: 0.25rem;"><strong>🏪 Satıcı yanıtı</strong>' + (r.sellerReplyAt ? ' · ' + new Date(r.sellerReplyAt).toLocaleDateString('tr-TR') : '') + '</div>';
+                    html += '<p style="margin: 0; font-size: 0.9rem;">' + escapeHtml(r.sellerReply) + '</p>';
+                    html += '</div>';
+                }
                 html += '</div>';
             });
         }
@@ -217,7 +223,10 @@ function initializeTabs() {
 async function loadSellerMenu(sellerId, seller) {
     try {
         const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-        const menuResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/menu`);
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode');
+        const modeParam = mode === 'uzak_mesafe' && seller && seller.uzakMesafeEnabled ? '?mode=uzak_mesafe' : '';
+        const menuResponse = await fetch(`${baseUrl}/api/sellers/${sellerId}/menu${modeParam}`);
         
         if (!menuResponse.ok) {
             throw new Error('Menü yüklenemedi');
@@ -301,10 +310,12 @@ async function loadSellerMenu(sellerId, seller) {
                                  style="width: 100%; height: 100%; object-fit: cover; ${item.isAvailable ? '' : 'filter: grayscale(100%);'}"
                                  onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
                             <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; color: white; font-size: 18px; font-weight: bold; text-align: center; padding: 10px;">${safeItemName}</div>
+                            ${item.isUzakMesafe ? '<div style="position: absolute; top: 8px; left: 8px; background: linear-gradient(135deg, #FF9800, #F57C00); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 12px; box-shadow: 0 2px 6px rgba(255,152,0,0.4); display: flex; align-items: center; gap: 4px; z-index: 2;">📦 Uzak Mesafe</div>' : ''}
                         </div>
                         <h4 style="margin: 0.5rem 0; font-size: 1.1rem; color: var(--secondary-color);">${safeItemName}</h4>
                         <p style="margin: 0.5rem 0; color: var(--secondary-color-light); font-size: 0.9rem;">${(item.description || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
                         <p style="margin: 0.5rem 0; font-size: 1.2rem; font-weight: bold; color: var(--primary-color);">${parseFloat(item.price || 0).toFixed(2)} ₺</p>
+                        ${item.isUzakMesafe ? '<div style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: rgba(255, 152, 0, 0.08); border: 1px solid rgba(255, 152, 0, 0.25); border-radius: 8px; font-size: 0.8rem; color: #E65100; margin-bottom: 0.5rem;"><span>📦</span><span>Bu ürün <strong>uzak mesafe kargo</strong> ile gönderilir. Teslimat süresi farklılık gösterebilir.</span></div>' : ''}
                         ${cartButtonHtml}
                     </div>
                 `;
@@ -440,18 +451,30 @@ async function loadSellerMenu(sellerId, seller) {
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('seller-name')) {
         loadSellerProfile();
-        
-        // Socket.io ile anlık menü güncellemesi (F5'siz)
-        if (typeof io !== 'undefined') {
-            const socket = io();
-            const currentSellerId = getSellerIdFromUrl();
-            socket.on('menu_updated', (data) => {
-                if (data && data.sellerId && String(data.sellerId) === String(currentSellerId)) {
-                    console.log('🔄 Satıcı paneli üzerinden menü güncellendi, liste yeniden yükleniyor...');
-                    loadSellerProfile(); // Sadece veriyi çeker ve içeriği günceller, sayfa atlamaz.
-                }
-            });
-        }
+        initSellerProfileSocket();
     }
 });
+
+function initSellerProfileSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initSellerProfileSocket, 300);
+        return;
+    }
+    const currentSellerId = getSellerIdFromUrl();
+
+    // Menü güncellenince sayfayı yenile
+    window.__socketManager.on('menu_updated', (data) => {
+        if (data && data.sellerId && String(data.sellerId) === String(currentSellerId)) {
+            loadSellerProfile();
+        }
+    });
+
+    // Satıcı açık/kapalı durumu değişince güncelle
+    window.__socketManager.on('seller_status_updated', (data) => {
+        if (data && data.userId) {
+            // Hangi satıcı olduğunu bilemeyiz ama güncelle
+            loadSellerProfile();
+        }
+    });
+}
 

@@ -95,6 +95,34 @@ function initCreditCardAnimation(ids) {
     };
 }
 
+function getSelectedCheckoutCashMethod() {
+    const selected = document.querySelector('input[name="payment-cash-method"]:checked');
+    return selected ? selected.value : 'cash';
+}
+
+function syncCheckoutCashMethodOptions() {
+    const cashOptions = document.getElementById('payment-cash-options');
+    const selectedPayment = document.querySelector('input[name="payment-card"]:checked');
+    const isCashSelected = selectedPayment && selectedPayment.value === 'cash';
+
+    if (cashOptions) {
+        if (isCashSelected) {
+            cashOptions.classList.remove('payment-cash-options-hidden');
+        } else {
+            cashOptions.classList.add('payment-cash-options-hidden');
+        }
+    }
+
+    if (isCashSelected) {
+        if (!document.querySelector('input[name="payment-cash-method"]:checked')) {
+            const defaultCashMethod = document.getElementById('payment-cash-method-cash');
+            if (defaultCashMethod) {
+                defaultCashMethod.checked = true;
+            }
+        }
+    }
+}
+
 async function loadAddresses() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -164,7 +192,7 @@ function parseCheckoutNewCardFields() {
     const kartAdi = document.getElementById('card-name')?.value;
     const kartExpiry = document.getElementById('card-expiry')?.value;
     const kartCvc = document.getElementById('card-cvc')?.value;
-    const isDefault = !!(document.getElementById('card-save-default')?.checked);
+    const isDefault = false;
 
     if (!kartNo || !kartAdi || !kartExpiry) {
         return null;
@@ -489,6 +517,8 @@ function renderPaymentCards(cards) {
     const paymentContainer = document.querySelector('#payment-method-card .role-selector');
     if (!paymentContainer) return;
 
+    const cashRadio = paymentContainer.querySelector('#payment-cash');
+    const cashLabel = cashRadio ? cashRadio.closest('.checkout-payment-row') : null;
     const newCardRadio = paymentContainer.querySelector('#card-new');
     const newCardLabel = newCardRadio ? newCardRadio.closest('.form-check-radio') : null;
     paymentContainer.innerHTML = '';
@@ -528,7 +558,13 @@ function renderPaymentCards(cards) {
                 e.preventDefault();
                 e.stopPropagation();
                 const id = parseInt(e.currentTarget.getAttribute('data-delete-card'), 10);
-                if (!confirm('Bu kartı silmek istediğinize emin misiniz?')) return;
+                
+                const ok = window.showConfirm 
+                    ? await window.showConfirm('Bu kartı silmek istediğinize emin misiniz?') 
+                    : window.confirm('Bu kartı silmek istediğinize emin misiniz?');
+                    
+                if (!ok) return;
+
                 const baseUrl = checkoutGetBaseUrl();
                 const res = await fetch(`${baseUrl}/api/buyer/payment-cards/${id}`, {
                     method: 'DELETE',
@@ -555,6 +591,41 @@ function renderPaymentCards(cards) {
                 }
             });
         });
+    }
+
+    if (cashLabel) {
+        paymentContainer.appendChild(cashLabel);
+    } else {
+        const cashDiv = document.createElement('div');
+        cashDiv.className = 'checkout-payment-row';
+        cashDiv.innerHTML = `
+            <div class="form-check form-check-radio">
+                <input type="radio" id="payment-cash" name="payment-card" value="cash">
+                <label for="payment-cash">
+                    <strong>💵 Kapıda Ödeme</strong>
+                    <span>Kurye teslimatında nakit veya kartla ödeme yapabilirsiniz.</span>
+                </label>
+            </div>
+            <div id="payment-cash-options" class="payment-cash-options-container payment-cash-options-hidden">
+                <div class="payment-cash-method-selector">
+                    <label class="payment-cash-method-option">
+                        <input type="radio" id="payment-cash-method-cash" name="payment-cash-method" value="cash" checked>
+                        <span class="payment-cash-method-label">
+                            <strong>Nakit</strong>
+                            <span class="payment-cash-method-desc">Kurye teslimatında elden ödeme</span>
+                        </span>
+                    </label>
+                    <label class="payment-cash-method-option">
+                        <input type="radio" id="payment-cash-method-card" name="payment-cash-method" value="card">
+                        <span class="payment-cash-method-label">
+                            <strong>Kartla</strong>
+                            <span class="payment-cash-method-desc">Kurye yanında pos/temassız kart ile ödeme</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+        `;
+        paymentContainer.appendChild(cashDiv);
     }
 
     if (newCardLabel) {
@@ -619,7 +690,7 @@ const NEW_ADDRESS_FORM_CHECKOUT = `
     </div>
 `;
 
-/** Satıcı veritabanındaki pickupEnabled=false ise Gel Al seçeneğini kapatır */
+/** Satıcı veritabanındaki pickupEnabled/uzakMesafeEnabled değerlerine göre teslimat seçeneklerini günceller */
 async function applySellerPickupToCheckout() {
     try {
         const sepet = window.getSepet ? window.getSepet() : [];
@@ -631,26 +702,45 @@ async function applySellerPickupToCheckout() {
         const r = await fetch(`${baseUrl}/api/sellers/${sid}`, { credentials: 'include' });
         if (!r.ok) return;
         const s = await r.json();
-        if (s.pickupEnabled === false) {
-            const pickupRadio = document.getElementById('delivery-type-pickup');
-            const deliveryRadio = document.getElementById('delivery-type-delivery');
-            const pickupRow = pickupRadio ? pickupRadio.closest('.form-check') : null;
+
+        // Sepette uzak mesafe ürünü var mı kontrol et
+        const hasUzakMesafe = sepet.some(item => item.urun?.isUzakMesafe || item.isUzakMesafe);
+        const cargoRow = document.getElementById('delivery-type-cargo-row');
+        const cargoRadio = document.getElementById('delivery-type-cargo');
+        const deliveryRadio = document.getElementById('delivery-type-delivery');
+        const pickupRadio = document.getElementById('delivery-type-pickup');
+        const pickupRow = pickupRadio ? pickupRadio.closest('.form-check') : null;
+        const deliveryCard = document.getElementById('address-card');
+        const pickupMsg = document.getElementById('pickup-discount-message');
+
+        if (hasUzakMesafe && s.uzakMesafeEnabled) {
+            // Kargo modunda: sadece kargo seçeneği göster, diğerlerini gizle
+            if (cargoRow) cargoRow.style.display = 'block';
+            if (cargoRadio) { cargoRadio.disabled = false; cargoRadio.checked = true; }
             if (pickupRow) pickupRow.style.display = 'none';
-            if (pickupRadio) {
-                pickupRadio.disabled = true;
-                pickupRadio.checked = false;
-            }
-            if (deliveryRadio) {
-                deliveryRadio.checked = true;
-            }
-            window.forcePickupDeliveryFee = false;
-            const pickupMsg = document.getElementById('pickup-discount-message');
+            if (pickupRadio) { pickupRadio.disabled = true; pickupRadio.checked = false; }
+            const normalDeliveryRow = deliveryRadio ? deliveryRadio.closest('.form-check') : null;
+            if (normalDeliveryRow) normalDeliveryRow.style.display = 'none';
+            if (deliveryRadio) { deliveryRadio.disabled = true; deliveryRadio.checked = false; }
             if (pickupMsg) pickupMsg.style.display = 'none';
-            const deliveryCard = document.getElementById('address-card');
+            window.forcePickupDeliveryFee = true; // cargo = free delivery
+            if (deliveryCard) deliveryCard.style.display = 'block'; // still need address
+            await cizOdemeSayfasi();
+        } else {
+            if (cargoRow) cargoRow.style.display = 'none';
+            if (cargoRadio) { cargoRadio.disabled = true; cargoRadio.checked = false; }
+        }
+
+        if (s.pickupEnabled === false && !hasUzakMesafe) {
+            if (pickupRow) pickupRow.style.display = 'none';
+            if (pickupRadio) { pickupRadio.disabled = true; pickupRadio.checked = false; }
+            if (deliveryRadio) deliveryRadio.checked = true;
+            window.forcePickupDeliveryFee = false;
+            if (pickupMsg) pickupMsg.style.display = 'none';
             if (deliveryCard) deliveryCard.style.display = 'block';
         }
     } catch (e) {
-        console.warn('Gel Al (satıcı) ayarı yüklenemedi', e);
+        console.warn('Teslimat ayarı yüklenemedi', e);
     }
 }
 
@@ -706,11 +796,36 @@ async function cizOdemeSayfasi()
 
 document.addEventListener('DOMContentLoaded', async function(){
 
+        const termsCheckbox = document.getElementById('terms');
+        if (termsCheckbox) {
+            termsCheckbox.checked = false;
+        }
+
         const addresses = await loadAddresses();
         renderAddresses(addresses);
         
         const cards = await loadPaymentCards();
         renderPaymentCards(cards);
+
+        const syncPaymentMethodVisibility = () => {
+            const selectedPayment = document.querySelector('input[name="payment-card"]:checked');
+            const newCardForm = document.getElementById('new-card-form');
+            if (newCardForm) {
+                newCardForm.style.display = selectedPayment && selectedPayment.value === 'new' ? 'block' : 'none';
+            }
+            syncCheckoutCashMethodOptions();
+        };
+
+        if (!document.querySelector('input[name="payment-card"]:checked')) {
+            const cashRadio = document.getElementById('payment-cash');
+            const firstPaymentOption = document.querySelector('input[name="payment-card"]');
+            if (cashRadio) {
+                cashRadio.checked = true;
+            } else if (firstPaymentOption) {
+                firstPaymentOption.checked = true;
+            }
+        }
+        syncPaymentMethodVisibility();
         
         // Delivery type listeners
         const deliveryRadios = document.querySelectorAll('input[name="deliveryType"]');
@@ -725,6 +840,10 @@ document.addEventListener('DOMContentLoaded', async function(){
                     if (deliveryCard) deliveryCard.style.display = 'none';
                     if (pickupMessage) pickupMessage.style.display = 'block';
                     window.forcePickupDeliveryFee = true;
+                } else if (type === 'cargo') {
+                    if (deliveryCard) deliveryCard.style.display = 'block';
+                    if (pickupMessage) pickupMessage.style.display = 'none';
+                    window.forcePickupDeliveryFee = true; // cargo has no delivery fee
                 } else {
                     if (deliveryCard) deliveryCard.style.display = 'block';
                     if (pickupMessage) pickupMessage.style.display = 'none';
@@ -837,51 +956,7 @@ document.addEventListener('DOMContentLoaded', async function(){
             newCardFormEl.addEventListener('change', markCheckoutCardFormDirty);
         }
 
-        const checkoutSaveCardBtn = document.getElementById('checkout-save-card-btn');
-        if (checkoutSaveCardBtn) {
-            checkoutSaveCardBtn.addEventListener('click', async function () {
-                const parsed = parseCheckoutNewCardFields();
-                if (!parsed) {
-                    alert('Kaydetmek için kart adı, numara ve son kullanma tarihini girin.');
-                    return;
-                }
-                if (!parsed.kartCvc) {
-                    alert('Kaydetmek için CVC girin.');
-                    return;
-                }
-                checkoutSaveCardBtn.disabled = true;
-                try {
-                    const baseUrl = checkoutGetBaseUrl();
-                    const cardResponse = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            cardName: parsed.kartAdi,
-                            cardNumber: parsed.cleanCardNo,
-                            expiryMonth: parsed.expiryMonth,
-                            expiryYear: parsed.expiryYearFull,
-                            cvc: parsed.kartCvc,
-                            isDefault: parsed.isDefault
-                        })
-                    });
-                    const cardData = await cardResponse.json();
-                    if (!cardData.success) {
-                        alert(cardData.message || 'Kart kaydedilemedi.');
-                        return;
-                    }
-                    window.__checkoutCardSavedForOrder = true;
-                    const newCards = await loadPaymentCards();
-                    renderPaymentCards(newCards);
-                    alert('Kart kaydedildi.');
-                } catch (err) {
-                    console.error('Checkout kart kaydetme:', err);
-                    alert('Kart kaydedilirken bir hata oluştu.');
-                } finally {
-                    checkoutSaveCardBtn.disabled = false;
-                }
-            });
-        }
+        // Kart kaydetme butonu kaldırıldı — kart bilgileri sadece sipariş anında iyzico'ya gönderilir
 
         await applySellerPickupToCheckout();
         cizOdemeSayfasi();
@@ -926,6 +1001,8 @@ document.addEventListener('DOMContentLoaded', async function(){
 
                         var adresSecili = adresRadio ? adresRadio.value : null;
                         var kartSecili = kartRadio.value;
+                        var cashPaymentMethod = kartSecili === 'cash' ? getSelectedCheckoutCashMethod() : null;
+                        var paymentMethod = kartSecili === 'cash' ? 'cash' : 'iyzico';
                         
     	 	 	        var addressId = null;
 
@@ -947,10 +1024,9 @@ document.addEventListener('DOMContentLoaded', async function(){
                                         }
     	 	 	        }
 
-    	 	 	        var paymentMethod = 'iyzico';
                         var iyzicoCardPayload = null;
 
-    	 	 	 	        if (kartSecili === 'new')
+                    if (paymentMethod === 'iyzico' && kartSecili === 'new')
                                         {
     	 	 	 	        const parsed = parseCheckoutNewCardFields();
     	 	 	 	        if (!parsed) {
@@ -967,58 +1043,18 @@ document.addEventListener('DOMContentLoaded', async function(){
                                     return;
                                 }
 
-    	 	 	 	        const skipDbPost = !!window.__checkoutCardSavedForOrder;
-
-    	 	 	 	        if (!skipDbPost) {
-    	 	 	 	        try {
-                                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-    	 	 	 	            const cardResponse = await fetch(`${baseUrl}/api/buyer/payment-cards`, {
-    	 	 	 	                method: 'POST',
-    	 	 	 	                credentials: 'include',
-    	 	 	 	                headers: { 'Content-Type': 'application/json' },
-    	 	 	 	                body: JSON.stringify({
-    	 	 	 	                    cardName: parsed.kartAdi,
-    	 	 	 	                    cardNumber: parsed.cleanCardNo,
-    	 	 	 	                    expiryMonth: parsed.expiryMonth,
-    	 	 	 	                    expiryYear: parsed.expiryYearFull,
-    	 	 	 	                    cvc: parsed.kartCvc,
-    	 	 	 	                    isDefault: parsed.isDefault
-    	 	 	 	                })
-    	 	 	 	            });
-    	 	 	 	            
-    	 	 	 	            const cardData = await cardResponse.json();
-    	 	 	 	            if (!cardData.success) {
-    	 	 	 	                alert('Kart kaydedilemedi: ' + (cardData.message || 'Bilinmeyen hata'));
-    	 	 	 	                return;
-    	 	 	 	            }
-    	 	 	 	            
-    	 	 	 	            const newCards = await loadPaymentCards();
-    	 	 	 	            renderPaymentCards(newCards);
-    	 	 	 	            
-    	 	 	 	            const newCardRadio = document.getElementById(`card-${cardData.cardId}`);
-    	 	 	 	            if (newCardRadio) {
-    	 	 	 	                newCardRadio.checked = true;
-    	 	 	 	            }
-    	 	 	 	            
-    	 	 	 	            const ncf = document.getElementById('new-card-form');
-    	 	 	 	            if (ncf) ncf.style.display = 'none';
-    	 	 	 	            const cnew = document.getElementById('card-new');
-    	 	 	 	            if (cnew) cnew.checked = false;
-    	 	 	 	            
-    	 	 	 	            kartSecili = cardData.cardId.toString();
-    	 	 	 	        } catch (cardError) {
-    	 	 	 	            console.error('Kart kaydetme hatası:', cardError);
-    	 	 	 	            alert('Kart kaydedilirken bir hata oluştu.');
-    	 	 	 	            return;
-    	 	 	 	        }
-    	 	 	 	        }
+    	 	 	 	        // Kart otomatik kaydedilmez — sadece iyzico payload ile ödeme yapılır
                         } else {
+                            if (paymentMethod === 'cash') {
+                                iyzicoCardPayload = null;
+                            } else {
                             const savedPayload = buildIyzicoSavedCardPayload(kartSecili);
                             if (!savedPayload) {
                                 alert('Kayıtlı kart ile ödeme için güvenlik kodu (CVC) girin.');
                                 return;
                             }
                             iyzicoCardPayload = savedPayload;
+					    }
     	 	 	        }
 
     	 	 	        var cartForAPI = sepet.map(function(item) {
@@ -1040,8 +1076,8 @@ document.addEventListener('DOMContentLoaded', async function(){
             	 	 	if (typeof window.createOrder === 'function')
                                         {
             	 	 	    try {
-            	 	 	        console.log('📦 Sipariş oluşturuluyor...', { cart: cartForAPI, addressId, paymentMethod, deliveryType: document.querySelector('input[name="deliveryType"]:checked').value });
-            	 	 	        const sonuc = await window.createOrder(cartForAPI, addressId, paymentMethod, iyzicoCardPayload, document.querySelector('input[name="deliveryType"]:checked').value);
+                                console.log('📦 Sipariş oluşturuluyor...', { cart: cartForAPI, addressId, paymentMethod, deliveryType: document.querySelector('input[name="deliveryType"]:checked').value });
+            	 	 	        const sonuc = await window.createOrder(cartForAPI, addressId, paymentMethod, iyzicoCardPayload, document.querySelector('input[name="deliveryType"]:checked').value, cashPaymentMethod);
             	 	 	        console.log('📦 Sipariş sonucu:', sonuc);
             	 	 	        
             	 	 	        if (!sonuc || !sonuc.success) {
@@ -1106,13 +1142,10 @@ document.addEventListener('DOMContentLoaded', async function(){
 
     	    if (e.target.name === 'payment-card') {
     	 	 	        var form = document.getElementById('new-card-form');
-    	        if (form) {
-    	            if (e.target.value === 'new') {
-    	 	 	 	 	form.style.display = 'block';
-    	            } else {
-    	 	 	 	 	form.style.display = 'none';
-    	            }
-            	 	 	}
+                    if (form) {
+                        form.style.display = e.target.value === 'new' ? 'block' : 'none';
+                    syncCheckoutCashMethodOptions();
+                    }
     	 	 	}
     	 	});
 });

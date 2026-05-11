@@ -1,0 +1,48 @@
+
+
+
+
+<div class="panel-layout">
+    
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        
+        <div class="panel-header" style="margin-bottom: 2rem;">
+            <h1 class="panel-title" style="margin-bottom: 0.5rem;">🏍️ Kurye Yönetimi</h1>
+            <p class="panel-subtitle">Kendi kurye kadronuzu yönetin. Siparişlerinize bu kuryelerden atama yapabilirsiniz.</p>
+        </div>
+
+        <!-- Mevcut Kuryeler -->
+        <div class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem;">📋 Kadrodaki Kuryeler</h3>
+            <div id="own-couriers-list">
+                <p style="text-align: center; padding: 2rem; color: #666;">Yükleniyor...</p>
+            </div>
+        </div>
+
+        <!-- Kurye Ekle -->
+        <div class="card" style="padding: 1.5rem;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem;">➕ Yeni Kurye Ekle</h3>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">
+                Platformda kayıtlı bir kurye hesabının e-posta adresini girerek kadronuza ekleyebilirsiniz.
+                Kuryenin önce platforma kayıt olması gerekmektedir.
+            </p>
+            <div style="display: flex; gap: 0.75rem; align-items: flex-start; flex-wrap: wrap;">
+                <input type="email" id="own-courier-email" placeholder="kurye@email.com" 
+                    style="flex:1;min-width:220px;padding:0.6rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;">
+                <button id="add-own-courier-btn" class="btn btn-primary" style="white-space: nowrap;">Kurye Ekle</button>
+            </div>
+            <p id="own-courier-status" style="margin-top: 0.5rem; font-size: 0.85rem; color: #E74C3C;"></p>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof initializeOwnCouriersPage === 'function') {
+            initializeOwnCouriersPage();
+        }
+    });
+</script>

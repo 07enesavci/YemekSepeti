@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireSellerApproved } = require("../../middleware/auth");
-const { Seller, Meal, UserFavoriteSeller, Order, sequelize } = require("../../models");
+const { Seller, Meal, UserFavoriteSeller, Order, Courier, User, sequelize } = require("../../models");
 const { Op } = require("sequelize");
 const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
@@ -25,7 +25,7 @@ router.get("/menu", async (req, res) => {
         }
         const meals = await Meal.findAll({
             where: { seller_id: seller.id },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved'],
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved', 'is_uzak_mesafe'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
         
@@ -44,7 +44,8 @@ router.get("/menu", async (req, res) => {
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
                 isAvailable: meal.is_available,
-                isApproved: meal.is_approved
+                isApproved: meal.is_approved,
+                isUzakMesafe: !!meal.is_uzak_mesafe
             };
         });
         
@@ -64,7 +65,7 @@ router.post("/menu", async (req, res) => {
             });
         }
 
-        const { category, name, description, price, imageUrl, isAvailable = true } = req.body;
+        const { category, name, description, price, imageUrl, isAvailable = true, isUzakMesafe = false } = req.body;
         if (!category || !name || price === undefined || price === null || price === '') {
             return res.status(400).json({
                 success: false,
@@ -83,6 +84,9 @@ router.post("/menu", async (req, res) => {
         let finalImageUrl = null;
         if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
             finalImageUrl = imageUrl.trim();
+            if (/^(javascript|data):/i.test(finalImageUrl)) {
+                return res.status(400).json({ success: false, message: "Geçersiz resim URL'si." });
+            }
             if (finalImageUrl.length > 1000) {
                 return res.status(400).json({
                     success: false,
@@ -92,6 +96,7 @@ router.post("/menu", async (req, res) => {
         }
 
         const isAvailableBool = isAvailable === true || isAvailable === 'true' || String(isAvailable).toLowerCase() === 'true';
+        const isUzakMesafeBool = isUzakMesafe === true || isUzakMesafe === 'true' || isUzakMesafe === 1;
 
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
@@ -107,9 +112,9 @@ router.post("/menu", async (req, res) => {
 
         const shopId = sellerQuery[0].id;
         const result = await db.execute(
-            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, false, NOW(), NOW())`,
-            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool]
+            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, is_uzak_mesafe, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, false, ?, NOW(), NOW())`,
+            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool, isUzakMesafeBool]
         );
 
         const insertId = (result && result.insertId != null) ? Number(result.insertId) : 0;
@@ -147,6 +152,7 @@ router.post("/menu", async (req, res) => {
                 category, name, description, price: priceNum,
                 imageUrl: finalImageUrl,
                 isAvailable: isAvailableBool,
+                isUzakMesafe: isUzakMesafeBool,
                 isApproved: false
             }
         });
@@ -163,19 +169,19 @@ router.put("/menu/:id", async (req, res) => {
     try {
         const mealId = parseInt(req.params.id);
         const userId = req.session.user.id;
-        const { category, name, description, price, imageUrl, isAvailable } = req.body;
+        const { category, name, description, price, imageUrl, isAvailable, isUzakMesafe } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
         );
-        
+
         if (sellerQuery.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "Satıcı kaydı bulunamadı."
             });
         }
-        
+
         const shopId = sellerQuery[0].id;
         const mealCheck = await db.query(
             "SELECT id FROM meals WHERE id = ? AND seller_id = ?",
@@ -212,6 +218,9 @@ router.put("/menu/:id", async (req, res) => {
             let finalImageUrl = null;
             if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
                 finalImageUrl = imageUrl.trim();
+                if (/^(javascript|data):/i.test(finalImageUrl)) {
+                    return res.status(400).json({ success: false, message: "Geçersiz resim URL'si." });
+                }
                 if (finalImageUrl.length > 1000) {
                     return res.status(400).json({
                         success: false,
@@ -226,7 +235,11 @@ router.put("/menu/:id", async (req, res) => {
             updateFields.push("is_available = ?");
             updateValues.push(isAvailable);
         }
-        
+        if (isUzakMesafe !== undefined) {
+            updateFields.push("is_uzak_mesafe = ?");
+            updateValues.push(isUzakMesafe === true || isUzakMesafe === 'true' || isUzakMesafe === 1 ? 1 : 0);
+        }
+
         if (updateFields.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -363,6 +376,11 @@ router.put("/toggle-shop-status", async (req, res) => {
             return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
         }
 
+        // Ana sayfa restoran listesi anlık güncellensin
+        if (global.io) {
+            global.io.emit('seller_status_updated', { userId, isOpen: is_open });
+        }
+
         res.json({ success: true, message: "Dükkan durumu güncellendi." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });
@@ -458,7 +476,7 @@ router.get("/dashboard", async (req, res) => {
 router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
-        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled } = req.body;
+        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled, uzakMesafeEnabled } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -543,6 +561,14 @@ router.put("/profile", async (req, res) => {
             updateFields.push("pickup_enabled = ?");
             updateValues.push(pickupEnabled === true || pickupEnabled === 1 || pickupEnabled === '1' ? 1 : 0);
         }
+        if (uzakMesafeEnabled !== undefined) {
+            updateFields.push("uzak_mesafe_enabled = ?");
+            updateValues.push(uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1' ? 1 : 0);
+        }
+        if (req.body.hasOwnCouriers !== undefined) {
+            updateFields.push("has_own_couriers = ?");
+            updateValues.push(req.body.hasOwnCouriers === true || req.body.hasOwnCouriers === 1 || req.body.hasOwnCouriers === '1' ? 1 : 0);
+        }
         if (workingHours !== undefined) {
             let hoursValue = null;
             if (workingHours === '' || workingHours === null || workingHours === undefined) {
@@ -624,7 +650,12 @@ router.put("/profile", async (req, res) => {
             `UPDATE sellers SET ${updateFields.join(", ")} WHERE id = ?`,
             updateValues
         );
-        
+
+        if (global.io && uzakMesafeEnabled !== undefined) {
+            const enabled = uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1';
+            global.io.emit('uzak_mesafe_toggle', { sellerId: shopId, enabled });
+        }
+
         res.json({
             success: true,
             message: "Profil başarıyla güncellendi."
@@ -681,9 +712,11 @@ router.get("/profile", async (req, res) => {
                 banner_url as bannerUrl,
                 delivery_radius_km as deliveryRadiusKm,
                 pickup_enabled as pickupEnabled,
+                uzak_mesafe_enabled as uzakMesafeEnabled,
+                has_own_couriers as hasOwnCouriers,
                 latitude,
                 longitude
-            FROM sellers 
+            FROM sellers
             WHERE id = ?`,
             [shopId]
         );
@@ -703,6 +736,7 @@ router.get("/profile", async (req, res) => {
         profileData.bannerUrl = profileData.bannerUrl || null;
         profileData.deliveryRadiusKm = parseInt(profileData.deliveryRadiusKm) || 0;
         profileData.pickupEnabled = profileData.pickupEnabled === 1 || profileData.pickupEnabled === true;
+        profileData.hasOwnCouriers = profileData.hasOwnCouriers === 1 || profileData.hasOwnCouriers === true;
         if (profileData.workingHours === null || profileData.workingHours === undefined) {
             profileData.workingHours = '';
         } else if (typeof profileData.workingHours === 'string') {
@@ -915,6 +949,64 @@ router.delete("/coupons/:id", async (req, res) => {
 });
 
 
+router.put("/coupons/:id", async (req, res) => {
+    try {
+        const couponId = parseInt(req.params.id);
+        const userId = req.session.user.id;
+        const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, validDays, isActive } = req.body;
+
+        if (!code || !discountValue) {
+            return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gereklidir." });
+        }
+
+        const checkCouponQuery = await db.query(
+            "SELECT id, valid_from FROM coupons WHERE id = ? AND created_by = ?",
+            [couponId, userId]
+        );
+
+        if (checkCouponQuery.length === 0) {
+            return res.status(404).json({ success: false, message: "Kupon bulunamadı veya bu kuponu düzenleme yetkiniz yok." });
+        }
+
+        const validUntil = validDays
+            ? `DATE_ADD(valid_from, INTERVAL ${parseInt(validDays)} DAY)`
+            : null;
+
+        const sql = `
+            UPDATE coupons SET
+                code = ?,
+                description = ?,
+                discount_type = ?,
+                discount_value = ?,
+                min_order_amount = ?,
+                max_discount_amount = ?,
+                is_active = ?,
+                ${validUntil ? `valid_until = ${validUntil},` : ''}
+                updated_at = NOW()
+            WHERE id = ? AND created_by = ?
+        `;
+
+        await db.execute(sql, [
+            code,
+            description || null,
+            discountType || 'fixed',
+            discountValue,
+            minOrderAmount || 0,
+            maxDiscountAmount || null,
+            isActive !== undefined ? (isActive ? 1 : 0) : 1,
+            couponId,
+            userId
+        ]);
+
+        res.json({ success: true, message: "Kupon başarıyla güncellendi." });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ success: false, message: "Bu kupon kodu zaten kullanılıyor." });
+        }
+        res.status(500).json({ success: false, message: "Kupon güncellenemedi." });
+    }
+});
+
 router.options("/profile", (req, res) => {
     res.header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -985,6 +1077,166 @@ router.post("/menu/bulk-price", async (req, res) => {
     } catch (e) {
         console.error('Bulk price error:', e);
         res.status(500).json({ success: false, message: "Toplu fiyat güncellenemedi." });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════
+// KENDİ KURYE YÖNETİMİ (Zincir Restoran)
+// ═══════════════════════════════════════════════════════════
+
+// Satıcının kendi kuryelerini listele
+router.get("/own-couriers", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'has_own_couriers'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        if (!seller.has_own_couriers) {
+            return res.json({ success: true, couriers: [], hasOwnCouriers: false, message: "Kendi kurye özelliği aktif değil." });
+        }
+
+        const couriers = await Courier.findAll({
+            where: { seller_id: seller.id },
+            include: [{ model: User, as: 'user', attributes: ['id', 'fullname', 'email', 'phone', 'courier_status'] }],
+            attributes: ['id', 'is_active', 'created_at']
+        });
+
+        const formatted = couriers.map(c => ({
+            id: c.id,
+            userId: c.user?.id || null,
+            fullname: c.user?.fullname || 'İsimsiz',
+            email: c.user?.email || '',
+            phone: c.user?.phone || '',
+            status: c.user?.courier_status || 'offline',
+            isActive: !!c.is_active,
+            addedAt: c.created_at
+        }));
+
+        res.json({ success: true, couriers: formatted, hasOwnCouriers: true });
+    } catch (error) {
+        console.error('GET /own-couriers error:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
+// E-posta ile kurye ekle (mevcut kurye hesabını satıcıya bağla)
+router.post("/own-couriers", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const { email } = req.body;
+        if (!email || !email.trim()) {
+            return res.status(400).json({ success: false, message: "E-posta adresi gereklidir." });
+        }
+
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'has_own_couriers', 'shop_name'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        if (!seller.has_own_couriers) {
+            return res.status(400).json({ success: false, message: "Önce profil sayfasından 'Kendi Kuryem Var' seçeneğini aktifleştirin." });
+        }
+
+        // Kurye kullanıcısını bul
+        const courierUser = await User.findOne({
+            where: { email: email.trim().toLowerCase(), role: 'courier' },
+            attributes: ['id', 'fullname', 'email']
+        });
+        if (!courierUser) {
+            return res.status(404).json({
+                success: false,
+                message: "Bu e-posta ile kayıtlı bir kurye hesabı bulunamadı. Kuryenin önce platforma kayıt olması gerekir."
+            });
+        }
+
+        // Kurye kaydını bul
+        let courier = await Courier.findOne({ where: { user_id: courierUser.id }, attributes: ['id', 'seller_id'] });
+        if (!courier) {
+            // Kurye kaydı yoksa oluştur
+            courier = await Courier.create({
+                user_id: courierUser.id,
+                seller_id: seller.id,
+                is_active: true
+            });
+        } else {
+            if (courier.seller_id && courier.seller_id !== seller.id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Bu kurye zaten başka bir restorana bağlı. Bir kurye sadece bir restorana bağlı olabilir."
+                });
+            }
+            if (courier.seller_id === seller.id) {
+                return res.status(400).json({ success: false, message: "Bu kurye zaten kadronuzda kayıtlı." });
+            }
+            await Courier.update(
+                { seller_id: seller.id, is_active: true },
+                { where: { id: courier.id } }
+            );
+        }
+
+        // Kuryeye bildirim gönder
+        const { createNotification } = require("../../lib/notificationHelper");
+        createNotification(
+            courierUser.id,
+            'info',
+            'Restorana Bağlandınız',
+            `${seller.shop_name} restoranının kurye kadrosuna eklendiniz.`,
+            seller.id
+        ).catch(() => {});
+
+        res.json({
+            success: true,
+            message: `${courierUser.fullname || courierUser.email} başarıyla kurye kadronuza eklendi.`,
+            courier: {
+                id: courier.id,
+                userId: courierUser.id,
+                fullname: courierUser.fullname,
+                email: courierUser.email
+            }
+        });
+    } catch (error) {
+        console.error('POST /own-couriers error:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
+    }
+});
+
+// Kuryeyi kadrodan çıkar (seller_id'yi null yapar, kurye platform kuryesi olur)
+router.delete("/own-couriers/:id", async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const courierId = parseInt(req.params.id);
+
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'shop_name'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+
+        const courier = await Courier.findOne({
+            where: { id: courierId, seller_id: seller.id },
+            include: [{ model: User, as: 'user', attributes: ['id', 'fullname'] }]
+        });
+        if (!courier) {
+            return res.status(404).json({ success: false, message: "Bu kurye kadronuzda bulunamadı." });
+        }
+
+        await Courier.update(
+            { seller_id: null },
+            { where: { id: courierId } }
+        );
+
+        // Kuryeye bildirim gönder
+        if (courier.user) {
+            const { createNotification } = require("../../lib/notificationHelper");
+            createNotification(
+                courier.user.id,
+                'info',
+                'Restoran Bağlantısı Kaldırıldı',
+                `${seller.shop_name} restoranının kurye kadrosundan çıkarıldınız. Artık platform kuryesi olarak çalışabilirsiniz.`,
+                seller.id
+            ).catch(() => {});
+        }
+
+        res.json({
+            success: true,
+            message: `${courier.user?.fullname || 'Kurye'} kadronuzdan çıkarıldı.`
+        });
+    } catch (error) {
+        console.error('DELETE /own-couriers error:', error);
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 

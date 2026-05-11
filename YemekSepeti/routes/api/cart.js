@@ -14,7 +14,7 @@ router.get("/product/:id", async (req, res) => {
                 as: 'seller',
                 attributes: ['id', 'shop_name']
             }],
-            attributes: ['id', 'name', 'description', 'price', 'image_url', 'category']
+            attributes: ['id', 'name', 'description', 'price', 'image_url', 'category', 'is_uzak_mesafe']
         });
         
         if (!meal) {
@@ -32,9 +32,11 @@ router.get("/product/:id", async (req, res) => {
             imageUrl: meal.image_url,
             category: meal.category,
             satici: meal.seller?.shop_name || "Ev Lezzetleri",
+            sellerId: meal.seller?.id || meal.seller_id,
             fiyat: parseFloat(meal.price),
             gorsel: meal.image_url,
-            ad: meal.name
+            ad: meal.name,
+            is_uzak_mesafe: !!meal.is_uzak_mesafe
         });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });

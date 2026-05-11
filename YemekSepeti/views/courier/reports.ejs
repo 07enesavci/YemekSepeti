@@ -11,6 +11,7 @@
     border-radius: 10px;
     margin-bottom: 2rem;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    flex-wrap: wrap;
 }
 
 .reports-filter label {
@@ -21,12 +22,8 @@
     font-weight: 600;
 }
 
-.reports-filter input {
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--bg-color);
-    color: var(--text-color);
+.reports-filter input[type="date"] {
+    display: none;
 }
 
 .reports-table-container {
@@ -66,6 +63,329 @@
 }
 .badge-success { background: rgba(16, 185, 129, 0.1); color: #10B981; }
 .badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+/* ===== CUSTOM DATE PICKER ===== */
+.date-picker-group {
+    position: relative;
+}
+
+.date-picker-input {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: var(--font-family-body);
+    font-size: 0.95rem;
+    font-weight: 500;
+    min-width: 170px;
+    user-select: none;
+}
+
+.date-picker-input:hover {
+    border-color: var(--primary-color-light);
+    box-shadow: 0 2px 12px rgba(220, 38, 38, 0.1);
+}
+
+.date-picker-input.active {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.date-picker-input .dp-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--gradient-primary);
+    color: #fff;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.date-picker-input:hover .dp-icon {
+    transform: scale(1.08);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+.date-picker-input .dp-text {
+    flex: 1;
+    white-space: nowrap;
+}
+
+/* ===== CALENDAR DROPDOWN ===== */
+.calendar-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 1000;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 8px 20px rgba(0, 0, 0, 0.08);
+    padding: 1.25rem;
+    min-width: 320px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.97);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.calendar-dropdown.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+/* Calendar Header */
+.cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.cal-header .cal-title {
+    font-family: var(--font-family-heading);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-color);
+    cursor: default;
+}
+
+.cal-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.cal-nav-btn:hover {
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+.cal-nav-btn:active {
+    transform: scale(0.95);
+}
+
+/* Day names */
+.cal-days-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 0.4rem;
+}
+
+.cal-day-name {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-color-light);
+    padding: 0.4rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Calendar Grid */
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+
+.cal-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    aspect-ratio: 1;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    font-family: var(--font-family-body);
+}
+
+.cal-day:hover:not(.empty):not(.selected) {
+    background: rgba(220, 38, 38, 0.08);
+    color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+.cal-day.empty {
+    cursor: default;
+    opacity: 0;
+}
+
+.cal-day.other-month {
+    color: var(--text-color-lighter);
+    opacity: 0.4;
+}
+
+.cal-day.today {
+    background: rgba(220, 38, 38, 0.08);
+    color: var(--primary-color);
+    font-weight: 700;
+    position: relative;
+}
+
+.cal-day.today::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--primary-color);
+}
+
+.cal-day.selected {
+    background: var(--gradient-primary) !important;
+    color: #fff !important;
+    font-weight: 700;
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+    transform: scale(1.08);
+}
+
+.cal-day.selected::after {
+    display: none;
+}
+
+.cal-day.in-range {
+    background: rgba(220, 38, 38, 0.06);
+    border-radius: 6px;
+}
+
+/* Quick actions */
+.cal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.cal-footer-btn {
+    border: none;
+    background: transparent;
+    color: var(--primary-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    font-family: var(--font-family-body);
+}
+
+.cal-footer-btn:hover {
+    background: rgba(220, 38, 38, 0.1);
+}
+
+.cal-footer-btn.cal-today-btn {
+    color: #fff;
+    background: var(--gradient-primary);
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
+.cal-footer-btn.cal-today-btn:hover {
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Calendar overlay to close */
+.calendar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 999;
+    display: none;
+}
+
+.calendar-overlay.active {
+    display: block;
+}
+
+/* Dark mode adjustments */
+:root[data-theme="dark"] .calendar-dropdown {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 8px 20px rgba(0, 0, 0, 0.3);
+    border-color: rgba(148, 163, 184, 0.15);
+}
+
+:root[data-theme="dark"] .cal-day:hover:not(.empty):not(.selected) {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+:root[data-theme="dark"] .cal-day.today {
+    background: rgba(239, 68, 68, 0.15);
+}
+
+:root[data-theme="dark"] .cal-day.in-range {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+:root[data-theme="dark"] .date-picker-input {
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+:root[data-theme="dark"] .date-picker-input:hover {
+    border-color: var(--primary-color-light);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .reports-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .calendar-dropdown {
+        min-width: 280px;
+        padding: 1rem;
+        left: 50%;
+        transform: translateX(-50%) translateY(-10px) scale(0.97);
+    }
+    
+    .calendar-dropdown.open {
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+    
+    .date-picker-input {
+        min-width: unset;
+    }
+}
 </style>
 
 <div class="panel-layout">
@@ -73,18 +393,56 @@
     <%- include('../partials/sidebar') %>
 
     <main class="panel-content">
-        <h1 class="panel-title">Dükkan Raporları</h1>
-        <p class="panel-subtitle">Hangi dükkandan kaç adet sipariş taşıdığınıza dair istatistikler.</p>
+        <h1 class="panel-title">Raporlar</h1>
+        <p class="panel-subtitle">Hangi restoranlardan kaç teslimat yaptığınıza dair istatistikler.</p>
 
         <form id="report-filter-form" class="reports-filter">
-            <div>
+            <!-- Hidden native inputs for form value -->
+            <input type="date" id="start-date" required style="display:none;">
+            <input type="date" id="end-date" required style="display:none;">
+
+            <div class="date-picker-group" id="start-date-group">
                 <label>Başlangıç Tarihi</label>
-                <input type="date" id="start-date" required>
+                <div class="date-picker-input" id="start-date-trigger">
+                    <span class="dp-icon">📅</span>
+                    <span class="dp-text" id="start-date-display">--</span>
+                </div>
+                <div class="calendar-dropdown" id="start-calendar">
+                    <div class="cal-header">
+                        <button type="button" class="cal-nav-btn cal-prev">‹</button>
+                        <span class="cal-title"></span>
+                        <button type="button" class="cal-nav-btn cal-next">›</button>
+                    </div>
+                    <div class="cal-days-header"></div>
+                    <div class="cal-grid"></div>
+                    <div class="cal-footer">
+                        <button type="button" class="cal-footer-btn cal-clear-btn">Temizle</button>
+                        <button type="button" class="cal-footer-btn cal-today-btn">Bugün</button>
+                    </div>
+                </div>
             </div>
-            <div>
+
+            <div class="date-picker-group" id="end-date-group">
                 <label>Bitiş Tarihi</label>
-                <input type="date" id="end-date" required>
+                <div class="date-picker-input" id="end-date-trigger">
+                    <span class="dp-icon">📅</span>
+                    <span class="dp-text" id="end-date-display">--</span>
+                </div>
+                <div class="calendar-dropdown" id="end-calendar">
+                    <div class="cal-header">
+                        <button type="button" class="cal-nav-btn cal-prev">‹</button>
+                        <span class="cal-title"></span>
+                        <button type="button" class="cal-nav-btn cal-next">›</button>
+                    </div>
+                    <div class="cal-days-header"></div>
+                    <div class="cal-grid"></div>
+                    <div class="cal-footer">
+                        <button type="button" class="cal-footer-btn cal-clear-btn">Temizle</button>
+                        <button type="button" class="cal-footer-btn cal-today-btn">Bugün</button>
+                    </div>
+                </div>
             </div>
+
             <div>
                 <button type="submit" class="btn btn-primary">Filtrele</button>
             </div>
@@ -111,20 +469,243 @@
     </main>
 </div>
 
+<!-- Calendar overlay for closing -->
+<div class="calendar-overlay" id="calendar-overlay"></div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const tableBody = document.getElementById('reports-table-body');
     const filterForm = document.getElementById('report-filter-form');
     const startDateInput = document.getElementById('start-date');
     const endDateInput = document.getElementById('end-date');
+    const overlay = document.getElementById('calendar-overlay');
+
+    // Turkish month and day names
+    const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+                       'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+    const DAYS_TR = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'];
+
+    // ===== Custom Calendar Logic =====
+    class CustomCalendar {
+        constructor(groupEl, hiddenInput, displayEl, otherCalendarFn) {
+            this.groupEl = groupEl;
+            this.hiddenInput = hiddenInput;
+            this.displayEl = displayEl;
+            this.otherCalendarFn = otherCalendarFn;
+
+            this.triggerEl = groupEl.querySelector('.date-picker-input');
+            this.dropdownEl = groupEl.querySelector('.calendar-dropdown');
+            this.titleEl = this.dropdownEl.querySelector('.cal-title');
+            this.gridEl = this.dropdownEl.querySelector('.cal-grid');
+            this.daysHeaderEl = this.dropdownEl.querySelector('.cal-days-header');
+            this.prevBtn = this.dropdownEl.querySelector('.cal-prev');
+            this.nextBtn = this.dropdownEl.querySelector('.cal-next');
+            this.clearBtn = this.dropdownEl.querySelector('.cal-clear-btn');
+            this.todayBtn = this.dropdownEl.querySelector('.cal-today-btn');
+
+            this.selectedDate = null;
+            this.viewDate = new Date();
+            this.isOpen = false;
+
+            this._buildDaysHeader();
+            this._bindEvents();
+        }
+
+        _buildDaysHeader() {
+            this.daysHeaderEl.innerHTML = '';
+            DAYS_TR.forEach(d => {
+                const span = document.createElement('span');
+                span.className = 'cal-day-name';
+                span.textContent = d;
+                this.daysHeaderEl.appendChild(span);
+            });
+        }
+
+        _bindEvents() {
+            this.triggerEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.isOpen) {
+                    this.close();
+                } else {
+                    this.open();
+                }
+            });
+
+            this.prevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.viewDate.setMonth(this.viewDate.getMonth() - 1);
+                this.render();
+            });
+
+            this.nextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.viewDate.setMonth(this.viewDate.getMonth() + 1);
+                this.render();
+            });
+
+            this.clearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectedDate = null;
+                this.hiddenInput.value = '';
+                this.displayEl.textContent = '--';
+                this.render();
+            });
+
+            this.todayBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const today = new Date();
+                this.selectDate(today);
+                this.close();
+            });
+
+            // Prevent dropdown clicks from closing
+            this.dropdownEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        open() {
+            // Close any other open calendar
+            const otherCal = this.otherCalendarFn();
+            if (otherCal && otherCal.isOpen) {
+                otherCal.close();
+            }
+
+            // If we have a selected date, show that month
+            if (this.selectedDate) {
+                this.viewDate = new Date(this.selectedDate);
+            }
+
+            this.isOpen = true;
+            this.dropdownEl.classList.add('open');
+            this.triggerEl.classList.add('active');
+            overlay.classList.add('active');
+            this.render();
+        }
+
+        close() {
+            this.isOpen = false;
+            this.dropdownEl.classList.remove('open');
+            this.triggerEl.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        selectDate(date) {
+            this.selectedDate = new Date(date);
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            this.hiddenInput.value = `${y}-${m}-${d}`;
+            this.displayEl.textContent = `${d}.${m}.${y}`;
+            this.viewDate = new Date(date);
+            this.render();
+        }
+
+        render() {
+            const year = this.viewDate.getFullYear();
+            const month = this.viewDate.getMonth();
+
+            this.titleEl.textContent = `${MONTHS_TR[month]} ${year}`;
+
+            this.gridEl.innerHTML = '';
+
+            // First day of month (0=Sun, convert to Mon-start: 0=Mon)
+            const firstDay = new Date(year, month, 1);
+            let startDow = firstDay.getDay();
+            startDow = (startDow === 0) ? 6 : startDow - 1; // Convert to Mon=0
+
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+            // Get start/end dates for range highlighting
+            const startVal = startDateInput.value;
+            const endVal = endDateInput.value;
+
+            // Empty cells before first day
+            for (let i = 0; i < startDow; i++) {
+                const empty = document.createElement('button');
+                empty.type = 'button';
+                empty.className = 'cal-day empty';
+                this.gridEl.appendChild(empty);
+            }
+
+            // Day cells
+            for (let d = 1; d <= daysInMonth; d++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'cal-day';
+                btn.textContent = d;
+
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+                // Today highlight
+                if (dateStr === todayStr) {
+                    btn.classList.add('today');
+                }
+
+                // Selected highlight
+                if (this.selectedDate) {
+                    const selStr = `${this.selectedDate.getFullYear()}-${String(this.selectedDate.getMonth()+1).padStart(2,'0')}-${String(this.selectedDate.getDate()).padStart(2,'0')}`;
+                    if (dateStr === selStr) {
+                        btn.classList.add('selected');
+                    }
+                }
+
+                // Range highlight
+                if (startVal && endVal && dateStr > startVal && dateStr < endVal) {
+                    btn.classList.add('in-range');
+                }
+
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectDate(new Date(year, month, d));
+                    this.close();
+                });
+
+                this.gridEl.appendChild(btn);
+            }
+        }
+    }
+
+    // Initialize calendars
+    let startCalendar, endCalendar;
+
+    startCalendar = new CustomCalendar(
+        document.getElementById('start-date-group'),
+        startDateInput,
+        document.getElementById('start-date-display'),
+        () => endCalendar
+    );
+
+    endCalendar = new CustomCalendar(
+        document.getElementById('end-date-group'),
+        endDateInput,
+        document.getElementById('end-date-display'),
+        () => startCalendar
+    );
+
+    // Close on overlay click
+    overlay.addEventListener('click', () => {
+        startCalendar.close();
+        endCalendar.close();
+    });
+
+    // Close on escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            startCalendar.close();
+            endCalendar.close();
+        }
+    });
 
     // Default: Son 7 gün
     const today = new Date();
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
-    endDateInput.value = today.toISOString().split('T')[0];
+
+    startCalendar.selectDate(sevenDaysAgo);
+    endCalendar.selectDate(today);
 
     async function loadReports(startDate, endDate) {
         tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Veriler yükleniyor...</td></tr>';

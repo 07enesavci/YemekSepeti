@@ -217,7 +217,7 @@
 /* Checkout — kayıtlı kart satırı */
 .checkout-payment-row {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: space-between;
     gap: 0.75rem;
     flex-wrap: wrap;
@@ -227,11 +227,20 @@
 .checkout-payment-row .form-check {
     flex: 1;
     min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.checkout-payment-row .form-check-radio label {
+    height: 100%;
+    box-sizing: border-box;
 }
 
 .checkout-payment-row-actions {
     display: flex;
     align-items: center;
+    align-self: center;
     gap: 0.35rem;
     flex-shrink: 0;
 }
@@ -269,6 +278,144 @@
     max-width: 42rem;
 }
 
+/* Kapıda Ödeme — Alt seçenekler (Nakit/Kartla) */
+.payment-cash-options-container {
+    display: flex;
+    align-items: stretch;
+    flex: 1.5;
+    min-width: 320px;
+    animation: fadeInOptions 0.3s ease-out;
+}
+
+@keyframes fadeInOptions {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.payment-cash-options-container.payment-cash-options-hidden {
+    display: none;
+}
+
+.payment-cash-method-selector {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    border: none;
+    padding: 0;
+    background: transparent;
+    align-items: stretch;
+}
+
+.payment-cash-method-option {
+    display: flex;
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    margin: 0;
+    height: 100%;
+}
+
+.payment-cash-method-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.payment-cash-method-label {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--card-bg);
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .payment-cash-method-label {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.4);
+}
+
+.payment-cash-method-option input[type="radio"]:checked + .payment-cash-method-label {
+    border-color: rgba(220, 38, 38, 0.5);
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(220, 38, 38, 0.02) 100%);
+    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.1);
+}
+
+.payment-cash-method-label::before {
+    content: '';
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--text-color-lighter, rgba(255, 255, 255, 0.2));
+    background: transparent;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .payment-cash-method-label::before {
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.payment-cash-method-option input[type="radio"]:checked + .payment-cash-method-label::before {
+    border-color: var(--primary-color, #dc2626);
+    background: var(--primary-color, #dc2626);
+    box-shadow: inset 0 0 0 3px var(--card-bg, #1e293b);
+}
+
+.payment-cash-method-label strong {
+    font-size: 1rem;
+    color: var(--text-color);
+    font-weight: 600;
+    line-height: 1.2;
+    padding-right: 1.5rem; /* Space for the radio circle */
+    transition: color 0.3s ease;
+}
+
+[data-theme="dark"] .payment-cash-method-label strong {
+    color: #f8fafc;
+}
+
+.payment-cash-method-option input[type="radio"]:checked + .payment-cash-method-label strong {
+    color: var(--primary-color, #dc2626);
+}
+
+.payment-cash-method-desc {
+    font-size: 0.8rem;
+    color: var(--text-color-light);
+    line-height: 1.4;
+}
+
+[data-theme="dark"] .payment-cash-method-desc {
+    color: #94a3b8;
+}
+
+.payment-cash-method-option:hover .payment-cash-method-label {
+    border-color: var(--primary-color, rgba(255, 255, 255, 0.2));
+    background: var(--card-bg-hover);
+}
+
+[data-theme="dark"] .payment-cash-method-option:hover .payment-cash-method-label {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.payment-cash-method-option input[type="radio"]:checked:hover + .payment-cash-method-label {
+    border-color: rgba(220, 38, 38, 0.7);
+}
+
 @media (max-width: 640px) {
     .saved-card-tile {
         flex-direction: column;
@@ -279,6 +426,21 @@
     }
     .saved-card-actions .btn {
         flex: 1;
+    }
+    
+    .payment-cash-options-container {
+        width: 100%;
+        margin-top: 0.75rem;
+    }
+    
+    .payment-cash-method-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+    
+    .payment-cash-method-option {
+        width: 100%;
     }
 }
 

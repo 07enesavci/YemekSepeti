@@ -194,14 +194,15 @@
                 <table class="recent-orders-table">
                     <thead>
                         <tr>
-                            <th>Sipariş No</th>
+                            <th>Sipariş Bilgisi</th>
+                            <th>Müşteri</th>
                             <th>Tarih</th>
-                            <th>Tutar</th>
+                            <th>Tutar & Ödeme</th>
                             <th>Durum</th>
                         </tr>
                     </thead>
                     <tbody id="modal-recent-orders">
-                        <tr><td colspan="4" class="text-center py-3">Veri yok.</td></tr>
+                        <tr><td colspan="5" class="text-center py-3">Veri yok.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -356,7 +357,7 @@ async function openDetailsModal(id, startDate, endDate, showAll) {
     document.getElementById('modal-stat-cancelled').innerText = '...';
     document.getElementById('modal-stat-active').innerText = '...';
     document.getElementById('modal-stat-revenue').innerText = '...';
-    document.getElementById('modal-recent-orders').innerHTML = '<tr><td colspan="4" class="text-center py-3">Yükleniyor...</td></tr>';
+    document.getElementById('modal-recent-orders').innerHTML = '<tr><td colspan="5" class="text-center py-3">Yükleniyor...</td></tr>';
 
     // Set default dates if not provided and not showAll (son 30 gün)
     if (!showAll && !startDate && !endDate) {
@@ -403,18 +404,44 @@ async function openDetailsModal(id, startDate, endDate, showAll) {
 
         let ordersHtml = '';
         if(data.recentOrders && data.recentOrders.length > 0) {
+            const paymentMethodMap = {
+                'credit_card': 'Kredi Kartı',
+                'cash': 'Nakit / Kapıda',
+                'wallet': 'Cüzdan',
+                'iyzico': 'Online Ödeme'
+            };
+            const deliveryTypeMap = {
+                'delivery': 'Kurye Teslimatı',
+                'pickup': 'Gel Al',
+                'cargo': 'Kargo'
+            };
+            
             data.recentOrders.forEach(o => {
+                let statusBadge = statusFormat[o.status] || o.status;
+                if (o.status === 'on_delivery' && o.courier_name) {
+                    statusBadge += `<div style="font-size:0.8rem;color:#666;margin-top:2px;">Kurye: ${o.courier_name}</div>`;
+                }
+                
                 ordersHtml += `
                     <tr>
-                        <td><strong>#${o.order_number}</strong></td>
+                        <td>
+                            <strong>#${o.order_number}</strong>
+                            <div style="font-size:0.8rem;color:#666;margin-top:2px;">${deliveryTypeMap[o.delivery_type] || o.delivery_type || '-'}</div>
+                        </td>
+                        <td>
+                            <span style="font-weight:500;">${o.customer_name || '-'}</span>
+                        </td>
                         <td>${new Date(o.created_at).toLocaleString('tr-TR')}</td>
-                        <td><strong style="color:var(--primary-color);">${parseFloat(o.total_amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</strong></td>
-                        <td>${statusFormat[o.status] || o.status}</td>
+                        <td>
+                            <strong style="color:var(--primary-color);">${parseFloat(o.total_amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL</strong>
+                            <div style="font-size:0.8rem;color:#666;margin-top:2px;">${paymentMethodMap[o.payment_method] || o.payment_method || '-'}</div>
+                        </td>
+                        <td>${statusBadge}</td>
                     </tr>
                 `;
             });
         } else {
-            ordersHtml = '<tr><td colspan="4" class="text-center py-3 text-muted">Seçilen tarih aralığında sipariş kaydı bulunmuyor.</td></tr>';
+            ordersHtml = '<tr><td colspan="5" class="text-center py-3 text-muted">Seçilen tarih aralığında sipariş kaydı bulunmuyor.</td></tr>';
         }
         document.getElementById('modal-recent-orders').innerHTML = ordersHtml;
         

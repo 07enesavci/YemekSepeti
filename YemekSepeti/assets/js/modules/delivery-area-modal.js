@@ -25,11 +25,12 @@
     function pathExcluded() {
         const p = window.location.pathname || '';
         const host = String(window.location.hostname || '').toLowerCase();
+        // Dashboardlar ve alt alan adları hariç tutulur (Konum çubuğu buralarda gizlenir)
         if (host === 'partner.localhost' || host === 'admin.localhost') return true;
         if (p.startsWith('/seller') || p.startsWith('/courier') || p.startsWith('/admin')) return true;
-        if (p === '/login' || p === '/register' || p === '/forgot-password' || p === '/reset-password') return true;
-        if (p.startsWith('/auth/')) return true;
         if (p.startsWith('/register/documents')) return true;
+        
+        // Alıcı odaklı tüm sayfalarda (Giriş/Kayıt dahil) konum bilgisi aktif olmalı
         return false;
     }
 
@@ -520,12 +521,21 @@
             function applyIlIlceFromNearCity(j, selIlEl, selIlceEl, lat, lng) {
                 pendingLat = lat;
                 pendingLng = lng;
-                selIlEl.value = j.il;
+                if (j.il) selIlEl.value = j.il;
                 return loadDistricts(j.il, selIlceEl).then(() => {
                     const wanted = j.ilce || '';
                     const opts = Array.from(selIlceEl.options || []);
                     const has = opts.some((o) => o.value === wanted);
                     selIlceEl.value = has ? wanted : (opts[1] && opts[1].value) || '';
+
+                    const inpMah = document.getElementById('delivery-mahalle');
+                    const inpCad = document.getElementById('delivery-cadde');
+                    if (inpMah && typeof j.mahalle === 'string') {
+                        inpMah.value = j.mahalle.trim();
+                    }
+                    if (inpCad && typeof j.cadde === 'string') {
+                        inpCad.value = j.cadde.trim();
+                    }
                 });
             }
 

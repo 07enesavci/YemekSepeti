@@ -143,8 +143,8 @@
 <div class="panel-layout">
     <%- include('../partials/sidebar') %>
     <main class="panel-content">
-        <h1 class="panel-title">Menü Kontrol Paneli</h1>
-        <p class="panel-subtitle">Tüm satıcıların ürünlerini görüntüleyebilir, düzenleyebilir, onaylayabilir veya kaldırabilirsiniz.</p>
+        <h1 class="panel-title">Uzak Mesafe Menü Kontrol Paneli</h1>
+        <p class="panel-subtitle">Sadece Uzak Mesafe (Kargo) ürünlerini görüntüleyebilir, düzenleyebilir veya onaylayabilirsiniz.</p>
 
         <form id="menu-filter-form" class="filter-bar">
             <div class="form-group">
@@ -317,7 +317,7 @@ async function loadMenuItems() {
     if (search) params.append('search', search);
     if (province) params.append('province', province);
     if (district) params.append('district', district);
-    params.append('isUzakMesafe', 'false');
+    params.append('isUzakMesafe', 'true');
 
     try {
         const res = await fetch(`${baseUrl}/api/admin/menu-items?${params.toString()}`, { credentials: 'include' });
@@ -797,6 +797,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Custom UI'ları başlat
     createCustomSelects();
-
 });
 </script>

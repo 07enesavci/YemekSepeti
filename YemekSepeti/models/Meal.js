@@ -41,6 +41,12 @@ module.exports = (sequelize, DataTypes) => {
         stock_quantity: {
             type: DataTypes.INTEGER,
             defaultValue: -1 // -1 = sınırsız
+        },
+        /** Uzak Mesafe Kargo ürünü — sadece uzak mesafe modunda görünür */
+        is_uzak_mesafe: {
+            type: DataTypes.BOOLEAN,
+            defaultValue: false,
+            allowNull: false
         }
     }, {
         tableName: 'meals',

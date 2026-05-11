@@ -30,10 +30,18 @@ function openAddMealModal() {
         }
     }
     
+    const uzakGroup = document.getElementById('uzak-mesafe-group');
+    // Uzak mesafe sayfasında checkbox'ı gizle — zaten o paneldeyiz
+    if (uzakGroup) uzakGroup.style.display = (window.__sellerUzakMesafeEnabled && !window.__uzakMesafePage) ? 'block' : 'none';
+    const uzakCb = document.getElementById('meal-uzak-mesafe');
+    if (uzakCb) uzakCb.checked = !!window.__uzakMesafePage;
+    const uzakHidden = document.getElementById('meal-uzak-mesafe-hidden');
+    if (uzakHidden) uzakHidden.value = window.__uzakMesafePage ? '1' : '0';
+
     modalInstance.style.display = 'flex';
 }
 
- 
+
 function openEditMealModal(mealId) {
     console.warn('openEditMealModal(mealId) deprecated, use openEditMealModalWithData(meal) instead');
 }
@@ -94,10 +102,17 @@ function openEditMealModalWithData(meal) {
         if (imageUrlContainer) imageUrlContainer.style.display = 'none';
     }
     
+    const uzakGroup = document.getElementById('uzak-mesafe-group');
+    if (uzakGroup) uzakGroup.style.display = (window.__sellerUzakMesafeEnabled && !window.__uzakMesafePage) ? 'block' : 'none';
+    const uzakCb = document.getElementById('meal-uzak-mesafe');
+    if (uzakCb) uzakCb.checked = !!window.__uzakMesafePage || !!meal.isUzakMesafe;
+    const uzakHidden = document.getElementById('meal-uzak-mesafe-hidden');
+    if (uzakHidden) uzakHidden.value = (window.__uzakMesafePage || meal.isUzakMesafe) ? '1' : '0';
+
     modalInstance.style.display = 'flex';
 }
 
- 
+
 function createMealModal() {
     const modalHTML = `
         <div id="meal-modal" class="modal-overlay" style="display: none;">
@@ -154,6 +169,14 @@ function createMealModal() {
                             <input type="checkbox" id="meal-available" checked> Satışta
                         </label>
                     </div>
+                    <div class="form-group" id="uzak-mesafe-group" style="display: none;">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="meal-uzak-mesafe"> <strong>Uzak Mesafe Kargo</strong> ürünü
+                        </label>
+                        <p style="font-size: 0.8rem; color: #888; margin: 0.25rem 0 0 1.5rem;">Bu ürün sadece Uzak Mesafe Kargo siparişlerinde görünür.</p>
+                    </div>
+                    <!-- Uzak mesafe sayfasında hidden olarak gönderilir -->
+                    <input type="hidden" id="meal-uzak-mesafe-hidden" value="0">
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" id="meal-modal-cancel-btn">İptal</button>
                         <button type="submit" class="btn btn-primary">Kaydet</button>
@@ -286,13 +309,19 @@ function createMealModal() {
                 }
             }
             
+            const uzakMesafeCb = document.getElementById('meal-uzak-mesafe');
+            const uzakMesafeHidden = document.getElementById('meal-uzak-mesafe-hidden');
+            const isUzakMesafeVal = window.__uzakMesafePage
+                ? true
+                : (uzakMesafeCb ? uzakMesafeCb.checked : (uzakMesafeHidden ? uzakMesafeHidden.value === '1' : false));
             const mealData = {
                 name: document.getElementById('meal-name').value,
                 category: document.getElementById('meal-category').value,
                 description: document.getElementById('meal-description').value,
                 price: parseFloat(document.getElementById('meal-price').value),
                 imageUrl: imageUrl,
-                isAvailable: document.getElementById('meal-available').checked
+                isAvailable: document.getElementById('meal-available').checked,
+                isUzakMesafe: isUzakMesafeVal
             };
             
             console.log('📦 Meal data:', mealData);

@@ -105,10 +105,14 @@ function getPostLoginRedirect(userData) {
     if (!userData) return '/';
     if (userData.role === 'admin' || userData.role === 'super_admin' || userData.role === 'support') return '/admin/users';
     if (userData.role === 'seller') {
+        if (!userData.sellerId) return '/register/documents';
+        if (!userData.sellerApproved) return '/seller/pending-approval';
         if (userData.sellerId) return `/seller/${userData.sellerId}/dashboard`;
         return '/seller/dashboard';
     }
     if (userData.role === 'courier') {
+        if (!userData.courierId) return '/register/documents';
+        if (!userData.courierApproved) return '/courier/pending-approval';
         const courierId = userData.courierId || userData.id;
         return `/courier/${courierId}/dashboard`;
     }
@@ -214,7 +218,15 @@ router.post("/login", authLimiter, [
         if (req.body.remember_me) {
             req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 gün
         }
-        res.json({ success: true, user: userData, token });
+        
+        if (typeof req.session.save === 'function') {
+            req.session.save((err) => {
+                if (err) console.error("Session save error in login:", err);
+                res.json({ success: true, user: userData, token });
+            });
+        } else {
+            res.json({ success: true, user: userData, token });
+        }
     } catch (error) {
         console.error("Login error:", error);
         res.status(500).json({ success: false, message: "Giriş hatası." });
@@ -470,7 +482,8 @@ router.post("/verify-email", async (req, res) => {
                 success: true,
                 user: userData,
                 token,
-                needsDocuments: false
+                needsDocuments: true,
+                redirectUrl: '/register/documents'
             });
         }
 

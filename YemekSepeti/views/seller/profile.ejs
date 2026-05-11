@@ -84,15 +84,26 @@
 
                     <hr class="divider">
                     
-                    <div class="form-row"> 
-                        <div class="form-group">
-                            <label for="shop-location" class="form-label">Konum (İlçe)</label>
-                            <input type="text" id="shop-location" class="form-input" value="Kadıköy">
+                    <div class="form-group">
+                        <label for="shop-location" class="form-label">Konum (İlçe)</label>
+                        <input type="text" id="shop-location" class="form-input" value="Kadıköy">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" style="display:flex; align-items:center; gap:0.5rem;">
+                            🕒 Çalışma Saatleri
+                            <span class="text-muted" style="font-size:0.8rem; font-weight:normal;">(Otomatik aç/kapa)</span>
+                        </label>
+                        <p class="text-muted" style="font-size:0.85rem; margin:0 0 0.75rem 0;">
+                            Açık günleri ve saatleri belirleyin. Sistem her dakika kontrol edip dükkanınızı otomatik açıp kapatır.
+                        </p>
+                        <div id="schedule-editor" style="background:var(--bg-color, #f8fafc); border:1px solid var(--border-color, #e2e8f0); border-radius:10px; padding:1rem;">
+                            <p class="text-muted" style="margin:0; text-align:center; color:#94a3b8;">Yükleniyor...</p>
                         </div>
-                        <div class="form-group">
-                            <label for="shop-hours" class="form-label">Çalışma Saatleri</label>
-                            <input type="text" id="shop-hours" class="form-input" value="Hafta içi 09:00 - 21:00">
-                        </div>
+                        <label class="form-check" style="display:flex; align-items:center; gap:0.5rem; margin-top:0.75rem; cursor:pointer;">
+                            <input type="checkbox" id="schedule-auto-toggle" checked>
+                            <span>Saatlere göre otomatik açıp kapat (kapatırsanız manuel kontrol)</span>
+                        </label>
                     </div>
 
                     <!-- Teslimat Yarıçapı -->
@@ -121,6 +132,20 @@
                         <label class="form-check" style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" id="pickup-enabled" checked style="margin-top: 0.2rem;">
                             <span><strong>Gel Al</strong> siparişlerini kabul et — müşteriler siparişi restorandan teslim alabilir (veritabanında saklanır).</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-check" style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="uzak-mesafe-enabled" style="margin-top: 0.2rem;">
+                            <span><strong>Uzak Mesafe Kargo</strong> — zeytinyağı, kuruyemiş gibi ürünleri kargo ile Türkiye geneline gönder. Açıkken menüde "Uzak Mesafe" ürün ekleyebilirsin.</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-check" style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="has-own-couriers-toggle" style="margin-top: 0.2rem;">
+                            <span><strong>Kendi Kuryem Var</strong> — Zincir restoran gibi kendi kurye kadronuz varsa açın. Siparişlerde havuza göndermek yerine kendi kuryenizi seçebilirsiniz. Açıldığında sidebar'da "Kurye Yönetimi" sayfası görünür.</span>
                         </label>
                     </div>
                     

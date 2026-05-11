@@ -44,7 +44,7 @@ function createFloatingCartHTML() {
                 </div>
                 <div class="floating-cart-actions">
                     <a href="/buyer/cart" class="btn btn-primary">Sepete Git</a>
-                    <a href="/buyer/checkout" class="btn btn-secondary">Ödemeye Geç</a>
+                    <a href="/buyer/checkout" class="btn btn-secondary">Siparişi Tamamla</a>
                 </div>
             </div>
         </div>

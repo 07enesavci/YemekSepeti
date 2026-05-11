@@ -321,7 +321,21 @@
             pendingSellersList = result.data;
             tbody.innerHTML = result.data.map(function(s) {
                 var hasDocs = !!(s.tax_plate || s.id_card || s.activity_cert || s.business_license);
-                var locationText = s.location && s.location !== 'Belirtilmedi' ? s.location : '<span class="text-muted">Adres belirtilmedi</span>';
+                var businessAddress = s.business_address || null;
+                var cityDistrict = '';
+                if (businessAddress && (businessAddress.district || businessAddress.city)) {
+                    cityDistrict = [businessAddress.district, businessAddress.city].filter(Boolean).join(', ');
+                }
+                var detailAddress = businessAddress && businessAddress.full_address ? businessAddress.full_address : '';
+                var locationText = '';
+                if (cityDistrict || detailAddress) {
+                    locationText = '<div>' + (cityDistrict || '-') + '</div>';
+                    if (detailAddress) {
+                        locationText += '<small style="display:block; color:#94a3b8; margin-top:2px;">' + detailAddress + '</small>';
+                    }
+                } else {
+                    locationText = s.location && s.location !== 'Belirtilmedi' ? s.location : '<span class="text-muted">Adres belirtilmedi</span>';
+                }
                 
                 return '<tr class="align-middle">' +
                     '<td><div style="font-weight: 600; color: var(--primary-color);">' + (s.shop_name || '-') + '</div>' +

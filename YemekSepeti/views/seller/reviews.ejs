@@ -1,0 +1,160 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+
+<div class="panel-layout">
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        <h1 class="panel-title">Müşteri Yorumları</h1>
+
+        <div class="card">
+            <div class="card-content">
+                <div id="seller-reviews-loading" style="text-align:center; padding:2rem; color:#666;">Yorumlar yükleniyor...</div>
+                <div id="seller-reviews-empty" style="display:none; text-align:center; padding:2rem; color:#666;">
+                    <p>Henüz müşteri yorumu yok.</p>
+                </div>
+                <div id="seller-reviews-list" style="display:none;"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+(function() {
+    const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function renderStars(n) {
+        let out = '';
+        for (let i = 1; i <= 5; i++) out += (i <= n ? '★' : '☆');
+        return out;
+    }
+
+    function formatDate(d) {
+        if (!d) return '';
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return '';
+        return dt.toLocaleDateString('tr-TR') + ' ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    async function loadReviews() {
+        const loadingEl = document.getElementById('seller-reviews-loading');
+        const emptyEl = document.getElementById('seller-reviews-empty');
+        const listEl = document.getElementById('seller-reviews-list');
+        try {
+            const res = await fetch(baseUrl + '/api/reviews/mine', { credentials: 'include' });
+            const data = await res.json();
+            loadingEl.style.display = 'none';
+            const reviews = data.reviews || [];
+            if (reviews.length === 0) {
+                emptyEl.style.display = 'block';
+                return;
+            }
+            listEl.style.display = 'block';
+            listEl.innerHTML = reviews.map(r => `
+                <div class="review-item" data-review-id="${r.id}" style="padding:1rem 0; border-bottom:1px solid var(--border-color, #eee);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+                        <div>
+                            <span style="color:#f5a623; font-size:1.1rem;">${renderStars(r.rating)}</span>
+                            <strong style="margin-left:0.5rem;">${escapeHtml(r.userName)}</strong>
+                        </div>
+                        <span style="font-size:0.85rem; color:#888;">${formatDate(r.createdAt)}</span>
+                    </div>
+                    ${r.comment ? `<p style="margin:0 0 0.6rem 0;">${escapeHtml(r.comment)}</p>` : '<p style="margin:0 0 0.6rem 0; color:#999; font-style:italic;">(Yorum yok)</p>'}
+                    <div class="reply-area" data-id="${r.id}">
+                        ${r.sellerReply ? `
+                            <div class="existing-reply" style="margin-top:0.6rem; padding:0.6rem 0.8rem; background:var(--bg-color, #f8f9fa); border-left:3px solid var(--primary-color, #e74c3c); border-radius:4px;">
+                                <div style="font-size:0.85rem; color:#666; margin-bottom:0.3rem;">
+                                    <strong>Yanıtınız</strong> · ${formatDate(r.sellerReplyAt)}
+                                </div>
+                                <p style="margin:0 0 0.5rem 0;">${escapeHtml(r.sellerReply)}</p>
+                                <div style="display:flex; gap:0.4rem;">
+                                    <button class="btn btn-sm btn-secondary" data-action="edit">Düzenle</button>
+                                    <button class="btn btn-sm btn-outline-danger" data-action="delete">Sil</button>
+                                </div>
+                            </div>
+                        ` : `
+                            <button class="btn btn-sm btn-primary" data-action="reply">Yanıt Yaz</button>
+                        `}
+                    </div>
+                </div>
+            `).join('');
+
+            listEl.addEventListener('click', handleReplyAction);
+        } catch (e) {
+            loadingEl.textContent = 'Yorumlar yüklenemedi.';
+        }
+    }
+
+    function handleReplyAction(e) {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const area = btn.closest('.reply-area');
+        const id = parseInt(area.dataset.id, 10);
+        const action = btn.dataset.action;
+        if (action === 'reply' || action === 'edit') {
+            const existing = action === 'edit' ? area.querySelector('.existing-reply p').textContent : '';
+            showReplyForm(area, id, existing);
+        } else if (action === 'delete') {
+            deleteReply(id);
+        }
+    }
+
+    function showReplyForm(area, reviewId, existingText) {
+        area.innerHTML = `
+            <div style="margin-top:0.6rem;">
+                <textarea class="form-input reply-textarea" rows="3" maxlength="1000" style="width:100%;" placeholder="Yanıtınızı yazın...">${escapeHtml(existingText)}</textarea>
+                <div style="display:flex; gap:0.4rem; margin-top:0.4rem;">
+                    <button class="btn btn-sm btn-primary" data-action="save">Kaydet</button>
+                    <button class="btn btn-sm btn-secondary" data-action="cancel">İptal</button>
+                </div>
+            </div>
+        `;
+        area.querySelector('[data-action="save"]').addEventListener('click', () => saveReply(reviewId, area.querySelector('.reply-textarea').value.trim()));
+        area.querySelector('[data-action="cancel"]').addEventListener('click', () => loadReviews());
+    }
+
+    async function saveReply(reviewId, text) {
+        if (!text) { alert('Yanıt boş olamaz.'); return; }
+        try {
+            const res = await fetch(baseUrl + '/api/reviews/' + reviewId + '/reply', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reply: text })
+            });
+            const data = await res.json();
+            if (data.success) {
+                loadReviews();
+            } else {
+                alert(data.message || 'Yanıt kaydedilemedi.');
+            }
+        } catch (e) {
+            alert('Yanıt kaydedilemedi.');
+        }
+    }
+
+    async function deleteReply(reviewId) {
+        const ok = window.showConfirm ? await window.showConfirm('Yanıtınızı silmek istediğinize emin misiniz?') : window.confirm('Silinsin mi?');
+        if (!ok) return;
+        try {
+            const res = await fetch(baseUrl + '/api/reviews/' + reviewId + '/reply', {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (data.success) loadReviews();
+            else alert(data.message || 'Silinemedi.');
+        } catch (e) {
+            alert('Silinemedi.');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadReviews);
+})();
+</script>

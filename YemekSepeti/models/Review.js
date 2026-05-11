@@ -37,6 +37,14 @@ module.exports=(sequelize, DataTypes)=>{
         is_visible: {
             type: DataTypes.BOOLEAN,
             defaultValue: true
+        },
+        seller_reply: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        seller_reply_at: {
+            type: DataTypes.DATE,
+            allowNull: true
         }
     }, {
         tableName: 'reviews',

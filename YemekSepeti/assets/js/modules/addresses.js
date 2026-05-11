@@ -1,3 +1,13 @@
+function escapeHtml(s) {
+    if (!s) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // Tüm çağrılarda aynı tabanı kullanmak için küçük yardımcı
 function getApiBaseUrlSafe() {
     if (typeof window !== 'undefined') {
@@ -249,16 +259,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isDefault = address.isDefault ? '<span style="color: #FF6B35; font-size: 0.85rem; margin-left: 0.5rem;">(Varsayılan)</span>' : '';
             const addressDetail = address.detail || address.fullDetail || '';
             const shortDetail = addressDetail.length > 50 ? addressDetail.substring(0, 50) + '...' : addressDetail;
-            
+            const safeId = parseInt(address.id, 10);
+
             const addressHtml = `
-                <div class="form-check form-check-radio" data-address-id="${address.id}">
-                    <input type="radio" id="address-${address.id}" name="address" value="${address.id}" ${address.isDefault ? 'checked' : ''}>
-                    <label for="address-${address.id}" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="form-check form-check-radio" data-address-id="${safeId}">
+                    <input type="radio" id="address-${safeId}" name="address" value="${safeId}" ${address.isDefault ? 'checked' : ''}>
+                    <label for="address-${safeId}" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                         <div>
-                            <strong>${address.title || 'Adres'}</strong>${isDefault}
-                            <span style="display: block; color: #666; font-size: 0.9rem; margin-top: 0.25rem;">${shortDetail}</span>
+                            <strong>${escapeHtml(address.title) || 'Adres'}</strong>${isDefault}
+                            <span style="display: block; color: #666; font-size: 0.9rem; margin-top: 0.25rem;">${escapeHtml(shortDetail)}</span>
                         </div>
-                        <a href="#" class="btn-edit" data-address-id="${address.id}" style="margin-left: 1rem;">Düzenle</a>
+                        <a href="#" class="btn-edit" data-address-id="${safeId}" style="margin-left: 1rem;">Düzenle</a>
                     </label>
                 </div>
             `;

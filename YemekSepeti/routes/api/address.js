@@ -79,29 +79,72 @@ router.get('/cities', (req, res) => {
 });
 
 // GET /api/address/near-city?lat=&lng= — GPS'e en yakın il + önerilen ilçe
-router.get('/near-city', (req, res) => {
+router.get('/near-city', async (req, res) => {
     try {
         const lat = parseFloat(req.query.lat);
         const lng = parseFloat(req.query.lng);
         if (Number.isNaN(lat) || Number.isNaN(lng)) {
             return res.status(400).json({ success: false, message: 'Geçersiz koordinat.' });
         }
-        const near = nearestCityFromLatLng(lat, lng);
-        if (!near || !near.il) {
+
+        let addressData = {
+            il: null,
+            ilce: null,
+            mahalle: '',
+            cadde: ''
+        };
+
+        // 1. Gerçek Reverse Geocoding Dene (Nominatim) - İnternet gerektirir
+        try {
+            const osmUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&accept-language=tr`;
+            const osmRes = await fetch(osmUrl, {
+                headers: {
+                    'User-Agent': 'YemekSepetiClone/1.0 (contact: evlezzetleri.site@gmail.com)'
+                }
+            });
+            if (osmRes.ok) {
+                const osmData = await osmRes.json();
+                if (osmData && osmData.address) {
+                    const addr = osmData.address;
+                    // OSM'den gelen verileri ayıkla
+                    const rawIl = addr.province || addr.state || '';
+                    const rawIlce = addr.town || addr.city_district || addr.county || addr.district || '';
+                    
+                    const canonicalIl = resolveCanonicalCity(rawIl);
+                    if (canonicalIl) {
+                        addressData.il = canonicalIl;
+                        addressData.ilce = resolveCanonicalDistrict(canonicalIl, rawIlce) || defaultDistrictForIl(canonicalIl) || 'Merkez';
+                        addressData.mahalle = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || '';
+                        addressData.cadde = addr.road || '';
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('OSM Reverse Geocode hatası:', err);
+        }
+
+        // 2. Fallback: Eğer Nominatim sonucu gelmediyse (çevrimdışı vb.) eski "en yakın şehir merkezi" mantığına dön
+        if (!addressData.il) {
+            const near = nearestCityFromLatLng(lat, lng);
+            if (near && near.il) {
+                addressData.il = near.il;
+                const districts = getDistricts(near.il);
+                addressData.ilce =
+                    (districts || []).find((d) => /merkez/i.test(d)) ||
+                    (districts && districts.length ? districts[0] : null) ||
+                    'Merkez';
+            }
+        }
+
+        if (!addressData.il) {
             return res.status(500).json({ success: false, message: 'İl bulunamadı.' });
         }
-        const districts = getDistricts(near.il);
-        const ilce =
-            (districts || []).find((d) => /merkez/i.test(d)) ||
-            (districts && districts.length ? districts[0] : null) ||
-            'Merkez';
+
         return res.json({
             success: true,
-            il: near.il,
-            ilce,
+            ...addressData,
             lat,
-            lng,
-            distanceKm: near.distanceKm
+            lng
         });
     } catch (error) {
         console.error('near-city hatası:', error);

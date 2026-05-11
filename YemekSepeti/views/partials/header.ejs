@@ -213,8 +213,10 @@
                             </div>
                         </li>
                     <% } else { %>
-                        <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>
-                        <li><a href="/register" class="btn btn-primary">Kayıt Ol</a></li>
+                        <% if (typeof isAdminDomain === 'undefined' || !isAdminDomain) { %>
+                            <li><a href="/login" class="btn btn-secondary">Giriş Yap</a></li>
+                            <li><a href="/register" class="btn btn-primary">Kayıt Ol</a></li>
+                        <% } %>
                     <% } %>
                 <% } %>
 

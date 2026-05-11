@@ -1,6 +1,24 @@
 // Satıcı modülü: menü, sipariş, kazanç, profil, kuponlar
 // Base URL ve kimlikli istekler window yardımcılarından alınır
 
+function updateSidebarUzakMesafe(enabled) {
+    const li = document.getElementById('sidebar-uzak-mesafe-li');
+    if (li) li.style.display = enabled ? 'block' : 'none';
+}
+
+async function fetchAndApplyUzakMesafeSidebar(baseUrl) {
+    try {
+        baseUrl = baseUrl || (window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : ''));
+        const res = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.profile) {
+            window.__sellerUzakMesafeEnabled = !!data.profile.uzakMesafeEnabled;
+            updateSidebarUzakMesafe(!!data.profile.uzakMesafeEnabled);
+        }
+    } catch (e) {}
+}
+
 async function fetchSellerMenu() {
     try {
         const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
@@ -139,10 +157,11 @@ function createMealCardHTML(meal) {
                 <span>${meal.category}</span>
             </div>
             <div class="menu-item-status">
-                ${meal.isApproved === false ? 
-                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' : 
+                ${meal.isApproved === false ?
+                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' :
                     `<span class="status-dot ${statusClass}">${statusText}</span>`
                 }
+                ${meal.isUzakMesafe ? '<span class="status-dot" style="background-color: #7c3aed; margin-left: 4px;">📦 Uzak Mesafe</span>' : ''}
             </div>
             <div class="menu-item-price">
                 ${parseFloat(meal.price || 0).toFixed(2)} TL
@@ -161,17 +180,22 @@ function createMealCardHTML(meal) {
 }
 
 async function loadMenuPage() {
-    const menuListContainer = document.querySelector('.menu-list');
-    if (!menuListContainer) {
-        return;
-    }
+    const isUzakMesafePage = !!window.__uzakMesafePage;
+    const containerId = isUzakMesafePage ? '#uzak-mesafe-menu-list' : '.menu-list';
+    const menuListContainer = document.querySelector(containerId) || document.querySelector('.menu-list');
+    if (!menuListContainer) return;
     menuListContainer.innerHTML = '<p>Yükleniyor...</p>';
     try {
-        const menu = await fetchSellerMenu();
+        const allMenu = await fetchSellerMenu();
+        const menu = isUzakMesafePage
+            ? allMenu.filter(m => !!m.isUzakMesafe)
+            : allMenu.filter(m => !m.isUzakMesafe);
         menuListContainer.innerHTML = '';
-
         if (menu.length === 0) {
-            menuListContainer.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz menü eklenmemiş. Yeni yemek eklemek için yukarıdaki butona tıklayın.</p>';
+            const emptyMsg = isUzakMesafePage
+                ? 'Henüz Uzak Mesafe ürünü eklenmemiş. Yukarıdaki butona tıklayın.'
+                : 'Henüz menü eklenmemiş. Yeni yemek eklemek için yukarıdaki butona tıklayın.';
+            menuListContainer.innerHTML = `<p style="text-align: center; padding: 2rem; color: #666;">${emptyMsg}</p>`;
         } else {
             menu.forEach(meal => {
                 menuListContainer.insertAdjacentHTML('beforeend', createMealCardHTML(meal));
@@ -400,6 +424,10 @@ async function fetchSellerOrders(tab = 'new') {
         });
         if (!response.ok) throw new Error('Siparişler yüklenemedi');
         const data = await response.json();
+        // hasOwnCouriers bilgisini sakla
+        if (data.hasOwnCouriers !== undefined) {
+            window.__sellerHasOwnCouriers = !!data.hasOwnCouriers;
+        }
         return data.success ? data.orders : [];
     } catch (error) {
         return [];
@@ -434,6 +462,21 @@ function createOrderCardHTML(order) {
     const deliveryFee = parseFloat(order.deliveryFee) || 0;
     const couponCode = order.couponCode || order.coupon_code || '';
     
+    // Ödeme yöntemi bilgisini oluştur
+    let paymentInfo = '';
+    if (order.paymentMethod === 'cash') {
+        const method = order.cashPaymentMethod === 'card' ? 'Kartla' : 'Nakit';
+        paymentInfo = `💵 Kapıda Ödeme - ${method}`;
+    } else if (order.paymentMethod === 'iyzico') {
+        paymentInfo = '💳 İyzico (Kredi Kartı)';
+    } else if (order.paymentMethod === 'wallet') {
+        paymentInfo = '💰 Cüzdan';
+    } else if (order.paymentMethod === 'credit_card') {
+        paymentInfo = '💳 Kredi Kartı';
+    } else {
+        paymentInfo = 'Belirtilmemiş';
+    }
+    
     let actionButtons = '';
     if (order.status === 'pending' || order.status === 'confirmed') {
         actionButtons = `
@@ -441,19 +484,37 @@ function createOrderCardHTML(order) {
             <button class="btn btn-primary accept-order-btn" data-order-id="${order.id}">Onayla ve Hazırlamaya Başla</button>
         `;
     } else if (order.status === 'preparing') {
+        let readyButtonText;
+        if (order.deliveryType === 'pickup') readyButtonText = 'Alıcıya Hazır Olduğunu Bildir';
+        else if (order.deliveryType === 'cargo') readyButtonText = 'Kargoya Verilecek';
+        else readyButtonText = 'Kuryeye Hazır Olduğunu Bildir';
         actionButtons = `
-            <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}">Kuryeye Hazır Olduğunu Bildir</button>
+            <button class="btn btn-primary ready-order-btn" data-order-id="${order.id}" data-delivery-type="${order.deliveryType || 'delivery'}">${readyButtonText}</button>
         `;
     } else if (order.status === 'ready' && !order.courierId) {
         if (order.deliveryType === 'pickup') {
             actionButtons = `
                 <button class="btn btn-success custom-delivered-btn" style="background-color: #27AE60; border-color: #27AE60;" data-order-id="${order.id}">Teslim Edildi</button>
             `;
+        } else if (order.deliveryType === 'cargo') {
+            actionButtons = `
+                <button class="btn btn-primary cargo-ship-btn" data-order-id="${order.id}" style="background:#8e44ad;border-color:#8e44ad;">📦 Kargoya Verildi</button>
+            `;
+        } else if (window.__sellerHasOwnCouriers) {
+            // Kendi kuryesi olan restoran: kendi kuryesini seç + havuza da gönderebilir
+            actionButtons = `
+                <button class="btn btn-primary assign-own-courier-btn" data-order-id="${order.id}" style="background:#1565C0;border-color:#1565C0;">🏍️ Kendi Kuryemi Ata</button>
+                <button class="btn btn-secondary assign-courier-btn" data-order-id="${order.id}" style="margin-left:6px; font-size:0.8rem;">Havuza Gönder</button>
+            `;
         } else {
             actionButtons = `
                 <button class="btn btn-primary assign-courier-btn" data-order-id="${order.id}">Kuryeye Bildir</button>
             `;
         }
+    } else if (order.status === 'on_delivery' && order.deliveryType === 'cargo') {
+        actionButtons = `
+            <button class="btn btn-success custom-delivered-btn" style="background-color: #27AE60; border-color: #27AE60;" data-order-id="${order.id}">Teslim Edildi</button>
+        `;
     }
     
     return `
@@ -471,7 +532,9 @@ function createOrderCardHTML(order) {
                 ${discount > 0 ? `<p><strong>Kupon:</strong> ${couponCode || 'Uygulandı'} • <span style="color:#27AE60;">-${discount.toFixed(2)} TL</span></p>` : ''}
                 ${discount > 0 ? `<p><strong>Tutar:</strong> ${subtotal.toFixed(2)} + ${deliveryFee.toFixed(2)} - ${discount.toFixed(2)} = <strong>${(parseFloat(order.total) || 0).toFixed(2)} TL</strong></p>` : ''}
                 ${order.statusText ? `<p><strong>Durum:</strong> ${order.statusText}</p>` : ''}
+                <p><strong>Ödeme:</strong> ${paymentInfo}</p>
                 ${order.courierId && order.courierName ? `<p><strong>Kurye:</strong> ${order.courierName} (ID: ${order.courierId})</p>` : ''}
+                ${order.deliveryType === 'cargo' && order.cargoCompany ? `<p><strong>Kargo Firması:</strong> ${order.cargoCompany}${order.cargoTrackingNumber ? ` • Takip: <strong>${order.cargoTrackingNumber}</strong>` : ''}</p>` : ''}
             </div>
             ${actionButtons ? `
             <div class="order-card-actions">
@@ -530,6 +593,8 @@ async function loadOrdersForTab(tab, isSilent = false) {
             const tabNames = {
                 'new': 'Yeni sipariş',
                 'preparing': 'Hazırlanan sipariş',
+                'cargo_ready': 'Kargoya verilecek sipariş',
+                'shipped': 'Kargodaki sipariş',
                 'history': 'Geçmiş sipariş'
             };
             newHtml = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
@@ -592,10 +657,18 @@ function attachOrderEventListeners() {
     document.querySelectorAll('.ready-order-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            const deliveryType = e.target.getAttribute('data-delivery-type') || 'delivery';
             try {
                 await updateOrderStatus(orderId, 'ready');
-                showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
+                if (deliveryType === 'pickup') {
+                    showSellerActionNotification('success', 'Alıcıya Bildirildi', '#' + orderId + ' numaralı gel al siparişi hazır. Müşteriye bildirim gönderildi.');
+                } else if (deliveryType === 'cargo') {
+                    showSellerActionNotification('success', 'Kargoya Hazır', '#' + orderId + ' kargoya verilecekler listesine taşındı.');
+                } else {
+                    showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
+                }
                 await loadOrdersForTab('preparing');
+                if (deliveryType === 'cargo') await loadOrdersForTab('cargo_ready');
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
@@ -630,8 +703,15 @@ function attachOrderEventListeners() {
             } catch (error) {
                 showSellerActionNotification('error', 'Kurye Atama Hatası', error.message || 'Kurye atanamadı.');
                 button.disabled = false;
-                button.textContent = 'Kuryeye Bildir';
+                button.textContent = button.getAttribute('data-delivery-type') === 'pickup' ? 'Alıcıya Hazır Olduğunu Bildir' : 'Kuryeye Bildir';
             }
+        });
+    });
+
+    document.querySelectorAll('.cargo-ship-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            showCargoShipModal(orderId);
         });
     });
 
@@ -642,10 +722,82 @@ function attachOrderEventListeners() {
                 await updateOrderStatus(orderId, 'delivered');
                 showSellerActionNotification('success', 'Sipariş Teslim Edildi', '#' + orderId + ' müşteriye teslim edildi.');
                 await loadOrdersForTab('preparing');
+                await loadOrdersForTab('shipped');
+                await loadOrdersForTab('history');
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
         });
+    });
+
+    // Kendi kuryesini ata butonu (zincir restoran)
+    document.querySelectorAll('.assign-own-courier-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const orderId = parseInt(e.target.getAttribute('data-order-id'));
+            showOwnCourierAssignModal(orderId);
+        });
+    });
+}
+
+function showCargoShipModal(orderId) {
+    const existing = document.getElementById('cargo-ship-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'cargo-ship-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:2rem;min-width:320px;max-width:460px;width:90%;">
+            <h3 style="margin:0 0 1rem 0;">📦 Kargoya Ver</h3>
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.4rem;">Kargo Firması *</label>
+                <input id="cargo-company-input" type="text" placeholder="Örn: Yurtiçi Kargo" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.4rem;">Takip Numarası (opsiyonel)</label>
+                <input id="cargo-tracking-input" type="text" placeholder="Takip numarası" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button id="cargo-ship-cancel" class="btn btn-secondary">İptal</button>
+                <button id="cargo-ship-confirm" class="btn btn-primary" style="background:#8e44ad;border-color:#8e44ad;">Kargoya Ver</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('cargo-ship-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('cargo-ship-confirm').addEventListener('click', async () => {
+        const cargoCompany = document.getElementById('cargo-company-input').value.trim();
+        const cargoTrackingNumber = document.getElementById('cargo-tracking-input').value.trim();
+        if (!cargoCompany) {
+            alert('Kargo firması zorunludur.');
+            return;
+        }
+        const btn = document.getElementById('cargo-ship-confirm');
+        btn.disabled = true;
+        btn.textContent = 'Gönderiliyor...';
+        try {
+            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            const res = await fetch(`${baseUrl}/api/orders/seller/cargo-ship/${orderId}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cargoCompany, cargoTrackingNumber })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Hata oluştu');
+            modal.remove();
+            showSellerActionNotification('success', 'Kargoya Verildi', `#${orderId} kargoya verildi. Firma: ${cargoCompany}`);
+            await loadOrdersForTab('preparing');
+            await loadOrdersForTab('cargo_ready');
+            await loadOrdersForTab('shipped');
+        } catch (err) {
+            showSellerActionNotification('error', 'Hata', err.message);
+            btn.disabled = false;
+            btn.textContent = 'Kargoya Ver';
+        }
     });
 }
 
@@ -677,8 +829,8 @@ function showSellerActionNotification(type, title, message) {
         '</div>';
     document.body.appendChild(toast);
 
-    // Dikkat çekici ses: başarılı işlemde kısa zil, hata/rette alarm tonu
-    playOrderSound(isError ? 'cancel' : 'new');
+    // Ses bildirimi satıcının kendi yaptığı işlemlerde çalmıyor,
+    // yalnızca gelen socketevents için çalıyor (initSellerSocket içinde)
 
     setTimeout(function() {
         toast.style.animation = 'slideOut 0.25s ease-in';
@@ -923,11 +1075,16 @@ async function loadProfilePage() {
         if (shopNameInput) shopNameInput.value = profile.shopName || '';
         if (descriptionInput) descriptionInput.value = profile.description || '';
         if (locationInput) locationInput.value = profile.location || '';
-        let hoursValue = profile.workingHours || '';
-        if (hoursValue && typeof hoursValue === 'object') {
-            hoursValue = JSON.stringify(hoursValue, null, 2);
+        // Çalışma saatleri editörünü doldur (yeni JSON formatı veya eski text)
+        renderScheduleEditor(profile.workingHours);
+        // Geriye uyumluluk: eski input hâlâ varsa onu da doldur
+        if (hoursInput) {
+            let hoursValue = profile.workingHours || '';
+            if (hoursValue && typeof hoursValue === 'object') {
+                hoursValue = JSON.stringify(hoursValue, null, 2);
+            }
+            hoursInput.value = hoursValue;
         }
-        if (hoursInput) hoursInput.value = hoursValue;
         if (logoPreview && profile.logoUrl) {
             logoPreview.src = profile.logoUrl;
             if (removeLogoBtn) removeLogoBtn.style.display = 'inline-block';
@@ -978,6 +1135,16 @@ async function loadProfilePage() {
             radiusSlider.value = profile.deliveryRadiusKm || 0;
             const pickupCb = document.getElementById('pickup-enabled');
             if (pickupCb) pickupCb.checked = profile.pickupEnabled !== false;
+            const uzakMesafeCb = document.getElementById('uzak-mesafe-enabled');
+            if (uzakMesafeCb) {
+                uzakMesafeCb.checked = !!profile.uzakMesafeEnabled;
+                uzakMesafeCb.addEventListener('change', function() {
+                    window.__sellerUzakMesafeEnabled = this.checked;
+                    updateSidebarUzakMesafe(this.checked);
+                });
+            }
+            window.__sellerUzakMesafeEnabled = !!profile.uzakMesafeEnabled;
+            updateSidebarUzakMesafe(!!profile.uzakMesafeEnabled);
             updateRadiusUI(radiusSlider.value);
             radiusSlider.addEventListener('input', function() {
                 updateRadiusUI(this.value);
@@ -1047,16 +1214,21 @@ async function loadProfilePage() {
                 }
                 
                 const pickupCb = document.getElementById('pickup-enabled');
+                const uzakMesafeCb = document.getElementById('uzak-mesafe-enabled');
+                const scheduleData = collectScheduleData();
                 const profileData = {
                     fullname: fullnameInput?.value || '',
                     email: emailInput?.value || '',
                     shopName: shopNameInput?.value || '',
                     description: descriptionInput?.value || '',
                     location: locationInput?.value || '',
-                    workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined,
+                    workingHours: scheduleData ? JSON.stringify(scheduleData) : (hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined),
                     deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined,
-                    pickupEnabled: pickupCb ? pickupCb.checked : true
+                    pickupEnabled: pickupCb ? pickupCb.checked : true,
+                    uzakMesafeEnabled: uzakMesafeCb ? uzakMesafeCb.checked : false
                 };
+                window.__sellerUzakMesafeEnabled = uzakMesafeCb ? uzakMesafeCb.checked : false;
+                updateSidebarUzakMesafe(window.__sellerUzakMesafeEnabled);
                 
                 if (finalLogoUrl !== undefined) profileData.logoUrl = finalLogoUrl;
                 if (finalBannerUrl !== undefined) profileData.bannerUrl = finalBannerUrl;
@@ -1310,7 +1482,10 @@ async function loadSellerCoupons() {
                             <span>•</span>
                             <span>Geçerli: ${validFrom} - ${validUntil}</span>
                         </div>
-                        <button class="btn btn-sm delete-coupon-btn" data-id="${coupon.id}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #E74C3C !important; color: white !important; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">SİL</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm edit-coupon-btn" data-id="${coupon.id}" data-code="${coupon.code}" data-description="${coupon.description || ''}" data-discount-type="${coupon.discountType}" data-discount-value="${coupon.discountValue}" data-min-order="${coupon.minOrderAmount || 0}" data-max-discount="${coupon.maxDiscountAmount || ''}" data-is-active="${coupon.isActive ? '1' : '0'}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #3498DB !important; color: white !important; border: none; border-radius: 4px; cursor: pointer;">DÜZENLE</button>
+                            <button class="btn btn-sm delete-coupon-btn" data-id="${coupon.id}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #E74C3C !important; color: white !important; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">SİL</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1395,10 +1570,140 @@ function initializeCouponsPage() {
         }
     });
     
-    // Kupon Silme Listener'ı
+    // Edit modal HTML'i DOM'a ekle
+    if (!document.getElementById('coupon-edit-modal')) {
+        const modal = document.createElement('div');
+        modal.id = 'coupon-edit-modal';
+        modal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+        modal.innerHTML = `
+            <div style="background:#fff; border-radius:12px; padding:2rem; width:90%; max-width:500px; max-height:90vh; overflow-y:auto;">
+                <h3 style="margin-bottom:1.5rem;">Kuponu Düzenle</h3>
+                <form id="coupon-edit-form">
+                    <input type="hidden" id="edit-coupon-id">
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Kupon Kodu *</label>
+                        <input type="text" id="edit-coupon-code" class="form-input" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Açıklama</label>
+                        <textarea id="edit-coupon-description" class="form-input" rows="2"></textarea>
+                    </div>
+                    <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+                        <div class="form-group" style="flex:1;">
+                            <label class="form-label">İndirim Türü *</label>
+                            <select id="edit-discount-type" class="form-input">
+                                <option value="fixed">Sabit Tutar (TL)</option>
+                                <option value="percentage">Yüzde (%)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label class="form-label">İndirim Değeri *</label>
+                            <input type="number" id="edit-discount-value" class="form-input" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Minimum Sipariş Tutarı (TL)</label>
+                        <input type="number" id="edit-min-order-amount" class="form-input" step="0.01" min="0" value="0">
+                    </div>
+                    <div class="form-group" id="edit-max-discount-group" style="margin-bottom:1rem; display:none;">
+                        <label class="form-label">Maksimum İndirim Tutarı (TL)</label>
+                        <input type="number" id="edit-max-discount-amount" class="form-input" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Yeni Geçerlilik Süresi (Gün) — boş bırakılırsa değişmez</label>
+                        <input type="number" id="edit-valid-days" class="form-input" min="1" placeholder="Örn: 30">
+                    </div>
+                    <div class="form-group" style="margin-bottom:1.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" id="edit-is-active"> Aktif
+                        </label>
+                    </div>
+                    <div style="display:flex; gap:1rem; justify-content:flex-end;">
+                        <button type="button" id="coupon-edit-cancel" class="btn btn-secondary">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.getElementById('edit-discount-type').addEventListener('change', (e) => {
+            document.getElementById('edit-max-discount-group').style.display = e.target.value === 'percentage' ? 'block' : 'none';
+        });
+
+        document.getElementById('coupon-edit-cancel').addEventListener('click', () => {
+            document.getElementById('coupon-edit-modal').style.display = 'none';
+        });
+
+        document.getElementById('coupon-edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const couponId = document.getElementById('edit-coupon-id').value;
+            const code = document.getElementById('edit-coupon-code').value.trim();
+            const description = document.getElementById('edit-coupon-description').value.trim();
+            const discountTypeValue = document.getElementById('edit-discount-type').value;
+            const discountValue = parseFloat(document.getElementById('edit-discount-value').value);
+            const minOrderAmount = parseFloat(document.getElementById('edit-min-order-amount').value) || 0;
+            const maxDiscountAmountVal = document.getElementById('edit-max-discount-amount').value;
+            const maxDiscountAmount = maxDiscountAmountVal ? parseFloat(maxDiscountAmountVal) : null;
+            const validDaysVal = document.getElementById('edit-valid-days').value;
+            const validDays = validDaysVal ? parseInt(validDaysVal) : null;
+            const isActive = document.getElementById('edit-is-active').checked;
+
+            if (!code || !discountValue || discountValue <= 0) {
+                alert('Lütfen geçerli bir kupon kodu ve indirim değeri girin.');
+                return;
+            }
+
+            try {
+                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+                const response = await fetch(`${baseUrl}/api/seller/coupons/${couponId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code, description, discountType: discountTypeValue, discountValue, minOrderAmount, maxDiscountAmount, validDays, isActive })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    alert('✅ Kupon başarıyla güncellendi!');
+                    document.getElementById('coupon-edit-modal').style.display = 'none';
+                    loadSellerCoupons();
+                } else {
+                    alert(data.message || 'Kupon güncellenemedi.');
+                }
+            } catch (err) {
+                alert('Kupon güncellenirken ağ hatası oluştu.');
+            }
+        });
+    }
+
+    // Kupon Silme ve Düzenleme Listener'ı
     const container = document.getElementById('seller-coupon-list-container');
     if (container) {
         container.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('edit-coupon-btn')) {
+                const btn = e.target;
+                document.getElementById('edit-coupon-id').value = btn.dataset.id;
+                document.getElementById('edit-coupon-code').value = btn.dataset.code;
+                document.getElementById('edit-coupon-description').value = btn.dataset.description;
+                document.getElementById('edit-discount-type').value = btn.dataset.discountType;
+                document.getElementById('edit-discount-value').value = btn.dataset.discountValue;
+                document.getElementById('edit-min-order-amount').value = btn.dataset.minOrder;
+                document.getElementById('edit-max-discount-amount').value = btn.dataset.maxDiscount;
+                document.getElementById('edit-is-active').checked = btn.dataset.isActive === '1';
+                document.getElementById('edit-valid-days').value = '';
+                document.getElementById('edit-max-discount-group').style.display = btn.dataset.discountType === 'percentage' ? 'block' : 'none';
+                
+                if (window.initYsSelects) {
+                    window.initYsSelects(document.getElementById('coupon-edit-modal'));
+                    const selectEl = document.getElementById('edit-discount-type');
+                    if (selectEl && selectEl.syncCustomUI) {
+                        selectEl.syncCustomUI();
+                    }
+                }
+                
+                document.getElementById('coupon-edit-modal').style.display = 'flex';
+                return;
+            }
             if (e.target.classList.contains('delete-coupon-btn')) {
                 const couponId = e.target.getAttribute('data-id');
                 const isConfirmed = await window.showConfirm('Bu kuponu silmek istediğinize emin misiniz?');
@@ -1469,6 +1774,8 @@ async function updateSellerSidebarOwnerName() {
                 const dashboardData = await dashboardResponse.json();
                 if (dashboardData.success && dashboardData.fullname) {
                     ownerNameEl.textContent = dashboardData.fullname;
+                    // uzak_mesafe durumunu ayrıca profile'dan çek (dashboard bunu dönmüyor)
+                    fetchAndApplyUzakMesafeSidebar(baseUrl);
                     return;
                 }
             }
@@ -1477,8 +1784,10 @@ async function updateSellerSidebarOwnerName() {
             const response = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
             if (response.ok) {
                 const data = await response.json();
-                if (data.success && data.profile && data.profile.fullname) {
-                    ownerNameEl.textContent = data.profile.fullname;
+                if (data.success && data.profile) {
+                    if (data.profile.fullname) ownerNameEl.textContent = data.profile.fullname;
+                    window.__sellerUzakMesafeEnabled = !!data.profile.uzakMesafeEnabled;
+                    updateSidebarUzakMesafe(!!data.profile.uzakMesafeEnabled);
                     return;
                 }
             }
@@ -1492,7 +1801,7 @@ async function updateSellerSidebarOwnerName() {
     }
 }
 
-const PAGE_NAMES = ['dashboard', 'orders', 'menu', 'earnings', 'profile', 'coupons'];
+const PAGE_NAMES = ['dashboard', 'orders', 'menu', 'earnings', 'profile', 'coupons', 'uzak-mesafe'];
 
 function getSellerIdFromUrl() {
     const pathParts = window.location.pathname.split('/');
@@ -1519,6 +1828,8 @@ async function initializeSellerPages() {
     const path = window.location.pathname;
     if (path.includes('/seller/')) {
         startSellerAutoSyncFallback();
+        fetchAndApplyUzakMesafeSidebar();
+        fetchAndApplyOwnCouriersSidebar();
     }
     
     let sellerId = getSellerIdFromUrl();
@@ -1577,8 +1888,11 @@ async function initializeSellerPages() {
         initializeDashboardPage();
     } else if (path.includes('/seller/') && path.includes('/profile')) {
         initializeProfilePage();
+        initializeOwnCouriersToggle();
     } else if (path.includes('/seller/') && path.includes('/coupons')) {
         initializeCouponsPage();
+    } else if (path.includes('/seller/') && path.includes('/own-couriers')) {
+        initializeOwnCouriersPage();
     } else {
         if (path.includes('menu.html') || document.querySelector('.menu-list')) {
             initializeMenuPage();
@@ -1597,539 +1911,472 @@ async function initializeSellerPages() {
 }
 
 // ========== REAL-TIME SİPARİŞ TESLİMATI (SOCKET.IO) ==========
-function initializeSellerRealTimeUpdates() {
-    if (!window.location.pathname.includes('/seller')) return;
-    startSellerAutoSyncFallback();
-    // Production proxy/WebSocket sorunlarında ana akış polling fallback ile ilerler.
-    // Socket bağlantısı opsiyoneldir; gerektiğinde tekrar açılabilir.
-    const ENABLE_SELLER_SOCKET = false;
-    if (!ENABLE_SELLER_SOCKET) return;
-    
-    // Socket.IO client library'yi bekle
-    let retries = 0;
-    const maxRetries = 50;
-    
-    const waitForIO = setInterval(() => {
-        retries++;
-        if (typeof io !== 'undefined') {
-            clearInterval(waitForIO);
-            unlockNotificationAudio();
-            connectSellerSocket();
-        } else if (retries >= maxRetries) {
-            clearInterval(waitForIO);
-            console.error('Socket.IO library yüklenemedi');
-        }
-    }, 100);
-}
 
 let sellerAutoSyncInterval = null;
 let sellerKnownPendingOrderIds = new Set();
 let sellerAutoSyncInitialized = false;
 
-function normalizeSellerOrderForNotification(order) {
-    if (!order) return null;
-    return {
-        id: order.id,
-        orderNumber: order.orderNumber || order.order_number || ('#' + (order.id || '')),
-        buyerName: order.customer || order.buyerName || 'Müşteri',
-        totalAmount: (order.total != null ? order.total : (order.totalAmount != null ? order.totalAmount : 0))
-    };
-}
-
+// Fallback polling (Eğer socket çalışmıyorsa 30 saniyede bir kontrol et)
 async function runSellerAutoSync() {
     if (!window.location.pathname.includes('/seller')) return;
     if (document.hidden) return;
+    if (window.__socketManager && window.__socketManager.isConnected()) return; // Socket bağlıysa polling atla
 
     try {
         const pendingOrders = await fetchSellerOrders('pending');
-        const latestIds = new Set((pendingOrders || []).map(function(order) { return Number(order.id); }).filter(Boolean));
-
-        if (!sellerAutoSyncInitialized) {
-            sellerKnownPendingOrderIds = latestIds;
-            sellerAutoSyncInitialized = true;
-        } else {
-            (pendingOrders || []).forEach(function(order) {
-                const id = Number(order.id);
-                if (!id) return;
-                if (!sellerKnownPendingOrderIds.has(id)) {
-                    const orderData = normalizeSellerOrderForNotification(order);
-                    if (orderData) showOrderNotification(orderData);
-                }
-            });
-            sellerKnownPendingOrderIds = latestIds;
-        }
-
         const isOrdersPage = document.querySelector('.tabs') !== null;
         const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
         const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
 
-        if (isDashboardPage) {
-            await loadDashboardPage();
-        } else if (isEarningsPage) {
-            await loadRecentOrdersForPanel();
-        } else if (isOrdersPage) {
+        if (isDashboardPage) await loadDashboardPage();
+        else if (isEarningsPage) await loadRecentOrdersForPanel();
+        else if (isOrdersPage) {
             const activeTabBtn = document.querySelector('.tab-link.active');
-            if (activeTabBtn) {
-                const currentTab = activeTabBtn.getAttribute('data-tab');
-                if (typeof loadOrdersForTab === 'function') {
-                    await loadOrdersForTab(currentTab, true);
-                }
-            }
+            if (activeTabBtn) await loadOrdersForTab(activeTabBtn.getAttribute('data-tab'), true);
         }
     } catch (error) {}
 }
 
 function startSellerAutoSyncFallback() {
     if (sellerAutoSyncInterval) return;
-    runSellerAutoSync().catch(function() {});
-    sellerAutoSyncInterval = setInterval(function() {
-        runSellerAutoSync().catch(function() {});
-    }, 3000);
+    sellerAutoSyncInterval = setInterval(() => runSellerAutoSync().catch(() => {}), 30000); // 30s'e çekildi
 }
 
-async function resolveSellerUserId() {
-    try {
-        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        const response = await fetch(`${baseUrl}/api/auth/me`, { credentials: 'include' });
-        if (!response.ok) throw new Error('auth me failed');
-        const data = await response.json();
-        const fallbackUserId = data?.user?.id;
-        if (fallbackUserId) {
-            window.currentUserId = fallbackUserId;
-            if (window.sessionStorage) {
-                window.sessionStorage.setItem('userId', String(fallbackUserId));
-            }
-            return String(fallbackUserId);
-        }
-    } catch (error) {}
-
-    const directUserId = window.currentUserId ||
-        (window.sessionStorage && window.sessionStorage.getItem('userId')) ||
-        document.querySelector('[data-user-id]')?.dataset.userId;
-
-    if (directUserId && directUserId !== 'unknown') {
-        return String(directUserId);
+// Merkezi socket entegrasyonu
+function initSellerSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initSellerSocket, 500);
+        return;
     }
+    
+    // Fallback'i başlat
+    startSellerAutoSyncFallback();
 
-    return null;
+    window.__socketManager.on('new_order', async (orderData) => {
+        window.__socketManager.notifyQueue('new_order', orderData);
+        refreshSellerUI('new');
+    });
+
+    window.__socketManager.on('order_cancelled', async (orderData) => {
+        window.__socketManager.notifyQueue('order_cancelled', orderData);
+        // Her tabı yenile, iptal her sekmede olabilir
+        refreshSellerUI('current');
+    });
+
+    window.__socketManager.on('order_status_updated', async (orderData) => {
+        // Satıcı bir statü değişikliği alırsa (örn. kurye aldı) — ses çalma, sadece UI yenile
+        refreshSellerUI('current');
+    });
+
+    window.__socketManager.on('uzak_mesafe_toggle', (data) => {
+        window.__sellerUzakMesafeEnabled = !!data.enabled;
+        if(typeof updateSidebarUzakMesafe === 'function') updateSidebarUzakMesafe(!!data.enabled);
+    });
+
+    window.__socketManager.on('own_courier_status_changed', (data) => {
+        if (window.location.pathname.includes('/own-couriers') && typeof window.__reloadOwnCouriersList === 'function') {
+            window.__reloadOwnCouriersList();
+        }
+    });
 }
 
-async function connectSellerSocket() {
-    if (window.sellerSocket) return;
+// UI Yenileme Fonksiyonu ("Yükleniyor" göstermeden gizlice günceller)
+async function refreshSellerUI(targetTab) {
+    const isOrdersPage = document.querySelector('.tabs') !== null; 
+    const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
+    const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
     
-    try {
-        const userId = await resolveSellerUserId();
-        if (!userId) {
-            console.warn('Socket.IO için userId alınamadı, tekrar denenecek');
-            setTimeout(() => connectSellerSocket(), 1200);
-            return;
-        }
-        
-        if (typeof io === 'undefined') {
-            console.error('Socket.IO client library yüklenmedi');
-            return;
-        }
-        
-        window.sellerSocket = (typeof window.createAppSocket === 'function' ? window.createAppSocket({
-            query: { userId },
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
-            transports: ['polling'],
-            upgrade: false
-        }) : io({
-            query: { userId },
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
-            transports: ['polling'],
-            upgrade: false
-        }));
-
-        if (!window.sellerSocket) {
-            console.error('Socket.IO başlatılamadı (client hazır değil)');
-            return;
-        }
-
-        window.sellerSocket.on('connect', () => {
-            console.log('Socket.IO bağlantısı kuruldu');
-        });
-
-        window.sellerSocket.on('new_order', async (orderData) => {
-            console.log('Yeni sipariş geldi:', orderData);
-            
-            const isOrdersPage = document.querySelector('.tabs') !== null; 
-            const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
-            const isEarningsPage = document.querySelector('#recent-orders-list-earnings') !== null;
-            
-            showOrderNotification(orderData);
-            
-            // Dashboard'da ise tüm sayfayı yenile
-            if (isDashboardPage) {
-                loadDashboardPage().catch((error) => {
-                    console.error('Dashboard yenilenmesi hatası:', error);
-                });
-            }
-            // Kazanç sayfasında Son Gelen Siparişler'i yenile
-            if (isEarningsPage) {
-                loadRecentOrdersForPanel().catch((error) => {
-                    console.error('Son siparişler yenilenmesi hatası:', error);
-                });
-            }
-            
-            // Orders sayfasında ise siparişleri yenile
-            if (isOrdersPage) {
-                try {
-                    const tabContent = document.querySelector('.tab-content');
-                    if (tabContent) {
-                        const orders = await fetchSellerOrders('pending');
-                        if (orders.length > 0) {
-                            tabContent.innerHTML = '';
-                            orders.forEach(order => {
-                                tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                            });
-                            attachOrderEventListeners();
-                        }
-                    }
-                } catch (error) {
-                    console.error('Orders listesi güncellenirken hata:', error);
+    if (isDashboardPage && typeof loadDashboardPage === 'function') {
+        loadDashboardPage();
+    }
+    if (isEarningsPage && typeof loadRecentOrdersForPanel === 'function') {
+        loadRecentOrdersForPanel();
+    }
+    if (isOrdersPage) {
+        try {
+            if (targetTab === 'new') {
+                // Spesifik olarak 'new' sekmesini güncelle (Yeni sipariş geldi)
+                await loadOrdersForTab('new', true);
+            } else if (targetTab === 'current') {
+                // Aktif görüntülenen sekmeyi güncelle
+                const activeTabBtn = document.querySelector('.tab-link.active');
+                if (activeTabBtn) {
+                    await loadOrdersForTab(activeTabBtn.getAttribute('data-tab'), true);
                 }
-            } 
-            
-        });
-
-        // Sipariş iptal edildiğinde
-        window.sellerSocket.on('order_cancelled', async (orderData) => {
-            console.log('Sipariş iptal edildi:', orderData);
-            
-            const isOrdersPage = document.querySelector('.tabs') !== null; 
-            const isDashboardPage = document.querySelector('#recent-orders-list') !== null;
-            const cancelledBy = orderData.cancelledBy === 'buyer' ? 'Müşteri' : 'Satıcı';
-            
-            showCancelNotification(orderData, cancelledBy);
-            
-            // Dashboard'da ise tüm sayfayı yenile
-            if (isDashboardPage) {
-                loadDashboardPage().catch((error) => {
-                    console.error('Dashboard yenilenmesi hatası:', error);
-                });
-            }
-            
-            // Orders sayfasında ise siparişleri yenile
-            if (isOrdersPage) {
-                try {
-                    const tabContent = document.querySelector('.tab-content');
-                    if (tabContent) {
-                        const orders = await fetchSellerOrders('pending');
-                        if (orders.length > 0) {
-                            tabContent.innerHTML = '';
-                            orders.forEach(order => {
-                                tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order));
-                            });
-                            attachOrderEventListeners();
-                        } else {
-                            tabContent.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş yok</p>';
-                        }
+            } else {
+                // Geçmiş davranış: pending'i yüklemeye çalış
+                const tabContent = document.querySelector('.tab-content');
+                if (tabContent) {
+                    const orders = await fetchSellerOrders('new');
+                    if (orders.length > 0) {
+                        tabContent.innerHTML = '';
+                        orders.forEach(order => tabContent.insertAdjacentHTML('beforeend', createOrderCardHTML(order)));
+                        if(typeof attachOrderEventListeners === 'function') attachOrderEventListeners();
                     }
-                } catch (error) {
-                    console.error('İptal edilen sipariş güncellenirken hata:', error);
                 }
             }
-            
-        });
-
-        window.sellerSocket.on('connect_error', (error) => {
-            console.error('Socket.IO bağlantı hatası:', error.message);
-        });
-
-        window.sellerSocket.on('disconnect', (reason) => {
-            console.log('Socket.IO bağlantısı kesildi:', reason);
-        });
-
-    } catch (error) {
-        console.error('Socket.IO başlatma hatası:', error);
+        } catch (error) {
+            console.error('Sipariş listesi güncellenirken hata:', error);
+        }
     }
 }
 
-function showOrderNotification(orderData) {
-    // Toast notification göster
-    const notification = document.createElement('div');
-    notification.className = 'order-notification-toast';
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #4CAF50;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 14px;
-        animation: slideIn 0.3s ease-out;
-        font-weight: 500;
-        max-width: 400px;
-    `;
-    
-    notification.innerHTML = `
-        <span style="font-size: 20px;">🔔</span>
-        <div style="flex: 1;">
-            <strong>${orderData.orderNumber}</strong><br>
-            <small>${orderData.buyerName} - ${orderData.totalAmount} TL</small>
-        </div>
-        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0;">×</button>
-    `;
-    
-    // CSS Animation ekleme
-    if (!document.querySelector('style[data-notification-style]')) {
-        const style = document.createElement('style');
-        style.setAttribute('data-notification-style', '');
-        style.textContent = `
-            @keyframes slideIn {
-                from {
-                    transform: translateX(400px);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-            @keyframes slideOut {
-                from {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-                to {
-                    transform: translateX(400px);
-                    opacity: 0;
-                }
-            }
+// ═══════════════════════════════════════════════════════════
+// ÇALIŞMA SAATLERİ EDITORU
+// ═══════════════════════════════════════════════════════════
+
+const SCHEDULE_DAYS = [
+    { key: 'mon', label: 'Pazartesi' },
+    { key: 'tue', label: 'Salı' },
+    { key: 'wed', label: 'Çarşamba' },
+    { key: 'thu', label: 'Perşembe' },
+    { key: 'fri', label: 'Cuma' },
+    { key: 'sat', label: 'Cumartesi' },
+    { key: 'sun', label: 'Pazar' }
+];
+
+function parseWorkingHoursToSchedule(raw) {
+    const defaults = {};
+    SCHEDULE_DAYS.forEach(d => {
+        defaults[d.key] = { enabled: d.key !== 'sun', open: '09:00', close: '21:00' };
+    });
+
+    if (!raw) return { days: defaults, autoToggle: false };
+
+    let parsed = raw;
+    if (typeof raw === 'string') {
+        try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+    }
+    if (parsed && typeof parsed === 'object' && parsed.days) {
+        const days = {};
+        SCHEDULE_DAYS.forEach(d => {
+            const v = parsed.days[d.key] || defaults[d.key];
+            days[d.key] = {
+                enabled: !!v.enabled,
+                open: v.open || '09:00',
+                close: v.close || '21:00'
+            };
+        });
+        return { days, autoToggle: parsed.autoToggle !== false };
+    }
+    // Eski format ({ hours: "..." } veya plain text) — varsayılan çizelge, otomatik kapalı
+    return { days: defaults, autoToggle: false };
+}
+
+function renderScheduleEditor(rawHours) {
+    const container = document.getElementById('schedule-editor');
+    if (!container) return;
+    const data = parseWorkingHoursToSchedule(rawHours);
+    container.innerHTML = SCHEDULE_DAYS.map(d => {
+        const v = data.days[d.key];
+        return `
+            <div class="schedule-day-row" data-day="${d.key}" style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid var(--border-color, #e2e8f0);">
+                <label style="flex:0 0 130px; display:flex; align-items:center; gap:0.4rem; cursor:pointer; margin:0;">
+                    <input type="checkbox" class="day-enabled" ${v.enabled ? 'checked' : ''}>
+                    <span>${d.label}</span>
+                </label>
+                <input type="time" class="day-open form-input" value="${v.open}" style="flex:1; max-width:120px;">
+                <span style="color:#94a3b8;">—</span>
+                <input type="time" class="day-close form-input" value="${v.close}" style="flex:1; max-width:120px;">
+                <button type="button" class="btn btn-sm btn-secondary day-closed-btn" data-day="${d.key}" title="Bu gün kapalı">Kapalı</button>
+            </div>
         `;
-        document.head.appendChild(style);
-    }
-    
-    document.body.appendChild(notification);
-    
-    // Ses çal (yeni sipariş - bell sound)
-    playOrderSound('new');
-    
-    // 6 saniye sonra otomatik kapatılsın
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => notification.remove(), 300);
-    }, 6000);
+    }).join('');
+
+    const autoCb = document.getElementById('schedule-auto-toggle');
+    if (autoCb) autoCb.checked = data.autoToggle !== false;
+
+    container.querySelectorAll('.day-closed-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const row = btn.closest('.schedule-day-row');
+            const cb = row.querySelector('.day-enabled');
+            cb.checked = false;
+        });
+    });
 }
 
-function showCancelNotification(orderData, cancelledBy) {
-    const notification = document.createElement('div');
-    notification.className = 'order-notification-toast';
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #f44336;
-        color: white;
-        padding: 16px 24px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 14px;
-        animation: slideIn 0.3s ease-out;
-        font-weight: 500;
-        max-width: 400px;
-    `;
-    
-    notification.innerHTML = `
-        <span style="font-size: 20px;">🚫</span>
-        <div style="flex: 1;">
-            <strong>Sipariş İptal Edildi</strong><br>
-            <small>${orderData.orderNumber} - ${cancelledBy} tarafından</small>
-        </div>
-        <button onclick="this.parentElement.remove()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0;">×</button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Ses çal (iptal - alarm sound)
-    playOrderSound('cancel');
-    
-    // 6 saniye sonra otomatik kapatılsın
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => notification.remove(), 300);
-    }, 6000);
-}
-
-function playOrderSound(type) {
-    try {
-        if (!notificationAudioUnlocked) {
-            pendingSoundType = type;
-            attachAudioUnlockListeners();
-            playSpeechFallback(type);
-            return;
-        }
-        const context = getNotificationAudioContext();
-        if (!context) {
-            playSpeechFallback(type);
-            return;
-        }
-
-        if (context.state !== 'running') {
-            pendingSoundType = type;
-            attachAudioUnlockListeners();
-            playSpeechFallback(type);
-            context.resume().then(() => {
-                const queuedType = pendingSoundType;
-                pendingSoundType = null;
-                if (queuedType) {
-                    playOrderSound(queuedType);
-                }
-            }).catch(() => {});
-            return;
-        }
-        
-        if (type === 'new') {
-            const start = context.currentTime;
-            const osc1 = context.createOscillator();
-            const gain1 = context.createGain();
-            osc1.frequency.value = 880;
-            osc1.type = 'triangle';
-            osc1.connect(gain1);
-            gain1.connect(context.destination);
-            gain1.gain.setValueAtTime(0.0001, start);
-            gain1.gain.exponentialRampToValueAtTime(0.85, start + 0.02);
-            gain1.gain.exponentialRampToValueAtTime(0.0001, start + 0.28);
-            osc1.start(start);
-            osc1.stop(start + 0.30);
-
-            const osc2 = context.createOscillator();
-            const gain2 = context.createGain();
-            osc2.frequency.value = 1174;
-            osc2.type = 'triangle';
-            osc2.connect(gain2);
-            gain2.connect(context.destination);
-            gain2.gain.setValueAtTime(0.0001, start + 0.18);
-            gain2.gain.exponentialRampToValueAtTime(0.75, start + 0.22);
-            gain2.gain.exponentialRampToValueAtTime(0.0001, start + 0.75);
-            osc2.start(start + 0.18);
-            osc2.stop(start + 0.78);
-        } else if (type === 'cancel') {
-            const start = context.currentTime;
-            const freqs = [420, 320, 420, 320];
-            freqs.forEach((frequency, index) => {
-                const beepStart = start + (index * 0.24);
-                const osc = context.createOscillator();
-                const gain = context.createGain();
-                osc.frequency.value = frequency;
-                osc.type = 'sawtooth';
-                osc.connect(gain);
-                gain.connect(context.destination);
-                gain.gain.setValueAtTime(0.0001, beepStart);
-                gain.gain.exponentialRampToValueAtTime(0.9, beepStart + 0.03);
-                gain.gain.exponentialRampToValueAtTime(0.0001, beepStart + 0.20);
-                osc.start(beepStart);
-                osc.stop(beepStart + 0.22);
-            });
-        }
-    } catch (error) {
-        console.error('Ses çalma hatası:', error);
-        playSpeechFallback(type);
-    }
-}
-
-let notificationAudioContext = null;
-let notificationAudioUnlocked = false;
-let pendingSoundType = null;
-let audioUnlockListenersAttached = false;
-let lastSpeechAt = 0;
-
-function getNotificationAudioContext() {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) {
-        console.warn('Web Audio API bu tarayıcıda desteklenmiyor');
-        return null;
-    }
-
-    if (!notificationAudioContext) {
-        notificationAudioContext = new AudioContext();
-    }
-
-    return notificationAudioContext;
-}
-
-function unlockNotificationAudio() {
-    attachAudioUnlockListeners();
-}
-
-function attachAudioUnlockListeners() {
-    if (audioUnlockListenersAttached) return;
-    audioUnlockListenersAttached = true;
-
-    const unlock = () => {
-        const context = getNotificationAudioContext();
-        if (context && context.state !== 'running') {
-            context.resume().catch(() => {});
-        }
-        
-        if (context && context.state === 'running') {
-            notificationAudioUnlocked = true;
-            if (pendingSoundType) {
-                const queuedType = pendingSoundType;
-                pendingSoundType = null;
-                playOrderSound(queuedType);
-            }
-        }
+function collectScheduleData() {
+    const container = document.getElementById('schedule-editor');
+    if (!container) return null;
+    const rows = container.querySelectorAll('.schedule-day-row');
+    if (rows.length === 0) return null;
+    const days = {};
+    rows.forEach(row => {
+        const key = row.dataset.day;
+        const enabled = row.querySelector('.day-enabled').checked;
+        const open = row.querySelector('.day-open').value || '09:00';
+        const close = row.querySelector('.day-close').value || '21:00';
+        days[key] = { enabled, open, close };
+    });
+    const autoCb = document.getElementById('schedule-auto-toggle');
+    return {
+        days,
+        autoToggle: autoCb ? autoCb.checked : true
     };
-
-    document.addEventListener('pointerdown', unlock, true);
-    document.addEventListener('keydown', unlock, true);
-    document.addEventListener('touchstart', unlock, true);
-    window.addEventListener('focus', unlock);
 }
 
-function playSpeechFallback(type) {
-    try {
-        const synth = window.speechSynthesis;
-        if (!synth) return;
-
-        const now = Date.now();
-        if (now - lastSpeechAt < 800) return;
-        lastSpeechAt = now;
-
-        const utterance = new SpeechSynthesisUtterance(
-            type === 'cancel' ? 'Sipariş iptal edildi' : 'Yeni sipariş geldi'
-        );
-        utterance.lang = 'tr-TR';
-        utterance.rate = type === 'cancel' ? 1.0 : 1.1;
-        utterance.pitch = type === 'cancel' ? 0.8 : 1.2;
-        utterance.volume = 1;
-
-        synth.cancel();
-        synth.speak(utterance);
-    } catch (error) {}
-}
-
-// Satıcı sayfası yüklendiğinde Socket.IO bağlantısını başlat
 document.addEventListener('DOMContentLoaded', () => {
     if (window.location.pathname.includes('/seller')) {
-        initializeSellerRealTimeUpdates();
+        initSellerSocket();
     }
 });
 
-// Sayfa navigasyon sırasında da başlat (single page app içim)
-window.addEventListener('load', () => {
-    if (window.location.pathname.includes('/seller')) {
-        setTimeout(() => initializeSellerRealTimeUpdates(), 500);
+// ═══════════════════════════════════════════════════════════
+// KENDİ KURYE YÖNETİMİ MODAL & SAYFA FONKSİYONLARI
+// ═══════════════════════════════════════════════════════════
+
+// Kendi kuryesini atama modalı
+async function showOwnCourierAssignModal(orderId) {
+    const existing = document.getElementById('own-courier-assign-modal');
+    if (existing) existing.remove();
+
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+
+    // Kurye listesini çek
+    let couriers = [];
+    try {
+        const res = await fetch(`${baseUrl}/api/seller/own-couriers`, { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.couriers) couriers = data.couriers;
+    } catch (e) {}
+
+    const modal = document.createElement('div');
+    modal.id = 'own-courier-assign-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10100;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+
+    const onlineCouriers = couriers.filter(c => c.status === 'online');
+    const offlineCouriers = couriers.filter(c => c.status !== 'online');
+
+    let courierOptions = '';
+    if (couriers.length === 0) {
+        courierOptions = '<p style="color:#E74C3C; font-size:0.9rem;">Henüz kadronuzda kurye bulunmuyor. Kurye Yönetimi sayfasından kurye ekleyin.</p>';
+    } else {
+        courierOptions = '<select id="own-courier-select" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">';
+        if (onlineCouriers.length > 0) {
+            courierOptions += '<optgroup label="🟢 Çevrimiçi">';
+            onlineCouriers.forEach(c => {
+                courierOptions += `<option value="${c.id}">🟢 ${c.fullname} (${c.email})</option>`;
+            });
+            courierOptions += '</optgroup>';
+        }
+        if (offlineCouriers.length > 0) {
+            courierOptions += '<optgroup label="⚫ Çevrimdışı">';
+            offlineCouriers.forEach(c => {
+                courierOptions += `<option value="${c.id}">⚫ ${c.fullname} (${c.email})</option>`;
+            });
+            courierOptions += '</optgroup>';
+        }
+        courierOptions += '</select>';
     }
-});
 
+    modal.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:2rem;min-width:320px;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 1rem 0;font-size:1.15rem;">🏍️ Kendi Kuryeni Seç</h3>
+            <p style="font-size:0.9rem;color:#666;margin-bottom:1rem;">Sipariş <strong>#${orderId}</strong> için kurye seçin:</p>
+            <div style="margin-bottom:1.5rem;">
+                ${courierOptions}
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button id="own-courier-cancel" class="btn btn-secondary">İptal</button>
+                ${couriers.length > 0 ? '<button id="own-courier-confirm" class="btn btn-primary" style="background:#1565C0;border-color:#1565C0;">Kuryeyi Ata</button>' : ''}
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
 
+    document.getElementById('own-courier-cancel').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    const confirmBtn = document.getElementById('own-courier-confirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            const selectedCourierId = document.getElementById('own-courier-select').value;
+            if (!selectedCourierId) {
+                alert('Lütfen bir kurye seçin.');
+                return;
+            }
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Atanıyor...';
+
+            try {
+                const res = await fetch(`${baseUrl}/api/orders/seller/assign-own-courier/${orderId}`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courierId: parseInt(selectedCourierId) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Kurye atanamadı');
+                modal.remove();
+                showSellerActionNotification('success', 'Kurye Atandı', data.message || `Sipariş #${orderId} kuryeye atandı.`);
+                await loadOrdersForTab('preparing');
+                await loadOrdersForTab('history');
+            } catch (err) {
+                showSellerActionNotification('error', 'Kurye Atama Hatası', err.message);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Kuryeyi Ata';
+            }
+        });
+    }
+}
+
+// Kurye Yönetimi sayfası
+async function initializeOwnCouriersPage() {
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+    const listEl = document.getElementById('own-couriers-list');
+    const addBtn = document.getElementById('add-own-courier-btn');
+    const emailInput = document.getElementById('own-courier-email');
+    const statusEl = document.getElementById('own-courier-status');
+
+    if (!listEl) return;
+
+    async function loadCouriers(silent = false) {
+        if (!silent) {
+            listEl.innerHTML = '<p style="text-align:center;padding:1rem;color:#666;">Yükleniyor...</p>';
+        }
+        try {
+            const res = await fetch(`${baseUrl}/api/seller/own-couriers`, { credentials: 'include' });
+            const data = await res.json();
+            if (!data.success || !data.hasOwnCouriers) {
+                listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#999;">Önce profil sayfasından "Kendi Kuryem Var" seçeneğini aktifleştirin.</p>';
+                return;
+            }
+            if (data.couriers.length === 0) {
+                listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#999;">Henüz kadronuzda kurye yok. Aşağıdan e-posta ile kurye ekleyin.</p>';
+                return;
+            }
+            listEl.innerHTML = data.couriers.map(c => `
+                <div class="card" style="padding:1rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;border-radius:10px;">
+                    <div>
+                        <strong>${c.fullname}</strong>
+                        <span style="color:#888;font-size:0.85rem;margin-left:6px;">${c.email}</span>
+                        ${c.phone ? `<span style="color:#888;font-size:0.85rem;margin-left:6px;">📞 ${c.phone}</span>` : ''}
+                        <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:12px;font-size:0.8rem;font-weight:600;${c.status === 'online' ? 'background:#e8f5e9;color:#2e7d32;' : 'background:#fafafa;color:#999;'}">${c.status === 'online' ? '🟢 Aktif' : '⚫ Çevrimdışı'}</span>
+                    </div>
+                    <button class="btn btn-danger btn-sm remove-own-courier-btn" data-courier-id="${c.id}" data-courier-name="${c.fullname}" style="white-space:nowrap;">Çıkar</button>
+                </div>
+            `).join('');
+
+            // Çıkarma butonları
+            listEl.querySelectorAll('.remove-own-courier-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const cId = e.target.getAttribute('data-courier-id');
+                    const cName = e.target.getAttribute('data-courier-name');
+                    const confirmed = window.showConfirm ? await window.showConfirm(`${cName} kuryesini kadronuzdan çıkarmak istediğinize emin misiniz?`) : confirm(`${cName} kuryesini kadronuzdan çıkarmak istediğinize emin misiniz?`);
+                    if (!confirmed) return;
+                    try {
+                        const res = await fetch(`${baseUrl}/api/seller/own-couriers/${cId}`, { method: 'DELETE', credentials: 'include' });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.message || 'Hata');
+                        showSellerActionNotification('success', 'Kurye Çıkarıldı', data.message || `${cName} kadrodan çıkarıldı.`);
+                        loadCouriers();
+                    } catch (err) {
+                        showSellerActionNotification('error', 'Hata', err.message);
+                    }
+                });
+            });
+        } catch (err) {
+            listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#E74C3C;">Kurye listesi yüklenemedi.</p>';
+        }
+    }
+    
+    window.__reloadOwnCouriersList = () => loadCouriers(true);
+
+    if (addBtn) {
+        addBtn.addEventListener('click', async () => {
+            const email = emailInput?.value?.trim();
+            if (!email) {
+                if (statusEl) statusEl.textContent = 'E-posta adresi girin.';
+                return;
+            }
+            addBtn.disabled = true;
+            addBtn.textContent = 'Ekleniyor...';
+            if (statusEl) statusEl.textContent = '';
+            try {
+                const res = await fetch(`${baseUrl}/api/seller/own-couriers`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Kurye eklenemedi');
+                showSellerActionNotification('success', 'Kurye Eklendi', data.message);
+                emailInput.value = '';
+                loadCouriers();
+            } catch (err) {
+                showSellerActionNotification('error', 'Hata', err.message);
+                if (statusEl) statusEl.textContent = err.message;
+            } finally {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Kurye Ekle';
+            }
+        });
+    }
+
+    loadCouriers();
+}
+window.initializeOwnCouriersPage = initializeOwnCouriersPage;
+
+// Profil sayfasında hasOwnCouriers toggle desteği
+function initializeOwnCouriersToggle() {
+    const toggle = document.getElementById('has-own-couriers-toggle');
+    if (!toggle) return;
+
+    // Mevcut durumu yükle
+    fetchAndApplyUzakMesafeSidebar().then(() => {
+        // __sellerProfile'dan alınıyor
+    });
+
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+
+    fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.profile) {
+                toggle.checked = !!data.profile.hasOwnCouriers;
+                updateOwnCouriersSidebar(!!data.profile.hasOwnCouriers);
+            }
+        })
+        .catch(() => {});
+
+    toggle.addEventListener('change', async () => {
+        try {
+            const res = await fetch(`${baseUrl}/api/seller/profile`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hasOwnCouriers: toggle.checked })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Güncelleme başarısız');
+            updateOwnCouriersSidebar(toggle.checked);
+            showSellerActionNotification('success', 'Güncellendi', toggle.checked ? 'Kendi kurye özelliği aktifleştirildi.' : 'Kendi kurye özelliği kapatıldı.');
+        } catch (err) {
+            toggle.checked = !toggle.checked;
+            showSellerActionNotification('error', 'Hata', err.message);
+        }
+    });
+}
+window.initializeOwnCouriersToggle = initializeOwnCouriersToggle;
+
+function updateOwnCouriersSidebar(enabled) {
+    const li = document.getElementById('sidebar-own-couriers-li');
+    if (li) li.style.display = enabled ? 'block' : 'none';
+}
+window.updateOwnCouriersSidebar = updateOwnCouriersSidebar;
+
+// Sayfa yüklendiğinde sidebar durumunu güncelle
+async function fetchAndApplyOwnCouriersSidebar(baseUrl) {
+    try {
+        baseUrl = baseUrl || (window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : ''));
+        const res = await fetch(`${baseUrl}/api/seller/profile`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && data.profile) {
+            window.__sellerHasOwnCouriers = !!data.profile.hasOwnCouriers;
+            updateOwnCouriersSidebar(!!data.profile.hasOwnCouriers);
+        }
+    } catch (e) {}
+}
+window.fetchAndApplyOwnCouriersSidebar = fetchAndApplyOwnCouriersSidebar;
