@@ -63,9 +63,11 @@
                     </form>
                 </div>
 
+                <% if (typeof authType === 'undefined' || authType !== 'admin') { %>
                 <div class="auth-footer-link">
                     <p>Hesabın yok mu? <a href="/register">Hemen Kayıt Ol</a></p>
                 </div>
+                <% } %>
 
             </div>
         </div>

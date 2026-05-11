@@ -539,7 +539,7 @@ async function sepetiYenile()
             checkoutBtn.classList.remove('btn-disabled');
             checkoutBtn.style.pointerEvents = 'auto';
             checkoutBtn.style.opacity = '1';
-            checkoutBtn.textContent = 'Ödemeye Geç';
+            checkoutBtn.textContent = 'Siparişi Tamamla';
         }
         if (couponInput) couponInput.disabled = false;
         if (couponBtn) couponBtn.disabled = false;

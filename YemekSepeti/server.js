@@ -202,6 +202,7 @@ try {
         const isPanelPath = pathName.startsWith('/admin') || pathName.startsWith('/seller') || pathName.startsWith('/courier');
         const isAuthPath = pathName === '/login' || pathName === '/register' || pathName === '/forgot-password' || pathName === '/reset-password' || pathName.startsWith('/auth/') || pathName.startsWith('/register/documents');
         res.locals.enableDeliveryModal = !(isPanelHost || isPanelPath || isAuthPath);
+        res.locals.isAdminDomain = host.includes('admin');
         next();
     });
 
