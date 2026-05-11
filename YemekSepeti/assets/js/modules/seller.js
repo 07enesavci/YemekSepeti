@@ -1075,11 +1075,16 @@ async function loadProfilePage() {
         if (shopNameInput) shopNameInput.value = profile.shopName || '';
         if (descriptionInput) descriptionInput.value = profile.description || '';
         if (locationInput) locationInput.value = profile.location || '';
-        let hoursValue = profile.workingHours || '';
-        if (hoursValue && typeof hoursValue === 'object') {
-            hoursValue = JSON.stringify(hoursValue, null, 2);
+        // Çalışma saatleri editörünü doldur (yeni JSON formatı veya eski text)
+        renderScheduleEditor(profile.workingHours);
+        // Geriye uyumluluk: eski input hâlâ varsa onu da doldur
+        if (hoursInput) {
+            let hoursValue = profile.workingHours || '';
+            if (hoursValue && typeof hoursValue === 'object') {
+                hoursValue = JSON.stringify(hoursValue, null, 2);
+            }
+            hoursInput.value = hoursValue;
         }
-        if (hoursInput) hoursInput.value = hoursValue;
         if (logoPreview && profile.logoUrl) {
             logoPreview.src = profile.logoUrl;
             if (removeLogoBtn) removeLogoBtn.style.display = 'inline-block';
@@ -1210,13 +1215,14 @@ async function loadProfilePage() {
                 
                 const pickupCb = document.getElementById('pickup-enabled');
                 const uzakMesafeCb = document.getElementById('uzak-mesafe-enabled');
+                const scheduleData = collectScheduleData();
                 const profileData = {
                     fullname: fullnameInput?.value || '',
                     email: emailInput?.value || '',
                     shopName: shopNameInput?.value || '',
                     description: descriptionInput?.value || '',
                     location: locationInput?.value || '',
-                    workingHours: hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined,
+                    workingHours: scheduleData ? JSON.stringify(scheduleData) : (hoursInput?.value && hoursInput.value.trim() !== '' ? hoursInput.value : undefined),
                     deliveryRadiusKm: radiusSlider ? parseInt(radiusSlider.value) || 0 : undefined,
                     pickupEnabled: pickupCb ? pickupCb.checked : true,
                     uzakMesafeEnabled: uzakMesafeCb ? uzakMesafeCb.checked : false
@@ -1476,7 +1482,10 @@ async function loadSellerCoupons() {
                             <span>•</span>
                             <span>Geçerli: ${validFrom} - ${validUntil}</span>
                         </div>
-                        <button class="btn btn-sm delete-coupon-btn" data-id="${coupon.id}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #E74C3C !important; color: white !important; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">SİL</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm edit-coupon-btn" data-id="${coupon.id}" data-code="${coupon.code}" data-description="${coupon.description || ''}" data-discount-type="${coupon.discountType}" data-discount-value="${coupon.discountValue}" data-min-order="${coupon.minOrderAmount || 0}" data-max-discount="${coupon.maxDiscountAmount || ''}" data-is-active="${coupon.isActive ? '1' : '0'}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #3498DB !important; color: white !important; border: none; border-radius: 4px; cursor: pointer;">DÜZENLE</button>
+                            <button class="btn btn-sm delete-coupon-btn" data-id="${coupon.id}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #E74C3C !important; color: white !important; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">SİL</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1561,10 +1570,140 @@ function initializeCouponsPage() {
         }
     });
     
-    // Kupon Silme Listener'ı
+    // Edit modal HTML'i DOM'a ekle
+    if (!document.getElementById('coupon-edit-modal')) {
+        const modal = document.createElement('div');
+        modal.id = 'coupon-edit-modal';
+        modal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+        modal.innerHTML = `
+            <div style="background:#fff; border-radius:12px; padding:2rem; width:90%; max-width:500px; max-height:90vh; overflow-y:auto;">
+                <h3 style="margin-bottom:1.5rem;">Kuponu Düzenle</h3>
+                <form id="coupon-edit-form">
+                    <input type="hidden" id="edit-coupon-id">
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Kupon Kodu *</label>
+                        <input type="text" id="edit-coupon-code" class="form-input" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Açıklama</label>
+                        <textarea id="edit-coupon-description" class="form-input" rows="2"></textarea>
+                    </div>
+                    <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+                        <div class="form-group" style="flex:1;">
+                            <label class="form-label">İndirim Türü *</label>
+                            <select id="edit-discount-type" class="form-input">
+                                <option value="fixed">Sabit Tutar (TL)</option>
+                                <option value="percentage">Yüzde (%)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label class="form-label">İndirim Değeri *</label>
+                            <input type="number" id="edit-discount-value" class="form-input" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Minimum Sipariş Tutarı (TL)</label>
+                        <input type="number" id="edit-min-order-amount" class="form-input" step="0.01" min="0" value="0">
+                    </div>
+                    <div class="form-group" id="edit-max-discount-group" style="margin-bottom:1rem; display:none;">
+                        <label class="form-label">Maksimum İndirim Tutarı (TL)</label>
+                        <input type="number" id="edit-max-discount-amount" class="form-input" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Yeni Geçerlilik Süresi (Gün) — boş bırakılırsa değişmez</label>
+                        <input type="number" id="edit-valid-days" class="form-input" min="1" placeholder="Örn: 30">
+                    </div>
+                    <div class="form-group" style="margin-bottom:1.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" id="edit-is-active"> Aktif
+                        </label>
+                    </div>
+                    <div style="display:flex; gap:1rem; justify-content:flex-end;">
+                        <button type="button" id="coupon-edit-cancel" class="btn btn-secondary">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.getElementById('edit-discount-type').addEventListener('change', (e) => {
+            document.getElementById('edit-max-discount-group').style.display = e.target.value === 'percentage' ? 'block' : 'none';
+        });
+
+        document.getElementById('coupon-edit-cancel').addEventListener('click', () => {
+            document.getElementById('coupon-edit-modal').style.display = 'none';
+        });
+
+        document.getElementById('coupon-edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const couponId = document.getElementById('edit-coupon-id').value;
+            const code = document.getElementById('edit-coupon-code').value.trim();
+            const description = document.getElementById('edit-coupon-description').value.trim();
+            const discountTypeValue = document.getElementById('edit-discount-type').value;
+            const discountValue = parseFloat(document.getElementById('edit-discount-value').value);
+            const minOrderAmount = parseFloat(document.getElementById('edit-min-order-amount').value) || 0;
+            const maxDiscountAmountVal = document.getElementById('edit-max-discount-amount').value;
+            const maxDiscountAmount = maxDiscountAmountVal ? parseFloat(maxDiscountAmountVal) : null;
+            const validDaysVal = document.getElementById('edit-valid-days').value;
+            const validDays = validDaysVal ? parseInt(validDaysVal) : null;
+            const isActive = document.getElementById('edit-is-active').checked;
+
+            if (!code || !discountValue || discountValue <= 0) {
+                alert('Lütfen geçerli bir kupon kodu ve indirim değeri girin.');
+                return;
+            }
+
+            try {
+                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+                const response = await fetch(`${baseUrl}/api/seller/coupons/${couponId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ code, description, discountType: discountTypeValue, discountValue, minOrderAmount, maxDiscountAmount, validDays, isActive })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    alert('✅ Kupon başarıyla güncellendi!');
+                    document.getElementById('coupon-edit-modal').style.display = 'none';
+                    loadSellerCoupons();
+                } else {
+                    alert(data.message || 'Kupon güncellenemedi.');
+                }
+            } catch (err) {
+                alert('Kupon güncellenirken ağ hatası oluştu.');
+            }
+        });
+    }
+
+    // Kupon Silme ve Düzenleme Listener'ı
     const container = document.getElementById('seller-coupon-list-container');
     if (container) {
         container.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('edit-coupon-btn')) {
+                const btn = e.target;
+                document.getElementById('edit-coupon-id').value = btn.dataset.id;
+                document.getElementById('edit-coupon-code').value = btn.dataset.code;
+                document.getElementById('edit-coupon-description').value = btn.dataset.description;
+                document.getElementById('edit-discount-type').value = btn.dataset.discountType;
+                document.getElementById('edit-discount-value').value = btn.dataset.discountValue;
+                document.getElementById('edit-min-order-amount').value = btn.dataset.minOrder;
+                document.getElementById('edit-max-discount-amount').value = btn.dataset.maxDiscount;
+                document.getElementById('edit-is-active').checked = btn.dataset.isActive === '1';
+                document.getElementById('edit-valid-days').value = '';
+                document.getElementById('edit-max-discount-group').style.display = btn.dataset.discountType === 'percentage' ? 'block' : 'none';
+                
+                if (window.initYsSelects) {
+                    window.initYsSelects(document.getElementById('coupon-edit-modal'));
+                    const selectEl = document.getElementById('edit-discount-type');
+                    if (selectEl && selectEl.syncCustomUI) {
+                        selectEl.syncCustomUI();
+                    }
+                }
+                
+                document.getElementById('coupon-edit-modal').style.display = 'flex';
+                return;
+            }
             if (e.target.classList.contains('delete-coupon-btn')) {
                 const couponId = e.target.getAttribute('data-id');
                 const isConfirmed = await window.showConfirm('Bu kuponu silmek istediğinize emin misiniz?');
@@ -1880,6 +2019,100 @@ async function refreshSellerUI(targetTab) {
             console.error('Sipariş listesi güncellenirken hata:', error);
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ÇALIŞMA SAATLERİ EDITORU
+// ═══════════════════════════════════════════════════════════
+
+const SCHEDULE_DAYS = [
+    { key: 'mon', label: 'Pazartesi' },
+    { key: 'tue', label: 'Salı' },
+    { key: 'wed', label: 'Çarşamba' },
+    { key: 'thu', label: 'Perşembe' },
+    { key: 'fri', label: 'Cuma' },
+    { key: 'sat', label: 'Cumartesi' },
+    { key: 'sun', label: 'Pazar' }
+];
+
+function parseWorkingHoursToSchedule(raw) {
+    const defaults = {};
+    SCHEDULE_DAYS.forEach(d => {
+        defaults[d.key] = { enabled: d.key !== 'sun', open: '09:00', close: '21:00' };
+    });
+
+    if (!raw) return { days: defaults, autoToggle: false };
+
+    let parsed = raw;
+    if (typeof raw === 'string') {
+        try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+    }
+    if (parsed && typeof parsed === 'object' && parsed.days) {
+        const days = {};
+        SCHEDULE_DAYS.forEach(d => {
+            const v = parsed.days[d.key] || defaults[d.key];
+            days[d.key] = {
+                enabled: !!v.enabled,
+                open: v.open || '09:00',
+                close: v.close || '21:00'
+            };
+        });
+        return { days, autoToggle: parsed.autoToggle !== false };
+    }
+    // Eski format ({ hours: "..." } veya plain text) — varsayılan çizelge, otomatik kapalı
+    return { days: defaults, autoToggle: false };
+}
+
+function renderScheduleEditor(rawHours) {
+    const container = document.getElementById('schedule-editor');
+    if (!container) return;
+    const data = parseWorkingHoursToSchedule(rawHours);
+    container.innerHTML = SCHEDULE_DAYS.map(d => {
+        const v = data.days[d.key];
+        return `
+            <div class="schedule-day-row" data-day="${d.key}" style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid var(--border-color, #e2e8f0);">
+                <label style="flex:0 0 130px; display:flex; align-items:center; gap:0.4rem; cursor:pointer; margin:0;">
+                    <input type="checkbox" class="day-enabled" ${v.enabled ? 'checked' : ''}>
+                    <span>${d.label}</span>
+                </label>
+                <input type="time" class="day-open form-input" value="${v.open}" style="flex:1; max-width:120px;">
+                <span style="color:#94a3b8;">—</span>
+                <input type="time" class="day-close form-input" value="${v.close}" style="flex:1; max-width:120px;">
+                <button type="button" class="btn btn-sm btn-secondary day-closed-btn" data-day="${d.key}" title="Bu gün kapalı">Kapalı</button>
+            </div>
+        `;
+    }).join('');
+
+    const autoCb = document.getElementById('schedule-auto-toggle');
+    if (autoCb) autoCb.checked = data.autoToggle !== false;
+
+    container.querySelectorAll('.day-closed-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const row = btn.closest('.schedule-day-row');
+            const cb = row.querySelector('.day-enabled');
+            cb.checked = false;
+        });
+    });
+}
+
+function collectScheduleData() {
+    const container = document.getElementById('schedule-editor');
+    if (!container) return null;
+    const rows = container.querySelectorAll('.schedule-day-row');
+    if (rows.length === 0) return null;
+    const days = {};
+    rows.forEach(row => {
+        const key = row.dataset.day;
+        const enabled = row.querySelector('.day-enabled').checked;
+        const open = row.querySelector('.day-open').value || '09:00';
+        const close = row.querySelector('.day-close').value || '21:00';
+        days[key] = { enabled, open, close };
+    });
+    const autoCb = document.getElementById('schedule-auto-toggle');
+    return {
+        days,
+        autoToggle: autoCb ? autoCb.checked : true
+    };
 }
 
 document.addEventListener('DOMContentLoaded', () => {

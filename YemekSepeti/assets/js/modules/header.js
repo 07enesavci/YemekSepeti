@@ -428,6 +428,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+function initHeaderSocket() {
+    if (!window.__socketManager) {
+        setTimeout(initHeaderSocket, 300);
+        return;
+    }
+    // Sipariş verildiğinde veya durumu değiştiğinde aktif sipariş göstergesini güncelle
+    window.__socketManager.on('order_placed', function () {
+        updateHeader();
+    });
+    window.__socketManager.on('order_status_updated', function () {
+        updateHeader();
+    });
+}
+initHeaderSocket();
+
 window.updateHeader = updateHeader;
 window.getCurrentUser = getCurrentUser;
 window.logout = logout;

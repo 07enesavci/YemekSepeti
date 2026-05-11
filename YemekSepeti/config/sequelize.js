@@ -247,6 +247,38 @@ async function ensureOrderIsPoolRequestedColumn() {
     } catch (_) {}
 }
 
+/**
+ * Yorum yanıtlama (satıcı cevabı) sütunları. Eski DB'lerde yoksa eklenir.
+ */
+async function ensureReviewSellerReplyColumns() {
+    try {
+        await sequelize.query(`ALTER TABLE reviews ADD COLUMN seller_reply TEXT NULL`);
+    } catch (_) {}
+    try {
+        await sequelize.query(`ALTER TABLE reviews ADD COLUMN seller_reply_at DATETIME NULL`);
+    } catch (_) {}
+}
+
+/**
+ * Push notification subscription tablosu. İlk açılışta oluşturulur.
+ */
+async function ensurePushSubscriptionsTable() {
+    try {
+        await sequelize.query(`
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                endpoint VARCHAR(500) NOT NULL,
+                p256dh VARCHAR(255) NOT NULL,
+                auth VARCHAR(255) NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_push_user (user_id),
+                UNIQUE KEY uniq_push_endpoint (endpoint(255))
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        `);
+    } catch (_) {}
+}
+
 module.exports = {
     sequelize,
     testConnection,
@@ -262,5 +294,7 @@ module.exports = {
     ensureUserOptionalColumns,
     ensureSellerOwnCouriersColumn,
     ensureCourierSellerIdColumn,
-    ensureOrderIsPoolRequestedColumn
+    ensureOrderIsPoolRequestedColumn,
+    ensureReviewSellerReplyColumns,
+    ensurePushSubscriptionsTable
 };

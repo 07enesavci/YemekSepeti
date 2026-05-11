@@ -76,7 +76,9 @@ try {
                 ensureUserOptionalColumns,
                 ensureSellerOwnCouriersColumn,
                 ensureCourierSellerIdColumn,
-                ensureOrderIsPoolRequestedColumn
+                ensureOrderIsPoolRequestedColumn,
+                ensureReviewSellerReplyColumns,
+                ensurePushSubscriptionsTable
             } = require('./config/sequelize');
             const useAlterSync = process.env.SEQUELIZE_ALTER_SYNC === 'true';
             sequelize.sync({ alter: useAlterSync })
@@ -95,6 +97,8 @@ try {
                     await ensureUserOptionalColumns();
                     await ensureSellerOwnCouriersColumn();
                     await ensureCourierSellerIdColumn();
+                    await ensureReviewSellerReplyColumns();
+                    await ensurePushSubscriptionsTable();
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
                 })
@@ -119,6 +123,8 @@ try {
                             await ensureSellerOwnCouriersColumn();
                             await ensureCourierSellerIdColumn();
                             await ensureOrderIsPoolRequestedColumn();
+                            await ensureReviewSellerReplyColumns();
+                            await ensurePushSubscriptionsTable();
                             console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
                         });
                     }
@@ -181,10 +187,15 @@ try {
     });
 
     // --- CORS VE HEADERLAR ---
+    const _corsAllowedPattern = /^https?:\/\/([a-z0-9-]+\.)?localhost(:\d+)?$/;
+    const _corsExtraOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+
     app.use((req, res, next) => {
-        const origin = req.headers.origin || req.headers.referer?.split('/').slice(0, 3).join('/') || 'http://localhost:3000';
-        res.header("Access-Control-Allow-Origin", origin);
-        res.header("Access-Control-Allow-Credentials", "true");
+        const origin = req.headers.origin;
+        if (origin && (_corsAllowedPattern.test(origin) || _corsExtraOrigins.includes(origin))) {
+            res.header("Access-Control-Allow-Origin", origin);
+            res.header("Access-Control-Allow-Credentials", "true");
+        }
         res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
         if (req.method === "OPTIONS") return res.sendStatus(200);
@@ -290,7 +301,7 @@ try {
         saveUninitialized: false,
         store: sessionStore || undefined,
         cookie: {
-            secure: false, // HTTPS kullanıyorsan true yap
+            secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
             httpOnly: true,
             maxAge: 7 * 24 * 60 * 60 * 1000
         }
@@ -457,7 +468,7 @@ try {
     const routeFiles = [
         "/api/sellers", "/api/seller", "/api/orders",
         "/api/admin", "/api/cart", "/api/courier", "/api/buyer", "/api/upload",
-        "/api/notifications", "/api/favorites", "/api/reviews"
+        "/api/notifications", "/api/favorites", "/api/reviews", "/api/push"
     ];
 
     routeFiles.forEach(route => {
@@ -653,6 +664,8 @@ try {
     app.get("/seller/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
     app.get("/seller/uzak-mesafe", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js" }));
     app.get("/seller/own-couriers", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
+    app.get("/seller/reviews", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/reviews", { title: "Müşteri Yorumları", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
+    app.get("/seller/:id/reviews", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/reviews", { title: "Müşteri Yorumları", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
 
     app.get("/seller/:id/dashboard", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/orders", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
@@ -749,11 +762,17 @@ try {
     const server = http.createServer(app);
     global.io = new SocketIOServer(server, {
         cors: {
-            origin: true,
+            origin: (origin, callback) => {
+                if (!origin || _corsAllowedPattern.test(origin) || _corsExtraOrigins.includes(origin)) {
+                    callback(null, true);
+                } else {
+                    callback(new Error('Socket.IO: İzin verilmeyen origin.'));
+                }
+            },
             credentials: true,
             methods: ["GET", "POST"]
         },
-        transports: ['polling', 'websocket']
+        transports: ['websocket', 'polling']
     });
 
     // Socket.IO connection handling
@@ -797,6 +816,14 @@ try {
             console.error(`❌ Socket.IO error - Socket ID: ${socket.id}:`, error);
         });
     });
+
+    // Zamanlanmış görevler: çalışma saatleri auto-toggle + sipariş timeout
+    try {
+        const { startScheduledTasks } = require('./lib/scheduledTasks');
+        startScheduledTasks();
+    } catch (err) {
+        console.warn('⚠️ Zamanlanmış görevler başlatılamadı:', err.message);
+    }
 
     const isIisnode = !!process.env.IISNODE_VERSION;
     const isNumericPort = /^\d+$/.test(String(PORT));

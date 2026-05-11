@@ -79,30 +79,25 @@ window.__socketManager = (function () {
                     };
 
                     if (type === 'new_order') {
-                        // Çift zil: ding-ding
                         beep(880, t, 0.18, 'triangle', 0.8);
                         beep(1100, t + 0.22, 0.18, 'triangle', 0.8);
-                        setTimeout(resolve, 600);
+                        setTimeout(resolve, 450);
                     } else if (type === 'order_cancelled') {
-                        // Alçalan alarm: düşük + daha düşük
                         beep(440, t, 0.25, 'sawtooth', 0.7);
                         beep(300, t + 0.3, 0.3, 'sawtooth', 0.7);
-                        setTimeout(resolve, 800);
+                        setTimeout(resolve, 680);
                     } else if (type === 'courier_task' || type === 'courier_available') {
-                        // Yükselen üçlü bip
                         beep(600, t, 0.12, 'square', 0.5);
                         beep(800, t + 0.15, 0.12, 'square', 0.5);
                         beep(1000, t + 0.3, 0.15, 'square', 0.6);
-                        setTimeout(resolve, 650);
+                        setTimeout(resolve, 500);
                     } else if (type === 'delivered') {
-                        // Parlak kısa zil
                         beep(1200, t, 0.1, 'triangle', 0.6);
                         beep(1500, t + 0.13, 0.15, 'triangle', 0.7);
-                        setTimeout(resolve, 400);
+                        setTimeout(resolve, 320);
                     } else if (type === 'status_update') {
-                        // Tek yumuşak bip
                         beep(700, t, 0.15, 'sine', 0.5);
-                        setTimeout(resolve, 350);
+                        setTimeout(resolve, 200);
                     } else {
                         resolve();
                     }
@@ -122,9 +117,10 @@ window.__socketManager = (function () {
                 };
                 const text = texts[type];
                 if (text) {
+                    window.speechSynthesis.cancel();
                     const u = new SpeechSynthesisUtterance(text);
                     u.lang = 'tr-TR';
-                    u.rate = 1.1;
+                    u.rate = 1.4;
                     u.onend = resolve;
                     u.onerror = resolve;
                     window.speechSynthesis.speak(u);
@@ -135,10 +131,10 @@ window.__socketManager = (function () {
         });
     }
 
-    /* ── Toast Kuyruğu ─────────────────────────────────────── */
+    /* ── Toast + Ses Kuyruğu ────────────────────────────────── */
     const notifQueue = [];
-    let isShowingNotif = false;
-    let toastOffset = 0; // Birden fazla toast üst üste gelmesin diye kaydır
+    const soundQueue = [];
+    let isSoundBusy = false;
 
     function notifyQueue(type, data, textFallback) {
         notifQueue.push({ type, data, textFallback });
@@ -146,22 +142,25 @@ window.__socketManager = (function () {
     }
 
     function processNotifQueue() {
-        if (isShowingNotif || notifQueue.length === 0) return;
-        isShowingNotif = true;
-        const task = notifQueue.shift();
+        // Bekleyen tüm toastları hemen göster — ses ayrı kuyruğa gider
+        while (notifQueue.length > 0) {
+            const task = notifQueue.shift();
+            showToast(task);
+            soundQueue.push(task.type);
+        }
+        processSoundQueue();
+    }
 
-        // Toast göster
-        showToast(task);
-
-        // Ses çal
-        playSound(task.type).then(() => {
-            setTimeout(() => {
-                isShowingNotif = false;
-                processNotifQueue();
-            }, 400);
+    function processSoundQueue() {
+        if (isSoundBusy || soundQueue.length === 0) return;
+        isSoundBusy = true;
+        const type = soundQueue.shift();
+        playSound(type).then(() => {
+            isSoundBusy = false;
+            processSoundQueue();
         }).catch(() => {
-            isShowingNotif = false;
-            processNotifQueue();
+            isSoundBusy = false;
+            processSoundQueue();
         });
     }
 
@@ -316,8 +315,7 @@ window.__socketManager = (function () {
                 userId: currentUserId || 'guest',
                 role: currentRole || 'guest'
             },
-            transports: ['polling', 'websocket'],
-            upgrade: true,
+            transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,

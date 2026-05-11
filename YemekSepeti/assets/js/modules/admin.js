@@ -529,6 +529,15 @@ function openCouponEditModal(couponId, data)
     var ids=(data.sellerIds||[]).map(Number);
     if (checkboxes.length) checkboxes.forEach(function(cb){ cb.checked=ids.indexOf(parseInt(cb.value,10))!==-1; });
     modal.style.display="block";
+    
+    // YS-Select için UI güncellemesi ve ilk init garantisi
+    if (window.initYsSelects) {
+        window.initYsSelects(modal);
+        var selectEl = document.getElementById("edit-coupon-discount-type");
+        if (selectEl && selectEl.syncCustomUI) {
+            selectEl.syncCustomUI();
+        }
+    }
 }
 
 function closeCouponEditModal()

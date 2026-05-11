@@ -42,31 +42,43 @@ async function refundIyzicoPaymentForOrder(order, clientIp) {
         const rawPrice = it.paidPrice != null ? it.paidPrice : it.price;
         const price = Number(rawPrice).toFixed(2);
 
-        const result = await new Promise((resolve, reject) => {
-            iyzipay.refund.create(
-                {
-                    locale: Iyzipay.LOCALE.TR,
-                    conversationId: `${baseConv}-refund-${order.id}-${i}-${Date.now()}`,
-                    paymentTransactionId: String(it.paymentTransactionId),
-                    price,
-                    currency: Iyzipay.CURRENCY.TRY,
-                    ip,
-                    reason: Iyzipay.REFUND_REASON.BUYER_REQUEST,
-                    description: `Siparis iptal ${order.order_number || order.id}`
-                },
-                (err, res) => {
-                    if (err) return reject(err);
-                    if (!res || res.status !== "success") {
-                        return reject(new Error(res?.errorMessage || "iyzico iade başarısız."));
+        try {
+            const result = await new Promise((resolve, reject) => {
+                iyzipay.refund.create(
+                    {
+                        locale: Iyzipay.LOCALE.TR,
+                        conversationId: `${baseConv}-refund-${order.id}-${i}-${Date.now()}`,
+                        paymentTransactionId: String(it.paymentTransactionId),
+                        price,
+                        currency: Iyzipay.CURRENCY.TRY,
+                        ip,
+                        reason: Iyzipay.REFUND_REASON.BUYER_REQUEST,
+                        description: `Siparis iptal ${order.order_number || order.id}`
+                    },
+                    (err, res) => {
+                        if (err) return reject(err);
+                        if (!res || res.status !== "success") {
+                            return reject(new Error(res?.errorMessage || "iyzico iade başarısız."));
+                        }
+                        resolve(res);
                     }
-                    resolve(res);
-                }
-            );
-        });
-        results.push(result);
+                );
+            });
+            results.push({ ok: true, result, transactionId: it.paymentTransactionId });
+        } catch (err) {
+            results.push({ ok: false, error: err.message, transactionId: it.paymentTransactionId });
+        }
     }
 
-    return { ok: true, results };
+    const failures = results.filter(r => !r.ok);
+    if (failures.length > 0) {
+        throw new Error(
+            `${failures.length}/${items.length} iade başarısız: ` +
+            failures.map(f => `[txn:${f.transactionId}] ${f.error}`).join('; ')
+        );
+    }
+
+    return { ok: true, results: results.map(r => r.result) };
 }
 
 module.exports = { refundIyzicoPaymentForOrder };

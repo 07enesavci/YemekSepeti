@@ -139,6 +139,12 @@ async function loadSellerReviews(sellerId) {
                 html += '<div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">';
                 html += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' + stars + ' <strong>' + escapeHtml(r.userName) + '</strong> <span style="font-size: 0.85rem; color: #888;">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : '') + '</span></div>';
                 if (r.comment) html += '<p style="margin: 0; font-size: 0.95rem;">' + escapeHtml(r.comment) + '</p>';
+                if (r.sellerReply) {
+                    html += '<div style="margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: var(--bg-color, #f8f9fa); border-left: 3px solid var(--primary-color, #e74c3c); border-radius: 4px;">';
+                    html += '<div style="font-size: 0.8rem; color: #666; margin-bottom: 0.25rem;"><strong>🏪 Satıcı yanıtı</strong>' + (r.sellerReplyAt ? ' · ' + new Date(r.sellerReplyAt).toLocaleDateString('tr-TR') : '') + '</div>';
+                    html += '<p style="margin: 0; font-size: 0.9rem;">' + escapeHtml(r.sellerReply) + '</p>';
+                    html += '</div>';
+                }
                 html += '</div>';
             });
         }

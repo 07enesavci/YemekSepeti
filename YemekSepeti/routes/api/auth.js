@@ -218,7 +218,15 @@ router.post("/login", authLimiter, [
         if (req.body.remember_me) {
             req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 gün
         }
-        res.json({ success: true, user: userData, token });
+        
+        if (typeof req.session.save === 'function') {
+            req.session.save((err) => {
+                if (err) console.error("Session save error in login:", err);
+                res.json({ success: true, user: userData, token });
+            });
+        } else {
+            res.json({ success: true, user: userData, token });
+        }
     } catch (error) {
         console.error("Login error:", error);
         res.status(500).json({ success: false, message: "Giriş hatası." });

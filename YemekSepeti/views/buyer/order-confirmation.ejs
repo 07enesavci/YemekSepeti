@@ -364,10 +364,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } catch (e) {}
             }, 5000);
  
-            // Dinamik Canlı Güncellemeler (Socket.IO)
-            setTimeout(function() {
-                if (window.buyerOrderSocket) {
-                    window.buyerOrderSocket.on('order_status_updated', function(data) {
+            // Dinamik Canlı Güncellemeler (Socket.IO) — global __socketManager üzerinden
+            function attachOrderTrackingSocket() {
+                if (!window.__socketManager) {
+                    setTimeout(attachOrderTrackingSocket, 300);
+                    return;
+                }
+                window.__socketManager.on('order_status_updated', function(data) {
                         if (data.orderId == window._orderTrackingOrderId) {
                             var st = (data.status || '').toLowerCase();
                             var currentText = document.getElementById('status-current-text');
@@ -415,25 +418,25 @@ document.addEventListener('DOMContentLoaded', async function() {
                         }
                     });
                     
-                    window.buyerOrderSocket.on('courier_location_updated', function(data) {
-                        if (data.orderId == window._orderTrackingOrderId) {
-                            var clat = data.courierLat;
-                            var clng = data.courierLng;
-                            if (clat != null && clng != null && window._orderTrackingMap) {
-                                var mapDiv = document.getElementById('order-tracking-map');
-                                if (mapDiv && mapDiv.style.display === 'none') {
-                                    mapDiv.style.display = 'block';
-                                    setTimeout(function() { window._orderTrackingMap.invalidateSize(); }, 300);
-                                }
-                                if (window._orderTrackingMarker) window._orderTrackingMarker.setLatLng([clat, clng]);
-                                else {
-                                    window._orderTrackingMarker = L.marker([clat, clng], { icon: L.divIcon({ className: 'courier-live-marker', html: '<div style="background:#2563EB;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;">🛵</div>', iconSize: [28,28], iconAnchor: [14,14] }) }).addTo(window._orderTrackingMap).bindPopup('Kurye konumu');
-                                }
+                window.__socketManager.on('courier_location_updated', function(data) {
+                    if (data.orderId == window._orderTrackingOrderId) {
+                        var clat = data.courierLat;
+                        var clng = data.courierLng;
+                        if (clat != null && clng != null && window._orderTrackingMap) {
+                            var mapDiv = document.getElementById('order-tracking-map');
+                            if (mapDiv && mapDiv.style.display === 'none') {
+                                mapDiv.style.display = 'block';
+                                setTimeout(function() { window._orderTrackingMap.invalidateSize(); }, 300);
+                            }
+                            if (window._orderTrackingMarker) window._orderTrackingMarker.setLatLng([clat, clng]);
+                            else {
+                                window._orderTrackingMarker = L.marker([clat, clng], { icon: L.divIcon({ className: 'courier-live-marker', html: '<div style="background:#2563EB;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;">🛵</div>', iconSize: [28,28], iconAnchor: [14,14] }) }).addTo(window._orderTrackingMap).bindPopup('Kurye konumu');
                             }
                         }
-                    });
-                }
-            }, 1000);
+                    }
+                });
+            }
+            attachOrderTrackingSocket();
         }
         
     } catch (error) {

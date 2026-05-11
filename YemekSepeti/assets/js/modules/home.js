@@ -259,9 +259,15 @@ function applyQuickFilterButtons() {
     document.querySelectorAll('.quick-filter-btn').forEach(function(btn) {
         btn.classList.toggle('active', (btn.getAttribute('data-filter') || '') === currentFilters.quickFilter);
         btn.onclick = function() {
-            currentFilters.quickFilter = btn.getAttribute('data-filter') || 'all';
-            document.querySelectorAll('.quick-filter-btn').forEach(function(b) { b.classList.remove('active'); });
-            btn.classList.add('active');
+            var clickedFilter = btn.getAttribute('data-filter') || 'all';
+            if (currentFilters.quickFilter === clickedFilter && clickedFilter !== 'all') {
+                currentFilters.quickFilter = 'all';
+            } else {
+                currentFilters.quickFilter = clickedFilter;
+            }
+            document.querySelectorAll('.quick-filter-btn').forEach(function(b) { 
+                b.classList.toggle('active', (b.getAttribute('data-filter') || 'all') === currentFilters.quickFilter); 
+            });
             filterAndDisplayRestaurants();
         };
     });

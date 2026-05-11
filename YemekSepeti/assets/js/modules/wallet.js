@@ -656,5 +656,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (savedCardsList) {
         await renderSavedCards();
     }
+
+    function initWalletSocket() {
+        if (!window.__socketManager) {
+            setTimeout(initWalletSocket, 300);
+            return;
+        }
+        // Ödeme/sipariş bildirimi veya durum güncellemesinde bakiyeyi yenile
+        window.__socketManager.on('notification', function (data) {
+            const relevantTypes = ['payment', 'order', 'wallet', 'refund'];
+            if (!data || !data.type || relevantTypes.some(t => data.type.toLowerCase().includes(t))) {
+                loadWalletData();
+            }
+        });
+        window.__socketManager.on('order_status_updated', function () {
+            loadWalletData();
+        });
+    }
+    initWalletSocket();
 });
 

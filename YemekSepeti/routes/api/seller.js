@@ -84,6 +84,9 @@ router.post("/menu", async (req, res) => {
         let finalImageUrl = null;
         if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
             finalImageUrl = imageUrl.trim();
+            if (/^(javascript|data):/i.test(finalImageUrl)) {
+                return res.status(400).json({ success: false, message: "Geçersiz resim URL'si." });
+            }
             if (finalImageUrl.length > 1000) {
                 return res.status(400).json({
                     success: false,
@@ -215,6 +218,9 @@ router.put("/menu/:id", async (req, res) => {
             let finalImageUrl = null;
             if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
                 finalImageUrl = imageUrl.trim();
+                if (/^(javascript|data):/i.test(finalImageUrl)) {
+                    return res.status(400).json({ success: false, message: "Geçersiz resim URL'si." });
+                }
                 if (finalImageUrl.length > 1000) {
                     return res.status(400).json({
                         success: false,
@@ -942,6 +948,64 @@ router.delete("/coupons/:id", async (req, res) => {
     }
 });
 
+
+router.put("/coupons/:id", async (req, res) => {
+    try {
+        const couponId = parseInt(req.params.id);
+        const userId = req.session.user.id;
+        const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, validDays, isActive } = req.body;
+
+        if (!code || !discountValue) {
+            return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gereklidir." });
+        }
+
+        const checkCouponQuery = await db.query(
+            "SELECT id, valid_from FROM coupons WHERE id = ? AND created_by = ?",
+            [couponId, userId]
+        );
+
+        if (checkCouponQuery.length === 0) {
+            return res.status(404).json({ success: false, message: "Kupon bulunamadı veya bu kuponu düzenleme yetkiniz yok." });
+        }
+
+        const validUntil = validDays
+            ? `DATE_ADD(valid_from, INTERVAL ${parseInt(validDays)} DAY)`
+            : null;
+
+        const sql = `
+            UPDATE coupons SET
+                code = ?,
+                description = ?,
+                discount_type = ?,
+                discount_value = ?,
+                min_order_amount = ?,
+                max_discount_amount = ?,
+                is_active = ?,
+                ${validUntil ? `valid_until = ${validUntil},` : ''}
+                updated_at = NOW()
+            WHERE id = ? AND created_by = ?
+        `;
+
+        await db.execute(sql, [
+            code,
+            description || null,
+            discountType || 'fixed',
+            discountValue,
+            minOrderAmount || 0,
+            maxDiscountAmount || null,
+            isActive !== undefined ? (isActive ? 1 : 0) : 1,
+            couponId,
+            userId
+        ]);
+
+        res.json({ success: true, message: "Kupon başarıyla güncellendi." });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ success: false, message: "Bu kupon kodu zaten kullanılıyor." });
+        }
+        res.status(500).json({ success: false, message: "Kupon güncellenemedi." });
+    }
+});
 
 router.options("/profile", (req, res) => {
     res.header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");

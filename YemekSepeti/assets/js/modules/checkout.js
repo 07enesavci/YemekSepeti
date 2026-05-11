@@ -95,22 +95,6 @@ function initCreditCardAnimation(ids) {
     };
 }
 
-const CHECKOUT_TERMS_STORAGE_KEY = 'yemeksepeti.checkout.termsAccepted';
-
-function loadCheckoutTermsPreference() {
-    try {
-        return localStorage.getItem(CHECKOUT_TERMS_STORAGE_KEY) === 'true';
-    } catch (error) {
-        return false;
-    }
-}
-
-function saveCheckoutTermsPreference(isAccepted) {
-    try {
-        localStorage.setItem(CHECKOUT_TERMS_STORAGE_KEY, isAccepted ? 'true' : 'false');
-    } catch (error) {}
-}
-
 function getSelectedCheckoutCashMethod() {
     const selected = document.querySelector('input[name="payment-cash-method"]:checked');
     return selected ? selected.value : 'cash';
@@ -574,7 +558,13 @@ function renderPaymentCards(cards) {
                 e.preventDefault();
                 e.stopPropagation();
                 const id = parseInt(e.currentTarget.getAttribute('data-delete-card'), 10);
-                if (!confirm('Bu kartı silmek istediğinize emin misiniz?')) return;
+                
+                const ok = window.showConfirm 
+                    ? await window.showConfirm('Bu kartı silmek istediğinize emin misiniz?') 
+                    : window.confirm('Bu kartı silmek istediğinize emin misiniz?');
+                    
+                if (!ok) return;
+
                 const baseUrl = checkoutGetBaseUrl();
                 const res = await fetch(`${baseUrl}/api/buyer/payment-cards/${id}`, {
                     method: 'DELETE',
@@ -808,10 +798,7 @@ document.addEventListener('DOMContentLoaded', async function(){
 
         const termsCheckbox = document.getElementById('terms');
         if (termsCheckbox) {
-            termsCheckbox.checked = loadCheckoutTermsPreference();
-            termsCheckbox.addEventListener('change', () => {
-                saveCheckoutTermsPreference(termsCheckbox.checked);
-            });
+            termsCheckbox.checked = false;
         }
 
         const addresses = await loadAddresses();

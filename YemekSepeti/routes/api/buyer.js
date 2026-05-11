@@ -653,7 +653,9 @@ router.get("/coupons/active", async (req, res) => {
             let applicableSellers = null;
             try {
                 if (c.applicable_seller_ids) {
-                    applicableSellers = JSON.parse(c.applicable_seller_ids);
+                    applicableSellers = typeof c.applicable_seller_ids === 'string'
+                        ? JSON.parse(c.applicable_seller_ids)
+                        : c.applicable_seller_ids;
                 }
             } catch (e) {
                 applicableSellers = null;
