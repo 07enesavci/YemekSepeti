@@ -98,6 +98,15 @@ window.__socketManager = (function () {
                     } else if (type === 'status_update') {
                         beep(700, t, 0.15, 'sine', 0.5);
                         setTimeout(resolve, 200);
+                    } else if (type === 'account_approved') {
+                        beep(880, t, 0.12, 'triangle', 0.6);
+                        beep(1100, t + 0.15, 0.12, 'triangle', 0.6);
+                        beep(1320, t + 0.30, 0.18, 'triangle', 0.7);
+                        setTimeout(resolve, 520);
+                    } else if (type === 'account_rejected') {
+                        beep(400, t, 0.2, 'sawtooth', 0.6);
+                        beep(300, t + 0.25, 0.25, 'sawtooth', 0.6);
+                        setTimeout(resolve, 550);
                     } else {
                         resolve();
                     }
@@ -113,7 +122,9 @@ window.__socketManager = (function () {
                     courier_task: 'Yeni teslimat görevi',
                     courier_available: 'Yeni teslimat görevi',
                     delivered: 'Sipariş teslim edildi',
-                    status_update: 'Sipariş güncellendi'
+                    status_update: 'Sipariş güncellendi',
+                    account_approved: 'Hesabınız onaylandı',
+                    account_rejected: 'Başvurunuz reddedildi'
                 };
                 const text = texts[type];
                 if (text) {
@@ -194,6 +205,18 @@ window.__socketManager = (function () {
             title: 'Sipariş Güncellendi',
             color: '#E65100',
             border: '#FFA726'
+        },
+        account_approved: {
+            icon: '✅',
+            title: 'Hesabınız Onaylandı!',
+            color: '#1B5E20',
+            border: '#66BB6A'
+        },
+        account_rejected: {
+            icon: '❌',
+            title: 'Başvurunuz Reddedildi',
+            color: '#B71C1C',
+            border: '#EF5350'
         },
         delivered: {
             icon: '✅',

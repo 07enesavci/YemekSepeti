@@ -3,7 +3,7 @@ const router=express.Router();
 const db=require("../../config/database");
 const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
-const { User, Seller, Courier, Order, Meal, Review, Address }=require("../../models");
+const { User, Seller, Courier, Order, Meal, Review, Address, Coupon, CouponUsage, CourierTask }=require("../../models");
 const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
 const { Op }=require("sequelize");
 const { Sequelize }=require("sequelize");
@@ -15,58 +15,43 @@ router.use((req,res,next)=>{ requireAuth(req,res,next); });
 router.use((req,res,next)=>{ requireRole(['admin','super_admin','support'])(req,res,next); });
 
 router.get("/users", async (req, res) => {
-    try 
+    try
     {
-        let userId = null;
-        let userRole = null;
-        let sessionId = req.sessionID;
-        let hasSession = false;
-        let isAuthenticated = null;
+        const { role, search, page = 1, limit = 100 } = req.query;
+        const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
 
-        if (req.user) 
-        {
-            userId = req.user.id;
-            userRole = req.user.role;
+        const where = { role: { [Op.in]: ['seller', 'courier', 'user', 'buyer'] } };
+        if (role && ['seller','courier','buyer','user'].includes(role)) {
+            where.role = role === 'buyer' ? { [Op.in]: ['buyer','user'] } : role;
         }
-        if (req.session)
-        {
-            hasSession = true;
-            if (typeof req.session.isAuthenticated !== "undefined") 
-            {
-                isAuthenticated = req.session.isAuthenticated;
-            }
+        if (search && search.trim()) {
+            where[Op.or] = [
+                { fullname: { [Op.like]: `%${search.trim()}%` } },
+                { email: { [Op.like]: `%${search.trim()}%` } }
+            ];
         }
 
-        const users = await User.findAll({
-            where: {
-                role: { [Op.in]: ['seller', 'courier', 'user', 'buyer'] }
-            },
+        const result = await User.findAndCountAll({
+            where,
             attributes: ['id', 'fullname', 'email', 'role', 'is_active', 'created_at'],
-            order: [['created_at', 'DESC']]
+            order: [['created_at', 'DESC']],
+            limit: parseInt(limit) || 100,
+            offset: offset || 0
         });
-        const formattedUsers = users.map(user => {
-            let status;
-            if (user.is_active)
-            {
-                status = 'active';
-            } 
-            else
-            {
-                status = 'suspended';
-            }
-            return {
-                id: user.id,
-                fullname: user.fullname,
-                email: user.email,
-                role: user.role,
-                is_active: user.is_active,
-                created_at: user.created_at,
-                status: status
-            };
-        });
+
+        const formattedUsers = result.rows.map(user => ({
+            id: user.id,
+            fullname: user.fullname,
+            email: user.email,
+            role: user.role,
+            is_active: user.is_active,
+            created_at: user.created_at,
+            status: user.is_active ? 'active' : 'suspended'
+        }));
+
         res.json(formattedUsers);
-    } 
-    catch (error) 
+    }
+    catch (error)
     {
         res.status(500).json({ success: false, message: "Veritabanı hatası." });
     }
@@ -78,9 +63,15 @@ router.post("/users", async (req, res) => {
     {
         const { fullname, email, password, role } = req.body;
 
-        if (!fullname || !email || !password || !role) 
+        if (!fullname || !email || !password || !role)
         {
             return res.status(400).json({ success: false, message: "Tüm alanlar gereklidir." });
+        }
+
+        // Güvenlik: Admin/super_admin/support rolleri bu endpoint üzerinden oluşturulamaz
+        const ALLOWED_ROLES = ['buyer', 'seller', 'courier'];
+        if (!ALLOWED_ROLES.includes(role)) {
+            return res.status(400).json({ success: false, message: "Geçersiz rol. Yalnızca buyer, seller veya courier oluşturulabilir." });
         }
 
         const existingUser = await User.findOne({
@@ -150,16 +141,23 @@ router.put("/users/:id/suspend", async (req, res) => {
         }
 
         const user = await User.findByPk(userId);
-        
-        if (!user) 
+
+        if (!user)
         {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
 
+        // Admin/super_admin hesapları support tarafından askıya alınamaz
+        const requestingRole = req.session?.user?.role;
+        const PROTECTED_ROLES = ['admin', 'super_admin', 'support'];
+        if (PROTECTED_ROLES.includes(user.role) && requestingRole !== 'super_admin') {
+            return res.status(403).json({ success: false, message: "Sistem kullanıcıları askıya alınamaz." });
+        }
+
         const currentStatus = user.is_active;
-        
-        await user.update({ 
-            is_active: !currentStatus 
+
+        await user.update({
+            is_active: !currentStatus
         });
 
         await user.reload();
@@ -200,10 +198,20 @@ router.delete("/users/:id", async (req, res) => {
         }
 
         const user = await User.findByPk(userId);
-        
-        if (!user) 
+
+        if (!user)
         {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+        }
+
+        // Admin/super_admin/support hesapları silinemez; admin kendi hesabını silemez
+        const requestingUserId = req.session?.user?.id;
+        const requestingRole = req.session?.user?.role;
+        if (['admin', 'super_admin', 'support'].includes(user.role)) {
+            return res.status(403).json({ success: false, message: "Sistem kullanıcı hesapları bu panel üzerinden silinemez." });
+        }
+        if (requestingUserId === userId) {
+            return res.status(403).json({ success: false, message: "Kendi hesabınızı silemezsiniz." });
         }
 
         const userReviews = await Review.findAll({ where: { user_id: userId }, attributes: ['seller_id'] });
@@ -225,27 +233,69 @@ router.delete("/users/:id", async (req, res) => {
 });
 
 router.get("/sellers", async (req, res) => {
-    try 
+    try
     {
-        const sql = `
-            SELECT s.*, u.fullname as owner_name, u.email 
-            FROM sellers s 
-            JOIN users u ON s.user_id = u.id
-        `;
-        const sellers = await db.query(sql);
-        res.json(sellers);
+        const { status, search, page = 1, limit = 100 } = req.query;
+        const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+        const sellerWhere = {};
+        if (status === 'active') sellerWhere.is_active = true;
+        else if (status === 'inactive') sellerWhere.is_active = false;
+
+        const sellers = await Seller.findAll({
+            where: sellerWhere,
+            include: [{
+                model: User,
+                as: 'user',
+                attributes: ['fullname', 'email', 'phone'],
+                ...(search && search.trim() ? {
+                    where: {
+                        [Op.or]: [
+                            { fullname: { [Op.like]: `%${search.trim()}%` } },
+                            { email: { [Op.like]: `%${search.trim()}%` } }
+                        ]
+                    },
+                    required: true
+                } : {})
+            }],
+            order: [['created_at', 'DESC']],
+            limit: parseInt(limit) || 100,
+            offset: offset || 0
+        });
+        const formatted = sellers.map(s => ({
+            id: s.id,
+            shop_name: s.shop_name,
+            location: s.location,
+            is_active: s.is_active,
+            is_open: s.is_open,
+            has_own_couriers: !!s.has_own_couriers,
+            logo_url: s.logo_url || null,
+            created_at: s.created_at,
+            user_id: s.user_id,
+            owner_name: s.user ? s.user.fullname : null,
+            email: s.user ? s.user.email : null,
+            phone: s.user ? s.user.phone : null
+        }));
+        res.json(formatted);
     }
-    catch (error) 
+    catch (error)
     {
         res.status(500).json({ success: false, message: "Veritabanı hatası." });
     }
 });
 
 router.get("/coupons", async (req, res) => {
-    try 
+    try
     {
-        const sql = "SELECT id, code, description, discount_type, discount_value, min_order_amount, max_discount_amount, applicable_seller_ids, usage_limit, used_count, valid_from, valid_until, is_active, created_at FROM coupons ORDER BY created_at DESC";
-        const rows = await db.query(sql);
+        const { page = 1, limit = 50, search } = req.query;
+        const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+        let sql = "SELECT id, code, description, discount_type, discount_value, min_order_amount, max_discount_amount, applicable_seller_ids, usage_limit, used_count, valid_from, valid_until, is_active, created_at FROM coupons";
+        const params = [];
+        if (search && search.trim()) {
+            sql += " WHERE code LIKE ? OR description LIKE ?";
+            params.push(`%${search.trim()}%`, `%${search.trim()}%`);
+        }
+        sql += ` ORDER BY created_at DESC LIMIT ${parseInt(limit) || 50} OFFSET ${offset || 0}`;
+        const rows = await db.query(sql, params.length ? params : undefined);
         if (!Array.isArray(rows)) {
             return res.json([]);
         }
@@ -457,7 +507,7 @@ router.post("/approve-seller/:id", requireRole(['admin','super_admin','support']
         if (global.io) {
             global.io.to('admin').emit('admin_sellers_updated', {});
             global.io.to(`user-${seller.user_id}`).emit('account_approved', {
-                message: 'Hesabınız onayandı! Mağazanızı yönetmeye başlayabilirsiniz.'
+                message: 'Hesabınız onaylandı! Mağazanızı yönetmeye başlayabilirsiniz.'
             });
         }
         res.json({ success: true, message: "Satıcı onaylandı ve mağaza aktif edildi!" });
@@ -484,7 +534,11 @@ router.post("/reject-seller/:id", requireRole(['admin','super_admin','support'])
             });
         }
         await seller.destroy();
-        await User.destroy({ where: { id: userId } });
+        // Kullanıcıyı yalnızca seller rolündeyse sil
+        const userToDelete = await User.findByPk(userId, { attributes: ['id', 'role'] });
+        if (userToDelete && userToDelete.role === 'seller') {
+            await User.destroy({ where: { id: userId } });
+        }
         if (global.io) global.io.to('admin').emit('admin_sellers_updated', {});
         res.json({ success: true, message: "Başvuru reddedildi ve sistemden silindi." });
     } catch (error) {
@@ -713,7 +767,7 @@ router.post("/approve-courier/:id", requireRole(['admin','super_admin','support'
         if (global.io) {
             global.io.to('admin').emit('admin_couriers_updated', {});
             global.io.to(`user-${courier.user_id}`).emit('account_approved', {
-                message: 'Hesabınız onayandı! Artık teslimat görevleri alabilirsiniz.'
+                message: 'Hesabınız onaylandı! Artık teslimat görevleri alabilirsiniz.'
             });
         }
         res.json({ success: true, message: "Kurye onaylandı!" });
@@ -734,7 +788,11 @@ router.post("/reject-courier/:id", requireRole(['admin','super_admin','support']
             });
         }
         await courier.destroy();
-        await User.destroy({ where: { id: userId } });
+        // Kullanıcıyı sadece başka bir rolü yoksa sil (buyer rollü de olmadığından emin ol)
+        const userCheck = await User.findByPk(userId, { attributes: ['id', 'role'] });
+        if (userCheck && userCheck.role === 'courier') {
+            await User.destroy({ where: { id: userId } });
+        }
         if (global.io) global.io.to('admin').emit('admin_couriers_updated', {});
         res.json({ success: true, message: "Kurye başvurusu reddedildi ve sistemden silindi." });
     } catch (error) {
@@ -748,32 +806,40 @@ router.get("/all-couriers", requireRole(['admin','super_admin','support']), asyn
     try {
         const { status, vehicleType, search } = req.query;
 
-        let whereClause = { role: 'courier' };
-        
+        // User tablosundaki filtreler
+        let userWhere = { role: 'courier' };
+        // courier_status sütunu User tablosunda varsayılan olarak var (sequelize migration ile eklendi)
         if (status === 'online' || status === 'offline') {
-            whereClause.courier_status = status;
+            userWhere.courier_status = status;
         }
-
-        if (vehicleType && vehicleType !== 'all') {
-            whereClause.vehicle_type = vehicleType;
+        // status 'pending' ise henüz is_active=false olan kuryeler
+        if (status === 'pending') {
+            userWhere['$courier.is_active$'] = false;
         }
-
         if (search && search.trim() !== '') {
-            whereClause[Op.or] = [
+            userWhere[Op.or] = [
                 { fullname: { [Op.like]: `%${search}%` } },
                 { email: { [Op.like]: `%${search}%` } },
                 { phone: { [Op.like]: `%${search}%` } }
             ];
         }
 
+        // vehicle_type Courier tablosunda, vehicle_type filtresi için include where kullan
+        const courierInclude = {
+            model: Courier,
+            as: 'courier',
+            attributes: ['id', 'is_active', 'vehicle_type', 'seller_id'],
+            required: false
+        };
+        if (vehicleType && vehicleType !== 'all') {
+            courierInclude.where = { vehicle_type: vehicleType };
+            courierInclude.required = true;
+        }
+
         const queryResult = await User.findAll({
-            where: whereClause,
-            attributes: ['id', 'fullname', 'email', 'phone', 'courier_status', 'vehicle_type', 'is_active', 'last_latitude', 'last_longitude', 'created_at'],
-            include: [{
-                model: Courier,
-                as: 'courier',
-                attributes: ['id', 'is_active']
-            }],
+            where: userWhere,
+            attributes: ['id', 'fullname', 'email', 'phone', 'courier_status', 'is_active', 'last_latitude', 'last_longitude', 'created_at'],
+            include: [courierInclude],
             order: [['created_at', 'DESC']]
         });
 
@@ -840,6 +906,88 @@ router.get("/courier-stats/:id", requireRole(['admin','super_admin','support']),
 });
 // --- TÜM KURYELER BİTİŞ ---
 
+// --- ADMİN SİPARİŞ YÖNETİMİ ---
+router.get("/orders", requireRole(['admin','super_admin','support']), async (req, res) => {
+    try {
+        const { status, search, page = 1, limit = 50 } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        const where = {};
+        if (status && status !== 'all') where.status = status;
+        if (search && search.trim()) {
+            where[Op.or] = [
+                { order_number: { [Op.like]: `%${search}%` } }
+            ];
+        }
+
+        const result = await Order.findAndCountAll({
+            where,
+            include: [
+                { model: User, as: 'buyer', attributes: ['fullname', 'email', 'phone'], required: false },
+                { model: Seller, as: 'seller', attributes: ['shop_name'], required: false }
+            ],
+            order: [['created_at', 'DESC']],
+            limit: parseInt(limit) || 50,
+            offset: offset || 0
+        });
+
+        res.json({
+            success: true,
+            data: result.rows.map(o => ({
+                id: o.id,
+                orderNumber: o.order_number,
+                status: o.status,
+                totalAmount: parseFloat(o.total_amount) || 0,
+                paymentMethod: o.payment_method,
+                deliveryType: o.delivery_type,
+                createdAt: o.created_at,
+                buyer: o.buyer ? { fullname: o.buyer.fullname, email: o.buyer.email, phone: o.buyer.phone } : null,
+                seller: o.seller ? { shopName: o.seller.shop_name } : null
+            })),
+            total: result.count,
+            page: parseInt(page),
+            totalPages: Math.ceil(result.count / (parseInt(limit) || 50))
+        });
+    } catch (err) {
+        console.error("Admin orders error:", err);
+        res.status(500).json({ success: false, message: "Siparişler yüklenemedi." });
+    }
+});
+
+router.put("/orders/:id/status", requireRole(['admin','super_admin']), async (req, res) => {
+    try {
+        const orderId = parseInt(req.params.id);
+        const { status } = req.body;
+        const VALID = ['pending','confirmed','preparing','ready','on_delivery','delivered','cancelled'];
+        if (!status || !VALID.includes(status)) {
+            return res.status(400).json({ success: false, message: "Geçersiz durum." });
+        }
+        const order = await Order.findByPk(orderId);
+        if (!order) return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
+
+        const updateData = { status };
+        if (status === 'delivered') updateData.delivered_at = new Date();
+        await order.update(updateData);
+
+        const { writeLog } = require('../../config/logger');
+        writeLog('INFO', 'Admin sipariş durumu değiştirdi', {
+            orderId, status, adminId: req.session?.user?.id
+        });
+
+        if (global.io) {
+            global.io.to(`buyer-${order.user_id}`).emit('order_status_updated', {
+                orderId, status, message: `Siparişinizin durumu güncellendi: ${status}`
+            });
+        }
+
+        res.json({ success: true, message: "Sipariş durumu güncellendi." });
+    } catch (err) {
+        console.error("Admin order status error:", err);
+        res.status(500).json({ success: false, message: "Durum güncellenemedi." });
+    }
+});
+// --- ADMİN SİPARİŞ YÖNETİMİ BİTİŞ ---
+
 // --- ADMİN RAPORLARI ---
 router.get("/reports/summary", async (req, res) => {
     try {
@@ -849,9 +997,11 @@ router.get("/reports/summary", async (req, res) => {
         startOfWeek.setDate(today.getDate() - today.getDay());
         startOfWeek.setHours(0, 0, 0, 0);
 
-        const totalOrders = await Order.count();
-        const ordersToday = await Order.count({ where: { created_at: { [Op.gte]: today } } });
-        const ordersThisWeek = await Order.count({ where: { created_at: { [Op.gte]: startOfWeek } } });
+        // İptal edilmemiş siparişleri say (cancelled hariç)
+        const ACTIVE_STATUSES = { status: { [Op.ne]: 'cancelled' } };
+        const totalOrders = await Order.count({ where: ACTIVE_STATUSES });
+        const ordersToday = await Order.count({ where: { ...ACTIVE_STATUSES, created_at: { [Op.gte]: today } } });
+        const ordersThisWeek = await Order.count({ where: { ...ACTIVE_STATUSES, created_at: { [Op.gte]: startOfWeek } } });
         const deliveredOrders = await Order.count({ where: { status: 'delivered' } });
         const revenueResult = await Order.findOne({
             where: { status: 'delivered' },
@@ -861,7 +1011,9 @@ router.get("/reports/summary", async (req, res) => {
         const totalRevenue = revenueResult && revenueResult.total != null ? parseFloat(revenueResult.total) : 0;
         const activeSellers = await Seller.count({ where: { is_active: true } });
         const activeCouriers = await Courier.count({ where: { is_active: true } });
-        const totalUsers = await User.count();
+        const totalUsers = await User.count({
+            where: { role: { [Op.in]: ['buyer', 'seller', 'courier'] } }
+        });
 
         res.json({
             success: true,
@@ -882,31 +1034,40 @@ router.get("/reports/summary", async (req, res) => {
     }
 });
 
-// Son 7 gün sipariş ve ciro verisi (grafik için)
+// Son 7 gün sipariş ve ciro verisi — tek GROUP BY sorgusuyla (N+1 yerine 2 sorgu)
 router.get("/reports/chart", async (req, res) => {
     try {
-        const days = 7;
+        const { sequelize: seq } = require('../../models');
+        const since = new Date();
+        since.setDate(since.getDate() - 6);
+        since.setHours(0, 0, 0, 0);
+
+        // Tüm günleri tek sorguda al
+        const [orderRows] = await seq.query(
+            `SELECT DATE(created_at) as day, COUNT(*) as orders FROM orders WHERE created_at >= ? GROUP BY DATE(created_at)`,
+            { replacements: [since] }
+        );
+        const [revenueRows] = await seq.query(
+            `SELECT DATE(created_at) as day, SUM(total_amount) as revenue FROM orders WHERE status='delivered' AND created_at >= ? GROUP BY DATE(created_at)`,
+            { replacements: [since] }
+        );
+
+        const ordersMap = {};
+        (orderRows || []).forEach(r => { ordersMap[r.day] = parseInt(r.orders) || 0; });
+        const revenueMap = {};
+        (revenueRows || []).forEach(r => { revenueMap[r.day] = parseFloat(r.revenue) || 0; });
+
         const result = [];
-        for (let i = days - 1; i >= 0; i--) {
+        for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             d.setHours(0, 0, 0, 0);
-            const next = new Date(d);
-            next.setDate(next.getDate() + 1);
-            const orderCount = await Order.count({
-                where: { created_at: { [Op.gte]: d, [Op.lt]: next } }
-            });
-            const revRow = await Order.findOne({
-                where: { status: 'delivered', created_at: { [Op.gte]: d, [Op.lt]: next } },
-                attributes: [[Sequelize.fn('SUM', Sequelize.col('total_amount')), 'rev']],
-                raw: true
-            });
-            const rev = revRow && revRow.rev != null ? parseFloat(revRow.rev) : 0;
+            const dayKey = d.toISOString().slice(0, 10);
             result.push({
-                date: d.toISOString().slice(0, 10),
+                date: dayKey,
                 label: d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }),
-                orders: orderCount,
-                revenue: Math.round(rev * 100) / 100
+                orders: ordersMap[dayKey] || 0,
+                revenue: Math.round((revenueMap[dayKey] || 0) * 100) / 100
             });
         }
         res.json({ success: true, chart: result });
@@ -929,13 +1090,13 @@ router.get("/menu-items", requireRole(['admin','super_admin','support']), async 
         if (isApproved === 'true') whereClause.is_approved = true;
         else if (isApproved === 'false') whereClause.is_approved = false;
         
-        // Uzak mesafe filtresi
+        // Uzak mesafe filtresi — sadece açıkça belirtilirse uygula, varsayılan olarak tümünü göster
         if (isUzakMesafe === 'true') {
             whereClause.is_uzak_mesafe = true;
-        } else {
-            // Hiç geçilmezse veya false ise normal ürünleri getir (user'ın isteği üzerine cargo'yu dışla)
+        } else if (isUzakMesafe === 'false') {
             whereClause.is_uzak_mesafe = false;
         }
+        // isUzakMesafe parametresi yoksa filtre uygulanmaz — admin tüm ürünleri görür
         
         if (search && search.trim()) {
             whereClause[Op.or] = [
@@ -1008,18 +1169,23 @@ router.get("/menu-items", requireRole(['admin','super_admin','support']), async 
 router.put("/menu-items/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
         const mealId = parseInt(req.params.id);
-        const { name, category, description, price, image_url, is_available, stock_quantity } = req.body;
+        const { name, category, description, price, image_url, is_available, is_approved, stock_quantity } = req.body;
 
         const meal = await Meal.findByPk(mealId);
         if (!meal) return res.status(404).json({ success: false, message: "Ürün bulunamadı." });
 
         const updates = {};
-        if (name !== undefined) updates.name = name;
-        if (category !== undefined) updates.category = category;
+        if (name !== undefined) updates.name = String(name).trim();
+        if (category !== undefined) updates.category = String(category).trim();
         if (description !== undefined) updates.description = description;
-        if (price !== undefined) updates.price = parseFloat(price);
+        if (price !== undefined) {
+            const priceNum = parseFloat(price);
+            if (isNaN(priceNum) || priceNum < 0) return res.status(400).json({ success: false, message: "Geçersiz fiyat." });
+            updates.price = priceNum;
+        }
         if (image_url !== undefined) updates.image_url = image_url;
         if (is_available !== undefined) updates.is_available = !!is_available;
+        if (is_approved !== undefined) updates.is_approved = !!is_approved;  // Admin onay durumunu değiştirebilir
         if (stock_quantity !== undefined) updates.stock_quantity = parseInt(stock_quantity);
 
         await meal.update(updates);

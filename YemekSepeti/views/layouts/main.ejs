@@ -33,6 +33,7 @@
     <link rel="stylesheet" href="/assets/css/components.css">
     <link rel="stylesheet" href="/assets/css/responsive.css">
     <link rel="stylesheet" href="/assets/css/pages/floating-cart.css">
+    <link rel="stylesheet" href="/assets/css/pages/loading.css">
     <link rel="manifest" href="/manifest.json" id="app-manifest">
     
     <% if (typeof pageCss !== 'undefined' && pageCss) { %>
@@ -44,12 +45,34 @@
         window.__userId = '<%= typeof user !== "undefined" && user && user.id ? user.id : "" %>';
         window.__userRole = '<%= typeof user !== "undefined" && user && user.role ? user.role : "" %>';
     </script>
+    <!-- Global Yükleme Overlay -->
+    <div id="ys-loading-overlay" role="status" aria-live="polite" aria-label="Yükleniyor">
+        <div class="ys-spinner" aria-hidden="true"></div>
+        <div class="ys-loading-text">Yükleniyor...</div>
+    </div>
+
+    <!-- Toast Bildirimleri -->
+    <div id="ys-toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- Oturum Zaman Aşımı Uyarısı -->
+    <div id="ys-session-warning-backdrop"></div>
+    <div id="ys-session-warning" role="dialog" aria-modal="true" aria-labelledby="ys-session-warning-title">
+        <div class="ys-session-warning-icon">⏳</div>
+        <div class="ys-session-warning-title" id="ys-session-warning-title">Oturum Süreniz Dolmak Üzere</div>
+        <div class="ys-session-warning-msg">Güvenliğiniz için oturumunuz otomatik kapatılacak.</div>
+        <div class="ys-session-warning-countdown" id="ys-session-countdown" aria-label="Kalan süre">05:00</div>
+        <div class="ys-session-warning-actions">
+            <button class="ys-session-btn ys-session-btn-extend" id="ys-session-extend-btn">Oturumu Uzat</button>
+            <button class="ys-session-btn ys-session-btn-logout" id="ys-session-logout-btn">Çıkış Yap</button>
+        </div>
+    </div>
+
     <%- include('../partials/header') %>
     <% if (typeof enableDeliveryModal === 'undefined' || enableDeliveryModal) { %>
     <%- include('../partials/delivery-area-modal') %>
     <% } %>
 
-    <main>
+    <main class="ys-page-fade-in">
         <%- body %>
     </main>
 
@@ -65,6 +88,7 @@
             document.head.appendChild(script);
         })();
     </script>
+    <script src="/assets/js/modules/ys-ui.js?v=20260602-security1"></script>
     <script src="/assets/js/modules/socket-manager.js?v=20260509-rtfix2"></script>
     <script src="/assets/js/modules/modal-utils.js?v=20260324-rtfix3"></script>
     <script src="/assets/js/api.js?v=20260324-rtfix3"></script>

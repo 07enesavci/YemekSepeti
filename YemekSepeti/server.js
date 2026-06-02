@@ -187,17 +187,36 @@ try {
     });
 
     // --- CORS VE HEADERLAR ---
-    const _corsAllowedPattern = /^https?:\/\/([a-z0-9-]+\.)?localhost(:\d+)?$/;
-    const _corsExtraOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+    // Güvenli CORS: regex yerine açık whitelist + üretim için HTTPS zorunluluğu
+    const _buildCorsAllowList = () => {
+        const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+        const devOrigins = [
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'http://partner.localhost:3000',
+            'http://admin.localhost:3000'
+        ];
+        return new Set([...devOrigins, ...extra]);
+    };
+    const _corsAllowSet = _buildCorsAllowList();
+
+    // Socket.IO CORS için de kullanılır
+    const _isCorsAllowed = (origin) => {
+        if (!origin) return true; // same-origin veya server-to-server
+        if (_corsAllowSet.has(origin)) return true;
+        // Üretim: ALLOWED_ORIGINS env'de tanımlı değilse localhost dışına izin verme
+        return false;
+    };
 
     app.use((req, res, next) => {
         const origin = req.headers.origin;
-        if (origin && (_corsAllowedPattern.test(origin) || _corsExtraOrigins.includes(origin))) {
+        if (origin && _isCorsAllowed(origin)) {
             res.header("Access-Control-Allow-Origin", origin);
             res.header("Access-Control-Allow-Credentials", "true");
+            res.header("Vary", "Origin");
         }
         res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CSRF-Token");
         if (req.method === "OPTIONS") return res.sendStatus(200);
         next();
     });
@@ -294,8 +313,16 @@ try {
         }
     }
 
+    // Oturum süresi: normal kullanıcılar 4 saat, admin 1 saat (login sırasında ayarlanır)
+    const SESSION_MAX_AGE_DEFAULT = 4 * 60 * 60 * 1000;  // 4 saat
+    const SESSION_MAX_AGE_ADMIN   = 1 * 60 * 60 * 1000;  // 1 saat
+    const SESSION_MAX_AGE_REMEMBER = 30 * 24 * 60 * 60 * 1000; // 30 gün (beni hatırla)
+    global.SESSION_MAX_AGE_DEFAULT = SESSION_MAX_AGE_DEFAULT;
+    global.SESSION_MAX_AGE_ADMIN   = SESSION_MAX_AGE_ADMIN;
+    global.SESSION_MAX_AGE_REMEMBER = SESSION_MAX_AGE_REMEMBER;
+
     const sessionConfig = {
-        name: 'yemek-sepeti-session',
+        name: 'ys-sid',
         secret: process.env.SESSION_SECRET || 'gizli-anahtar-degistirin',
         resave: false,
         saveUninitialized: false,
@@ -303,7 +330,8 @@ try {
         cookie: {
             secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
             httpOnly: true,
-            maxAge: 7 * 24 * 60 * 60 * 1000
+            sameSite: 'lax',
+            maxAge: SESSION_MAX_AGE_DEFAULT
         }
     };
 
@@ -403,13 +431,18 @@ try {
         restrictPanelNavigation,
         blockShoppingApisOnPanelHosts
     } = require('./middleware/auth');
-    const { requireEnv, apiLimiter, helmetMiddleware } = require('./middleware/security');
+    const { requireEnv, apiLimiter, helmetMiddleware, csrfProtection, csrfTokenRoute } = require('./middleware/security');
 
     app.use(restrictPanelNavigation);
     app.use(requireEnv);
     app.use(helmetMiddleware());
     app.use(enforceRoleDomain);
     app.use('/api', apiLimiter);
+
+    // CSRF token endpoint (giriş yapmamış kullanıcılar dahil herkes alabilir)
+    app.get('/api/csrf-token', csrfTokenRoute);
+    // Tüm durum değiştiren API isteklerine CSRF koruması
+    app.use('/api', csrfProtection);
 
     // Partner/Admin domainlerinde giriş yoksa sadece login ekranına izin ver.
     app.use((req, res, next) => {
@@ -735,22 +768,39 @@ try {
 
     // --- HATA YAKALAMA FONKSİYONLARI ---
     function renderError(res, error, pageName) {
-        writeLog('ERROR', `${pageName} render hatası`, { error: error.message });
-        res.status(500).send(`<h1>500 - Render Hatası (${pageName})</h1><p>${error.message}</p>`);
+        writeLog('ERROR', `${pageName} render hatası`, { error: error.message, stack: error.stack });
+        // Stack trace hiçbir zaman kullanıcıya gösterilmez
+        try {
+            return res.status(500).render('common/500', { layout: false, title: 'Sunucu Hatası' });
+        } catch (_) {
+            res.status(500).send('<h1>500 - Sunucu Hatası</h1><p>Bir hata oluştu. Lütfen daha sonra tekrar deneyin.</p>');
+        }
     }
 
     // --- 404 VE GENEL HATA YAKALAMA ---
     app.use((req, res) => {
         if (!req.path.includes('.well-known')) writeLog('WARN', `404: ${req.url}`);
         if (req.path.startsWith('/api/')) {
-            return res.status(404).json({ success: false, message: 'Kaynak bulunamadı.', code: 404 });
+            return res.status(404).json({ success: false, message: 'Kaynak bulunamadı.' });
         }
-        res.status(404).render('common/404', { layout: false });
+        try {
+            res.status(404).render('common/404', { layout: false });
+        } catch (_) {
+            res.status(404).send('<h1>404 - Sayfa Bulunamadı</h1>');
+        }
     });
 
     app.use((err, req, res, next) => {
-        writeLog('ERROR', 'Server error occurred', { message: err.message, stack: err.stack });
-        res.status(500).send(`<h1>500 - Sunucu Hatası</h1><p>${err.message}</p>`);
+        writeLog('ERROR', 'Server error occurred', { message: err.message, stack: err.stack, url: req.url });
+        // Hiçbir koşulda stack trace veya detaylı hata mesajı gösterilmez
+        if (req.path.startsWith('/api/')) {
+            return res.status(500).json({ success: false, message: 'Sunucu hatası. Lütfen daha sonra tekrar deneyin.' });
+        }
+        try {
+            res.status(500).render('common/500', { layout: false, title: 'Sunucu Hatası' });
+        } catch (_) {
+            res.status(500).send('<h1>500 - Sunucu Hatası</h1><p>Bir hata oluştu. Lütfen daha sonra tekrar deneyin.</p>');
+        }
     });
 
     // --- SERVER BAŞLATMA (KRİTİK DÜZELTME BURADA YAPILDI) ---
@@ -763,7 +813,7 @@ try {
     global.io = new SocketIOServer(server, {
         cors: {
             origin: (origin, callback) => {
-                if (!origin || _corsAllowedPattern.test(origin) || _corsExtraOrigins.includes(origin)) {
+                if (_isCorsAllowed(origin)) {
                     callback(null, true);
                 } else {
                     callback(new Error('Socket.IO: İzin verilmeyen origin.'));

@@ -1,3 +1,21 @@
+// CSRF token helper - ys-ui.js yüklendikten sonra kullanılır
+window.getCsrfToken = window.getCsrfToken || function() {
+    return (window.YsUI && window.YsUI.getCsrfToken) ? window.YsUI.getCsrfToken() : '';
+};
+
+// CSRF token'ı otomatik ekleyen fetch wrapper
+window.apiFetch = async function(url, options) {
+    options = options || {};
+    options.credentials = 'include';
+    const method = (options.method || 'GET').toUpperCase();
+    if (['POST','PUT','DELETE','PATCH'].includes(method)) {
+        options.headers = options.headers || {};
+        const token = window.getCsrfToken();
+        if (token) options.headers['X-CSRF-Token'] = token;
+    }
+    return fetch(url, options);
+};
+
 window.getBaseUrl=function() {
     const port=window.location.port;
     // Yalnızca tipik frontend dev portlarından backend'e (3000) yönlendir
@@ -46,11 +64,12 @@ window.formatTL=function(amount) {
 
 // Auth functions
 async function loginUser(email, password, rememberMe) {
-    try 
+    try
     {
+        const csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
         const response=await fetch(`${API_BASE_URL}/api/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
             credentials: 'include',
             body: JSON.stringify({ email, password, remember_me: !!rememberMe })
         });
@@ -69,13 +88,15 @@ async function loginUser(email, password, rememberMe) {
     }
 }
 
-async function registerUser(userData) 
+async function registerUser(userData)
 {
-    try 
+    try
     {
+        const csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
         const response=await fetch(`${API_BASE_URL}/api/auth/register`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            credentials: 'include',
             body: JSON.stringify(userData)
         });
         
@@ -93,13 +114,15 @@ async function registerUser(userData)
     }
 }
 
-async function forgotPassword(email) 
+async function forgotPassword(email)
 {
-    try 
+    try
     {
+        const csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
         const response=await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            credentials: 'include',
             body: JSON.stringify({ email })
         });
         
@@ -563,9 +586,12 @@ async function cancelOrder(orderId)
 }
 
 // Admin functions
-function getAuthHeaders() 
+function getAuthHeaders()
 {
-    return { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'application/json' };
+    const csrfToken = window.getCsrfToken ? window.getCsrfToken() : (window.YsUI ? window.YsUI.getCsrfToken() : '');
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+    return headers;
 }
 
 async function getAllUsers() 
@@ -722,9 +748,9 @@ async function adminAddCoupon(couponData)
     }
 }
 
-async function getCoupons() 
+async function getCoupons()
 {
-    try 
+    try
     {
         const response=await fetch(`${API_BASE_URL}/api/admin/coupons`, {
             method: 'GET',
@@ -733,9 +759,11 @@ async function getCoupons()
         });
 
         if (!response.ok) throw new Error('Kuponlar alınamadı');
-        return await response.json();
-    } 
-    catch (error) 
+        const data = await response.json();
+        // API array veya {coupons:[]} formatında dönebilir
+        return Array.isArray(data) ? data : (data.coupons || data || []);
+    }
+    catch (error)
     {
         return [];
     }

@@ -360,9 +360,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                     }
                     if (st === 'delivered' || st === 'cancelled') {
                         clearInterval(window._orderTrackingPoll);
+                        window._orderTrackingPoll = null;
                     }
                 } catch (e) {}
             }, 5000);
+
+            // Sayfa kapanırken polling temizle (gereksiz sunucu yükü önleme)
+            window.addEventListener('beforeunload', function() {
+                if (window._orderTrackingPoll) {
+                    clearInterval(window._orderTrackingPoll);
+                    window._orderTrackingPoll = null;
+                }
+            });
  
             // Dinamik Canlı Güncellemeler (Socket.IO) — global __socketManager üzerinden
             function attachOrderTrackingSocket() {

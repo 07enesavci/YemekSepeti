@@ -44,8 +44,30 @@ document.addEventListener("DOMContentLoaded", function ()
         window.history.replaceState({}, document.title, cleanUrl);
     }
 
+    // Canlı e-posta doğrulaması
+    function attachLiveEmailValidation(inputId) {
+        var el = document.getElementById(inputId);
+        if (!el) return;
+        el.addEventListener('blur', function() {
+            var val = this.value.trim();
+            if (!val) return;
+            var isValid = window.YsUI ? window.YsUI.validateEmail(val) : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+            if (window.YsUI) window.YsUI.applyInputValidation(el, isValid, 'Geçerli bir e-posta adresi girin.');
+        });
+    }
+
+    // Canlı şifre güç göstergesi
+    function attachPasswordStrength(inputId) {
+        var el = document.getElementById(inputId);
+        if (el && window.YsUI) window.YsUI.addPasswordStrengthIndicator(el);
+    }
+
+    attachLiveEmailValidation('email');
+    attachPasswordStrength('password');
+    attachPasswordStrength('new-password');
+
     var loginForm=document.getElementById("login-form");
-    if (loginForm) 
+    if (loginForm)
     {
         loginForm.addEventListener("submit", async function (e) {
             e.preventDefault();
@@ -54,16 +76,26 @@ document.addEventListener("DOMContentLoaded", function ()
             var password=document.getElementById("password").value;
             var rememberMe=document.getElementById("remember-me")?document.getElementById("remember-me").checked:false;
 
-            if (!email || !password) 
+            // Client-side ön doğrulama
+            var isEmailOk = window.YsUI ? window.YsUI.validateEmail(email) : !!email;
+            if (!isEmailOk) {
+                var emailEl = document.getElementById("email");
+                if (window.YsUI && emailEl) window.YsUI.applyInputValidation(emailEl, false, 'Geçerli bir e-posta girin.');
+                if (window.YsUI) window.YsUI.showToast('Lütfen geçerli bir e-posta girin.', 'error');
+                else alert("Lütfen geçerli bir e-posta girin.");
+                return;
+            }
+            if (!password)
             {
-                alert("Lütfen e-posta ve şifrenizi girin.");
+                if (window.YsUI) window.YsUI.showToast('Şifre boş olamaz.', 'error');
+                else alert("Lütfen şifrenizi girin.");
                 return;
             }
 
             var btn=this.querySelector("button[type=submit]");
             var oldText=btn.textContent;
             btn.disabled=true;
-            btn.textContent="Giriş yapılıyor...";
+            btn.innerHTML='<span class="btn-spinner"></span>Giriş yapılıyor...';
 
             try 
             {
@@ -161,26 +193,21 @@ document.addEventListener("DOMContentLoaded", function ()
                     {
                         window.location.href=`${baseUrl}/`;
                     }
-                } 
+                }
                 else
                 {
-                    var message;
-                    if (result && result.message) 
-                    {
-                        message=result.message;
-                    } 
-                    else 
-                    {
-                        message="E-posta veya şifre hatalı.";
-                    }
-                    alert(message);
+                    var message = (result && result.message) ? result.message : "E-posta veya şifre hatalı.";
+                    if (window.YsUI) window.YsUI.showToast(message, 'error');
+                    else alert(message);
                 }
-            } 
-            catch (error) 
+            }
+            catch (error)
             {
-                alert("Bir hata oluştu: " + error.message);
-            } 
-            finally 
+                var errMsg = "Bağlantı hatası. Lütfen tekrar deneyin.";
+                if (window.YsUI) window.YsUI.showToast(errMsg, 'error');
+                else alert(errMsg);
+            }
+            finally
             {
                 btn.disabled = false;
                 btn.textContent = oldText;

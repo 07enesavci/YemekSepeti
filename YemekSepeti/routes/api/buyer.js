@@ -39,7 +39,7 @@ router.get("/profile", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -58,26 +58,25 @@ router.put("/profile", requireRole('buyer'), async (req, res) => {
         if (phone) {
             updateData.phone = phone.trim();
         }
-        await User.update(updateData, {
-            where: { id: userId }
+        await User.update(updateData, { where: { id: userId } });
+
+        // db.query yerine ORM kullan — güvenli ve tip garantili
+        const updatedUser = await User.findByPk(userId, {
+            attributes: ['id', 'email', 'fullname', 'phone', 'role']
         });
-        const updatedUser = await db.query(
-            "SELECT id, email, fullname, phone, role FROM users WHERE id = ?",
-            [userId]
-        );
-        if (updatedUser.length > 0) {
-            req.session.user.fullname = updatedUser[0].fullname;
-            req.session.user.phone = updatedUser[0].phone;
+        if (updatedUser) {
+            req.session.user.fullname = updatedUser.fullname;
+            req.session.user.phone   = updatedUser.phone;
         }
         res.json({
             success: true,
             message: "Profil bilgileri başarıyla güncellendi.",
-            user: updatedUser[0]
+            user: updatedUser ? { id: updatedUser.id, email: updatedUser.email, fullname: updatedUser.fullname, phone: updatedUser.phone, role: updatedUser.role } : {}
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -124,7 +123,7 @@ router.get("/addresses", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -172,7 +171,7 @@ router.post("/addresses", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -181,7 +180,7 @@ router.put("/addresses/:id", requireRole('buyer'), async (req, res) => {
     try {
         const userId = req.session.user.id;
         const addressId = parseInt(req.params.id);
-        const { title, district, city, detail, isDefault } = req.body;
+        const { title, district, city, detail, isDefault, latitude, longitude } = req.body;
         const addressCheck = await db.query(
             "SELECT id FROM addresses WHERE id = ? AND user_id = ?",
             [addressId, userId]
@@ -221,6 +220,21 @@ router.put("/addresses/:id", requireRole('buyer'), async (req, res) => {
             updateFields.push("is_default = ?");
             updateValues.push(isDefault ? 1 : 0);
         }
+        // Koordinat güncelleme (harita konum seçiminde)
+        if (latitude !== undefined && latitude !== null && latitude !== '') {
+            const latVal = parseFloat(latitude);
+            if (!isNaN(latVal) && latVal >= -90 && latVal <= 90) {
+                updateFields.push("latitude = ?");
+                updateValues.push(latVal);
+            }
+        }
+        if (longitude !== undefined && longitude !== null && longitude !== '') {
+            const lngVal = parseFloat(longitude);
+            if (!isNaN(lngVal) && lngVal >= -180 && lngVal <= 180) {
+                updateFields.push("longitude = ?");
+                updateValues.push(lngVal);
+            }
+        }
         if (updateFields.length === 0) {
             return res.status(400).json({
                 success: false,
@@ -239,7 +253,7 @@ router.put("/addresses/:id", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -269,7 +283,7 @@ router.delete("/addresses/:id", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -344,7 +358,7 @@ router.get("/wallet", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -359,10 +373,16 @@ router.put("/password", requireRole('buyer'), async (req, res) => {
                 message: "Mevcut şifre ve yeni şifre gereklidir."
             });
         }
-        if (newPassword.length < 6) {
+        if (newPassword.length < 8) {
             return res.status(400).json({
                 success: false,
-                message: "Yeni şifre en az 6 karakter olmalıdır."
+                message: "Yeni şifre en az 8 karakter olmalıdır."
+            });
+        }
+        if (currentPassword === newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Yeni şifre mevcut şifreden farklı olmalıdır."
             });
         }
         const user = await User.findByPk(userId, {
@@ -382,17 +402,19 @@ router.put("/password", requireRole('buyer'), async (req, res) => {
             });
         }
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await user.update({
-            password: hashedPassword
-        });
+        await user.update({ password: hashedPassword });
+
+        // Şifre değişti — mevcut oturumu güvenlik için geçersiz kıl, yeniden giriş zorunlu
+        req.session.destroy(() => {});
+
         res.json({
             success: true,
-            message: "Şifre başarıyla değiştirildi."
+            message: "Şifre başarıyla değiştirildi. Güvenliğiniz için tekrar giriş yapmanız gerekiyor."
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -452,7 +474,7 @@ router.get("/payment-cards", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -542,7 +564,7 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -591,7 +613,7 @@ router.put("/payment-cards/:id", requireRole('buyer'), async (req, res) => {
         }
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
@@ -620,12 +642,12 @@ router.delete("/payment-cards/:id", requireRole('buyer'), async (req, res) => {
         }
         res.status(500).json({
             success: false,
-            message: "Sunucu hatası: " + error.message
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
         });
     }
 });
 
-router.get("/coupons/active", async (req, res) => {
+router.get("/coupons/active", requireRole('buyer'), async (req, res) => {
     try {
         const sql = `
             SELECT 

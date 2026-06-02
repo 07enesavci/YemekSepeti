@@ -144,20 +144,29 @@
             }
         });
 
-        // Satıcı: hesabı onaylandı/reddedildi bildirim
+        // Hesap onaylandı/reddedildi bildirimi (satıcı/kurye onayında admin tarafından gönderilir)
         window.__socketManager.on('account_approved', function (data) {
             updateUnreadBadge();
-            // Eğer satıcı/kurye paneli açıksa bildirimi göster
             if (window.__socketManager && window.__socketManager.notifyQueue) {
-                window.__socketManager.notifyQueue('status_update', null,
-                    data && data.message ? data.message : 'Hesabınız onaylandı!');
+                // 'account_approved' tipi: "Hesabınız Onaylandı!" başlığı ile gösterilir
+                window.__socketManager.notifyQueue('account_approved', null,
+                    data && data.message ? data.message : 'Hesabınız onaylandı! Artık platform üzerinde aktif olabilirsiniz.');
             }
+            // Sayfayı 2 saniye sonra yenile (onay sonrası yönlendirme için)
+            setTimeout(function () {
+                if (window.location.pathname.includes('/pending-approval') ||
+                    window.location.pathname.includes('/courier/') ||
+                    window.location.pathname.includes('/seller/')) {
+                    window.location.reload();
+                }
+            }, 2000);
         });
         window.__socketManager.on('account_rejected', function (data) {
             updateUnreadBadge();
             if (window.__socketManager && window.__socketManager.notifyQueue) {
-                window.__socketManager.notifyQueue('order_cancelled', null,
-                    data && data.message ? data.message : 'Hesabınız reddedildi.');
+                // 'account_rejected' tipi: "Başvurunuz Reddedildi" başlığı ile gösterilir
+                window.__socketManager.notifyQueue('account_rejected', null,
+                    data && data.message ? data.message : 'Başvurunuz reddedildi.');
             }
         });
     }

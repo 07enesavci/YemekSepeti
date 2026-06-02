@@ -182,15 +182,20 @@ async function ensureSellerPickupEnabledColumn() {
 }
 
 async function approveAllSellersOnStartupIfEnabled() {
-    if (process.env.APPROVE_ALL_SELLERS_ON_STARTUP === 'false') return;
+    // Varsayılan: KAPALI. Yalnızca env'de açıkça 'true' yazılırsa çalışır.
+    // UYARI: Bu özellik yalnızca geliştirme/test ortamları için tasarlanmıştır.
+    // Üretim ortamında APPROVE_ALL_SELLERS_ON_STARTUP=true kullanmayın.
     if (process.env.APPROVE_ALL_SELLERS_ON_STARTUP !== 'true') return;
+    if (process.env.NODE_ENV === 'production') {
+        console.warn('[SECURITY] APPROVE_ALL_SELLERS_ON_STARTUP=true üretim ortamında tehlikelidir! Devre dışı bırakıldı.');
+        return;
+    }
     try {
         await sequelize.query(`UPDATE sellers SET is_active = 1`);
         try {
             await sequelize.query(`UPDATE sellers SET is_open = 1`);
-        } catch (_) {
-            await sequelize.query(`UPDATE sellers SET is_active = 1`);
-        }
+        } catch (_) {}
+        console.warn('[DEV] Tüm satıcılar otomatik onaylandı (APPROVE_ALL_SELLERS_ON_STARTUP=true)');
     } catch (_) {}
 }
 

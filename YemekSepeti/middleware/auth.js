@@ -504,7 +504,7 @@ function blockShoppingApisOnPanelHosts(req, res, next) {
                 message: 'Bu API bu alan adında kullanılamaz. Müşteri sitesini kullanın.'
             });
         }
-        if (full.startsWith('/api/orders') && full.indexOf('/seller') === -1 && full.indexOf('/courier') === -1) {
+        if (full.startsWith('/api/orders') && full.indexOf('/seller') === -1 && full.indexOf('/courier') === -1 && full.indexOf('/partial-refund') === -1) {
             return res.status(403).json({
                 success: false,
                 message: 'Bu API bu alan adında kullanılamaz. Müşteri sitesini kullanın.'

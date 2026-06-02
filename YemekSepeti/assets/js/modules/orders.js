@@ -431,6 +431,18 @@ async function handleOrderAction(e, orderId, actionType) {
             
         case 'tekrarla':
             try {
+                // Sepette ürün varsa uyar
+                const currentCart = (() => { try { return JSON.parse(localStorage.getItem('sepet') || '[]'); } catch(e) { return []; } })();
+                if (currentCart.length > 0) {
+                    const confirmed = window.showConfirm
+                        ? await window.showConfirm('Mevcut sepetiniz temizlenecek ve bu sipariş eklenecek. Devam etmek istiyor musunuz?')
+                        : window.confirm('Mevcut sepetiniz temizlenecek ve bu sipariş eklenecek. Devam etmek istiyor musunuz?');
+                    if (!confirmed) break;
+                    // Mevcut sepeti temizle
+                    localStorage.removeItem('sepet');
+                    if (window.sepetiTemizle) window.sepetiTemizle();
+                }
+
                 const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
                 const response = await fetch(`${baseUrl}/api/orders/${orderId}/repeat`, {
                     method: 'POST',
@@ -447,7 +459,8 @@ async function handleOrderAction(e, orderId, actionType) {
                         await window.addToCartById(item.mealId, item.quantity);
                     }
                 }
-                alert(`Sipariş #${orderId} sepetinize eklendi.`);
+                if (window.YsUI) window.YsUI.showToast(`Sipariş #${orderId} sepetinize eklendi.`, 'success');
+                else alert(`Sipariş #${orderId} sepetinize eklendi.`);
                 const base = window.getBaseUrl ? window.getBaseUrl() : '';
                 window.location.href = `${base}/buyer/cart`;
             } catch (err) {
@@ -763,7 +776,7 @@ function initBuyerSocket() {
             window.__socketManager.notifyQueue('order_cancelled', payload, 'Siparişiniz iptal edildi.');
         } else {
             const statusMessages = {
-                confirmed: 'Siparişiniz onayandı',
+                confirmed: 'Siparişiniz onaylandı',
                 preparing: 'Siparişiniz hazırlanıyor',
                 ready: 'Siparişiniz hazır, kurye alıyor',
                 on_delivery: 'Siparişiniz yolda!'

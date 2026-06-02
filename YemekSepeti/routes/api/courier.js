@@ -49,13 +49,29 @@ router.get("/available", async (req, res) => {
 
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
+        // Kendi kuryesi olan satıcıya bağlı kurye → yalnızca o satıcının siparişlerini görür
+        let ownSellerIdFilter = null;
+        try {
+            const { Courier: CourierModel } = require('../../models');
+            const myCourier = await CourierModel.findOne({ where: { user_id: courierId }, attributes: ['seller_id'] });
+            if (myCourier && myCourier.seller_id) {
+                ownSellerIdFilter = myCourier.seller_id;
+            }
+        } catch (_) {}
+
+        const orderWhere = {
+            courier_id: null,
+            status: 'ready',
+            delivery_type: { [Op.ne]: 'pickup' },
+            created_at: { [Op.gte]: twoHoursAgo }
+        };
+        // Kendi kurye ise yalnızca bağlı olduğu satıcının siparişleri
+        if (ownSellerIdFilter) {
+            orderWhere.seller_id = ownSellerIdFilter;
+        }
+
         const tasks = await Order.findAll({
-            where: {
-                courier_id: null,
-                status: 'ready',
-                delivery_type: { [Op.ne]: 'pickup' },
-                created_at: { [Op.gte]: twoHoursAgo }
-            },
+            where: orderWhere,
             include: [
                 {
                     model: Seller,
@@ -222,7 +238,9 @@ router.get("/tasks/active", async (req, res) => {
             where: {
                 courier_id: courierId,
                 delivery_type: { [Op.ne]: 'pickup' },
-                status: { [Op.in]: ['on_delivery', 'ready'] }
+                // 'ready' = havuzdan henüz alınmamış (kendi kurye için bekleme)
+                // 'on_delivery' = kurye yolda / restorana gidiyor
+                status: { [Op.in]: ['ready', 'on_delivery'] }
             },
             include: [
                 { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
@@ -320,13 +338,22 @@ router.put("/tasks/:id/pickup", async (req, res) => {
         if (!orderCheck) return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
         if (orderCheck.courier_id !== courierId) return res.status(403).json({ success: false, message: "Bu sipariş size ait değil." });
         if (orderCheck.delivery_type === 'pickup') return res.status(400).json({ success: false, message: "Gel al siparişlerde kurye teslim işlemi kullanılmaz." });
-        if (orderCheck.status !== 'on_delivery' && orderCheck.status !== 'ready') {
-            return res.status(400).json({ success: false, message: "Bu sipariş alınabilir durumda değil." });
+        // 'ready' (platform havuzu) veya 'on_delivery' (kendi kurye kabul etti) her iki durumda da pickup yapılabilir
+        if (!['on_delivery', 'ready'].includes(orderCheck.status)) {
+            return res.status(400).json({ success: false, message: `Bu sipariş alınabilir durumda değil (mevcut durum: ${orderCheck.status}).` });
         }
 
+        // Idempotency: zaten teslim alındıysa tekrar güncelleme
+        const existingTask = await CourierTask.findOne({
+            where: { order_id: orderId, courier_id: courierId },
+            attributes: ['id', 'status', 'picked_up_at']
+        });
+        if (existingTask && existingTask.status === 'picked_up') {
+            return res.json({ success: true, message: 'Sipariş zaten teslim alınmış olarak işaretlendi.' });
+        }
         await CourierTask.update(
             { status: 'picked_up', picked_up_at: new Date() },
-            { where: { order_id: orderId, courier_id: courierId } }
+            { where: { order_id: orderId, courier_id: courierId, status: { [Op.ne]: 'picked_up' } } }
         );
         
         await Order.update(
@@ -361,6 +388,10 @@ router.put("/tasks/:id/complete", async (req, res) => {
         if (!orderCheck) return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
         if (orderCheck.courier_id !== courierId) return res.status(403).json({ success: false, message: "Bu sipariş size ait değil." });
         if (orderCheck.delivery_type === 'pickup') return res.status(400).json({ success: false, message: "Gel al siparişlerde kurye teslimi tamamlanamaz." });
+        // Teslim tamamlamak için önce paket alınmış olmalı (on_delivery durumu zorunlu)
+        if (orderCheck.status !== 'on_delivery') {
+            return res.status(400).json({ success: false, message: `Siparişi teslim etmeden önce 'Paketi Teslim Al' adımını tamamlayın (mevcut durum: ${orderCheck.status}).` });
+        }
 
         await Order.update({ status: 'delivered', delivered_at: new Date() }, { where: { id: orderId } });
         const taskRow = await CourierTask.findOne({ where: { order_id: orderId, courier_id: courierId }, attributes: ['id', 'estimated_payout'] });
@@ -418,9 +449,11 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
             { status: 'on_way' },
             { where: { id: taskId, courier_id: courierId } }
         );
-        
+
+        // Kurye görevi kabul etti → sipariş "on_delivery" statüsüne geçer
+        // (ready'den pickup'a kadar on_delivery olmalı ki alıcı "yolda" görsün)
         await Order.update(
-            { status: 'ready' },
+            { status: 'on_delivery' },
             { where: { id: task.order_id } }
         );
 
@@ -429,9 +462,9 @@ router.put("/tasks/:id/accept-assigned", async (req, res) => {
             if (orderInfo && global.io) {
                 global.io.to(`buyer-${orderInfo.user_id}`).emit('order_status_updated', {
                     orderId: task.order_id,
-                    status: 'ready',
+                    status: 'on_delivery',
                     orderNumber: orderInfo.order_number,
-                    message: 'Kurye atandı, teslim almak için restorana gidiyor.'
+                    message: 'Kurye siparişinizi almak için yola çıktı.'
                 });
             }
         } catch(e) {}
@@ -484,7 +517,7 @@ router.put("/tasks/:id/reject-assigned", async (req, res) => {
             { where: { id: taskId, courier_id: courierId } }
         );
 
-        return res.json({ success: true, message: "G�rev reddedildi. Sipari� haz�r durumuna al�nd�." });
+        return res.json({ success: true, message: "Görev reddedildi. Sipariş tekrar havuza alındı." });
     } catch (error) {
         console.error('REJECT-ASSIGNED HATA:', error);
         return res.status(500).json({ success: false, message: "Görev reddedilirken hata oluştu." });
@@ -513,11 +546,8 @@ router.get("/tasks/history", async (req, res) => {
             offset: offset || 0
         });
 
-        const tasks = (result.rows || []).sort((a, b) => {
-            const dateA = a.courierTask?.delivered_at || a.created_at;
-            const dateB = b.courierTask?.delivered_at || b.created_at;
-            return new Date(dateB) - new Date(dateA);
-        });
+        // Sıralama DB'de ORDER BY ile yapılıyor — JS sort kaldırıldı (sayfalama bozuluyordu)
+        const tasks = result.rows || [];
 
         const formattedTasks = tasks.map(task => {
             const deliveryLocation = task.address
@@ -633,22 +663,38 @@ router.get("/earnings", async (req, res) => {
         const whereBase = { courier_id: courierId, status: 'delivered' };
         let whereDeliveredAt = {};
         if (period === 'day') {
-            const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-            whereDeliveredAt = { [Op.gte]: startOfDay };
+            // Türkiye saat diliminde (UTC+3) günün başlangıcını hesapla
+            const nowUtc = new Date();
+            const turkeyOffset = 3 * 60; // UTC+3 dakika cinsinden
+            const turkeyTime = new Date(nowUtc.getTime() + turkeyOffset * 60 * 1000);
+            const startOfDayTurkey = new Date(Date.UTC(turkeyTime.getUTCFullYear(), turkeyTime.getUTCMonth(), turkeyTime.getUTCDate()) - turkeyOffset * 60 * 1000);
+            whereDeliveredAt = { [Op.gte]: startOfDayTurkey };
         } else if (period === 'week') {
             whereDeliveredAt = { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
         } else if (period === 'month') {
             whereDeliveredAt = { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
         }
-        const whereClause = whereDeliveredAt && Object.keys(whereDeliveredAt).length ? { ...whereBase, delivered_at: whereDeliveredAt } : whereBase;
+        const hasDateFilter = whereDeliveredAt && (Object.keys(whereDeliveredAt).length > 0 || Object.getOwnPropertySymbols(whereDeliveredAt).length > 0);
+        // CourierTask.delivered_at yerine Order.delivered_at kullan (daha güvenilir)
+        // CourierTask join ile Order.delivered_at filtrelenir
+        const whereClause = { ...whereBase };
+        // Tarih filtresi CourierTask'ta değil, Order'da uygula (include where)
+        const orderDateWhere = hasDateFilter ? { delivered_at: whereDeliveredAt } : {};
 
         const statsRaw = await CourierTask.findAll({
             attributes: [
-                [sequelize.fn('COUNT', sequelize.col('id')), 'total_deliveries'],
+                [sequelize.fn('COUNT', sequelize.col('CourierTask.id')), 'total_deliveries'],
                 [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('actual_payout')), 0), 'total_earnings'],
                 [sequelize.fn('COALESCE', sequelize.fn('AVG', sequelize.col('actual_payout')), 0), 'avg_earnings_per_delivery']
             ],
             where: whereClause,
+            include: hasDateFilter ? [{
+                model: Order,
+                as: 'order',
+                attributes: [],
+                where: orderDateWhere,
+                required: true
+            }] : [],
             raw: true
         });
 
@@ -676,43 +722,7 @@ router.get("/earnings", async (req, res) => {
     }
 });
 
-router.get("/reports/shops", async (req, res) => {
-    try {
-        const courierId = req.session.user.id || req.session.user.courierId;
-        if (!courierId) return res.status(400).json({ success: false, message: "Kurye oturumu bulunamadı." });
-
-        const { startDate, endDate } = req.query;
-
-        let dateFilter = "";
-        let replacements = [courierId];
-
-        if (startDate && endDate) {
-            dateFilter = " AND o.created_at >= ? AND o.created_at <= ?";
-            replacements.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
-        }
-
-        const query = `
-            SELECT 
-                s.shop_name,
-                COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as delivered_count,
-                COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) as cancelled_count,
-                COUNT(o.id) as total_tasks
-            FROM orders o
-            LEFT JOIN sellers s ON o.seller_id = s.id
-            WHERE o.courier_id = ?
-            ${dateFilter}
-            GROUP BY s.id, s.shop_name
-            ORDER BY total_tasks DESC
-        `;
-
-        const resultsArray = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
-
-        res.json({ success: true, data: resultsArray });
-    } catch (error) {
-        console.error('REPORTS SHOPS HATA:', error);
-        res.status(500).json({ success: false, message: "Sunucu hatası." });
-    }
-});
+// /reports/shops → satır 920'deki requireRole korumalı route kullanılır (bu eski duplicate kaldırıldı)
 
 router.put("/profile", async (req, res) => {
     try {

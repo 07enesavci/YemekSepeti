@@ -1,16 +1,10 @@
+// fetchAvailableTasks: loadAvailableOrders içinde kullanılan merkezi fetch fonksiyonu
+// Hem tasks hem de message alanını döndürür
 async function fetchAvailableTasks() {
-    try {
-        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        // DÜZELTİLEN YER 1: /api/courier/tasks/available yerine /api/courier/available (README'ye göre)
-        const response = await fetch(`${baseUrl}/api/courier/available`, {
-            credentials: 'include'
-        });
-        if (!response.ok) throw new Error('Alınabilir görevler yüklenemedi');
-        const data = await response.json();
-        return data.success ? data.tasks : [];
-    } catch (error) {
-        return [];
-    }
+    const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+    const response = await fetch(`${baseUrl}/api/courier/available`, { credentials: 'include' });
+    if (!response.ok) throw new Error('Alınabilir görevler yüklenemedi');
+    return await response.json(); // { success, tasks, message }
 }
 
 async function acceptTask(taskId) {
@@ -536,16 +530,9 @@ async function loadAvailableOrders() {
     ordersListContainer.innerHTML = '<p>Yükleniyor...</p>';
 
     try {
-        const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
-        // DÜZELTİLEN YER 3: /api/courier/tasks/available yerine /api/courier/available
-        const response = await fetch(`${baseUrl}/api/courier/available`, {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) throw new Error('Alınabilir görevler yüklenemedi');
-        
-        const data = await response.json();
-        const tasks = data.success ? data.tasks : [];
+        // fetchAvailableTasks merkezi fetch fonksiyonunu kullan
+        const data = await fetchAvailableTasks().catch(() => ({ success: false, tasks: [], message: 'Görevler yüklenemedi.' }));
+        const tasks = data.tasks || [];
         
         ordersListContainer.innerHTML = '';
         
@@ -571,7 +558,10 @@ async function loadAvailableOrders() {
                 dropoffLat: task.dropoffLat || null,
                 dropoffLng: task.dropoffLng || null,
                 payout: task.payout,
-                distanceKm: task.distanceKm
+                distanceKm: task.distanceKm,
+                paymentMethod: task.paymentMethod || 'credit_card',
+                cashPaymentMethod: task.cashPaymentMethod || null,
+                orderNumber: task.orderNumber || task.id
             });
             ordersListContainer.insertAdjacentHTML('beforeend', orderHTML);
         });
@@ -583,6 +573,7 @@ async function loadAvailableOrders() {
 }
 
 function initializeAvailablePage() {
+    startCourierLocationWatch(); // Konum takibini başlat
     loadAvailableOrders();
     setupCourierAutoRefresh('available');
     connectCourierSocket();
@@ -625,6 +616,25 @@ async function handleTaskPickup(event) {
     // Animasyonu başlat
     btn.classList.add('animation');
 
+    // GSAP mevcut değilse basit fallback animasyonu kullan
+    if (typeof gsap === 'undefined') {
+        try {
+            btn.textContent = '📦 Teslim alınıyor...';
+            btn.disabled = true;
+            await pickupTask(parseInt(orderId));
+            btn.classList.add('done');
+            btn.textContent = '✅ Paket Alındı';
+            displayMessage('✅ Sipariş #' + orderId + ' için paket teslim alındı.', 'success');
+            setTimeout(function () { loadActiveTasks(); }, 1000);
+        } catch (error) {
+            btn.classList.remove('animation', 'done');
+            btn.disabled = false;
+            btn.textContent = '📦 Paketi Teslim Al';
+            displayMessage('❌ ' + (error && error.message ? error.message : 'İşlem başarısız.'), 'error');
+        }
+        return;
+    }
+
     // Ana timeline – tüm animasyonu tek bir timeline ile senkronize yönet
     const btnW = btn.offsetWidth || 300;
     const truckW = truck.offsetWidth || 72;
@@ -633,30 +643,16 @@ async function handleTaskPickup(event) {
     const tl = gsap.timeline({
         onComplete: function () {
             btn.classList.add('done');
-            // Animasyon bittikten 1 saniye sonra paneli yenile ("Teslim Edildi" butonu gelsin)
             setTimeout(function () { loadActiveTasks(); }, 1000);
         }
     });
 
-    // 1) Kutuyu göster ve tıra yükle (0 – 1.3s)
     tl.to(btn, { '--box-s': 1, '--box-o': 1, duration: 0.3 }, 0.5)
       .to(btn, { '--box-x': 0, duration: 0.4 }, 0.7)
       .to(btn, { '--hx': -5, '--bx': 50, duration: 0.18 }, 0.92)
       .to(btn, { '--box-y': 0, duration: 0.1 }, 1.15)
-
-    // 2) Tır sola → sağa doğru düzgün tek seferde gitsin (1.5s – 3.5s)
-      .to(btn, {
-          '--truck-x': finalX,
-          duration: 2,
-          ease: 'power1.inOut'
-      }, 1.5)
-
-    // 3) İlerleme çubuğu tırla birlikte dolsun
-      .to(btn, {
-          '--progress': 1,
-          duration: 2,
-          ease: 'power1.inOut'
-      }, 1.5);
+      .to(btn, { '--truck-x': finalX, duration: 2, ease: 'power1.inOut' }, 1.5)
+      .to(btn, { '--progress': 1, duration: 2, ease: 'power1.inOut' }, 1.5);
 
     try {
         await pickupTask(parseInt(orderId));
@@ -869,7 +865,27 @@ function setupCourierAutoRefresh(mode) {
             }).catch(e => {});
         }
     };
-    idleCourierLocationInterval = setInterval(postIdleLocation, 25000);
+    let _locationFailCount = 0;
+    idleCourierLocationInterval = setInterval(async function() {
+        if (document.hidden) return;
+        const pos = await getCourierCurrentPosition();
+        if (pos && pos[0] != null && pos[1] != null) {
+            _locationFailCount = 0;
+            const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+            fetch(`${baseUrl}/api/courier/location`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ latitude: pos[0], longitude: pos[1] })
+            }).catch(e => {
+                _locationFailCount++;
+                if (_locationFailCount >= 3 && typeof displayMessage === 'function') {
+                    displayMessage('⚠️ Konumunuz gönderilemedi. Bağlantınızı kontrol edin.', 'warning');
+                    _locationFailCount = 0;
+                }
+            });
+        }
+    }, 25000);
     setTimeout(postIdleLocation, 2000);
 }
 
@@ -958,6 +974,49 @@ async function sendCourierLocation(orderId, latitude, longitude) {
     }
 }
 
+// Anlık konum — watchPosition ile sürekli takip (performans ve doğruluk iyileştirmesi)
+let _watchId = null;
+let _lastKnownPosition = null;
+let _geoPermissionDenied = false;
+
+function startCourierLocationWatch() {
+    if (_watchId !== null || !navigator.geolocation || _geoPermissionDenied) return;
+
+    _watchId = navigator.geolocation.watchPosition(
+        (position) => {
+            _lastKnownPosition = [position.coords.latitude, position.coords.longitude];
+            hasShownGeoPermissionWarning = false; // İzin verildi, uyarıyı sıfırla
+        },
+        (error) => {
+            _lastKnownPosition = null;
+            if (error && error.code === 1) {
+                _geoPermissionDenied = true;
+                if (!hasShownGeoPermissionWarning) {
+                    hasShownGeoPermissionWarning = true;
+                    if (typeof displayMessage === 'function') {
+                        displayMessage(
+                            '⚠️ Konum izni reddedildi. Canlı konum paylaşımı çalışmayacak. Tarayıcı ayarlarından konum iznini açabilirsiniz.',
+                            'error'
+                        );
+                    }
+                }
+            }
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 5000  // 5 saniyeye kadar önbellek kabul et (daha hızlı yanıt)
+        }
+    );
+}
+
+function stopCourierLocationWatch() {
+    if (_watchId !== null) {
+        navigator.geolocation.clearWatch(_watchId);
+        _watchId = null;
+    }
+}
+
 async function getCourierCurrentPosition() {
     return new Promise((resolve) => {
         if (!navigator.geolocation) {
@@ -965,31 +1024,40 @@ async function getCourierCurrentPosition() {
             return;
         }
 
-        try {
-            if (navigator.permissions && typeof navigator.permissions.query === 'function') {
-                navigator.permissions.query({ name: 'geolocation' }).then((status) => {
-                    if (status && status.state === 'denied' && !hasShownGeoPermissionWarning) {
-                        if (typeof displayMessage === 'function') {
-                            displayMessage('ℹ️ Konum izni kapalı. Harita yine çalışır, ama canlı konum görünmez.', 'info');
-                        }
-                        hasShownGeoPermissionWarning = true;
-                    }
-                }).catch(() => {});
-            }
-        } catch (e) {}
+        // watchPosition zaten çalışıyorsa önbelleği kullan
+        if (_lastKnownPosition) {
+            resolve(_lastKnownPosition);
+            return;
+        }
 
+        // İzin reddedildiyse tekrar deneme
+        if (_geoPermissionDenied) {
+            if (!hasShownGeoPermissionWarning) {
+                hasShownGeoPermissionWarning = true;
+                if (typeof displayMessage === 'function') {
+                    displayMessage('⚠️ Konum izni kapalı. Tarayıcı ayarlarından izin verin.', 'error');
+                }
+            }
+            resolve(null);
+            return;
+        }
+
+        // İlk kez veya watchPosition başlamadıysa getCurrentPosition dene
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                resolve([position.coords.latitude, position.coords.longitude]);
+                _lastKnownPosition = [position.coords.latitude, position.coords.longitude];
+                startCourierLocationWatch(); // watchPosition'ı başlat
+                resolve(_lastKnownPosition);
             },
             (error) => {
                 if (!hasShownGeoPermissionWarning) {
                     const denied = error && error.code === 1;
-                    const blockedMsg = denied
-                        ? 'Konum izni engelli (Access blocked). Tarayıcı ayarlarından bu site için konumu "İzin ver" yapın.'
-                        : 'Konum alınamadı. Harita varsayılan merkezle gösterilecek.';
+                    _geoPermissionDenied = denied;
+                    const msg = denied
+                        ? '⚠️ Konum izni engelli. Tarayıcı ayarlarından "İzin ver" yapın.'
+                        : '⚠️ Konum alınamadı. GPS/ağ bağlantısını kontrol edin.';
                     if (typeof displayMessage === 'function') {
-                        displayMessage('ℹ️ ' + blockedMsg, denied ? 'error' : 'info');
+                        displayMessage(msg, denied ? 'error' : 'info');
                     }
                     hasShownGeoPermissionWarning = true;
                 }
@@ -997,8 +1065,8 @@ async function getCourierCurrentPosition() {
             },
             {
                 enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
+                timeout: 12000,
+                maximumAge: 10000
             }
         );
     });
@@ -1334,20 +1402,27 @@ function openGoogleMapsDirections(btn) {
 }
 
 async function updateStats() {
+    const earningValue = document.querySelector('.stat-grid .stat-card:nth-child(1) .stat-value');
+    const deliveryValue = document.querySelector('.stat-grid .stat-card:nth-child(2) .stat-value');
     try {
         const earnings = await fetchCourierEarnings('day');
         if (earnings && earnings.stats) {
-            const earningValue = document.querySelector('.stat-grid .stat-card:nth-child(1) .stat-value');
-            const deliveryValue = document.querySelector('.stat-grid .stat-card:nth-child(2) .stat-value');
-
             if (earningValue) {
                 earningValue.textContent = `${earnings.stats.totalEarnings.toFixed(2)} TL`;
             }
             if (deliveryValue) {
                 deliveryValue.textContent = earnings.stats.totalDeliveries;
             }
+        } else {
+            // API null döndüyse sıfırla
+            if (earningValue) earningValue.textContent = '0.00 TL';
+            if (deliveryValue) deliveryValue.textContent = '0';
         }
-    } catch (error) {}
+    } catch (error) {
+        // Hata durumunda da sıfırla
+        if (earningValue) earningValue.textContent = '0.00 TL';
+        if (deliveryValue) deliveryValue.textContent = '0';
+    }
 }
 
 async function loadActiveTasks() {
@@ -1498,6 +1573,7 @@ async function loadCourierStatusIndicator() {
 }
 
 function initializeDashboardPage() {
+    startCourierLocationWatch(); // Dashboard'da da konum takibi aktif
     loadActiveTasks();
     loadCourierStatusIndicator();
     setupCourierAutoRefresh('dashboard');

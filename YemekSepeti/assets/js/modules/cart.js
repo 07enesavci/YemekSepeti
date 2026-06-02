@@ -263,7 +263,7 @@ async function addToCart(mealId, sellerId, quantity) {
     try {
         var i = sepetIndex(mealId);
         if (i > -1) {
-            sepet[i].adet += 1;
+            sepet[i].adet += quantity;  // quantity parametresini kullan (sabit 1 değil)
             sepetiKaydet();
             sepetiYenile();
             if (window.updateFloatingCart) {
@@ -420,7 +420,19 @@ function adetArtirAzalt(id, delta)
  	}
 }
 
+var _sepetiYenileRunning = false;
 async function sepetiYenile()
+{
+    // Eşzamanlı çağrıları önle (delivery fee fetch race condition)
+    if (_sepetiYenileRunning) return;
+    _sepetiYenileRunning = true;
+    try {
+        await _sepetiYenileImpl();
+    } finally {
+        _sepetiYenileRunning = false;
+    }
+}
+async function _sepetiYenileImpl()
 {
     if (!sepet || sepet.length === 0) {
         syncAppliedCouponState(null);
@@ -536,10 +548,18 @@ async function sepetiYenile()
     } else {
         if (mixedWarning) mixedWarning.style.display = 'none';
         if (checkoutBtn) {
-            checkoutBtn.classList.remove('btn-disabled');
-            checkoutBtn.style.pointerEvents = 'auto';
-            checkoutBtn.style.opacity = '1';
-            checkoutBtn.textContent = 'Siparişi Tamamla';
+            // Sepet boşsa checkout butonu da pasif
+            if (sepet.length === 0) {
+                checkoutBtn.classList.add('btn-disabled');
+                checkoutBtn.style.pointerEvents = 'none';
+                checkoutBtn.style.opacity = '0.5';
+                checkoutBtn.textContent = 'Sepet Boş';
+            } else {
+                checkoutBtn.classList.remove('btn-disabled');
+                checkoutBtn.style.pointerEvents = 'auto';
+                checkoutBtn.style.opacity = '1';
+                checkoutBtn.textContent = 'Siparişi Tamamla';
+            }
         }
         if (couponInput) couponInput.disabled = false;
         if (couponBtn) couponBtn.disabled = false;
@@ -631,7 +651,9 @@ async function sepetiYenile()
    	 	var couponDiscountRow = document.getElementById('summary-coupon-discount');
    	 	if (kuponIndirimi > 0) {
    	 	    if (!couponDiscountRow) {
-   	 	        var deliveryRow = document.querySelector('.summary-row:has(#summary-delivery)');
+            // :has() CSS selector bazı eski tarayıcılarda desteklenmiyor — JS fallback
+            var deliveryEl = document.getElementById('summary-delivery');
+            var deliveryRow = deliveryEl ? deliveryEl.closest('.summary-row') : null;
    	 	        if (deliveryRow) {
    	 	            var couponRow = document.createElement('div');
    	 	            couponRow.className = 'summary-row';
@@ -670,7 +692,7 @@ async function sepetiYenile()
    	}
     
     if (window.location.pathname.includes('/buyer/cart')) {
-        loadAvailableCoupons();
+        loadAvailableCoupons().catch(function() {});
     }
 }
 
@@ -967,6 +989,9 @@ async function applyCoupon() {
 
 async function loadAvailableCoupons() {
     try {
+        // Giriş yapılmamışsa kuponu çekme
+        if (!await checkAuth()) return;
+
         if (sepet.length === 0) {
             var couponsSection = document.getElementById('available-coupons-section');
             if (couponsSection) {

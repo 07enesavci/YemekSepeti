@@ -7,7 +7,7 @@ const { sequelize } = require("../../config/database");
 const { Meal, Seller, Address, Order, OrderItem, User, Coupon, CouponUsage, CourierTask, Review, Courier } = require("../../models");
 const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
-const { refundIyzicoPaymentForOrder } = require("../../lib/iyzicoRefund");
+const { refundIyzicoPaymentForOrder, refundIyzicoPaymentPartial } = require("../../lib/iyzicoRefund");
 const { decryptText } = require("../../lib/cardCrypto");
 const { sendPickupReadyEmail } = require("../../config/email");
 
@@ -166,24 +166,14 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         where: { user_id: userId, is_default: true },
                         attributes: ['id']
                     });
-                    
                     if (defaultAddress) {
                         addressId = defaultAddress.id;
                     } else {
-                        const userInfo = await User.findByPk(userId, {
-                            attributes: ['fullname', 'phone']
+                        // Sahte adres oluşturmak yerine kullanıcıyı bilgilendir
+                        return res.status(400).json({
+                            success: false,
+                            message: "Teslimat adresi bulunamadı. Lütfen önce profilinizden bir adres ekleyin."
                         });
-                        
-                        const newAddress = await Address.create({
-                            user_id: userId,
-                            title: 'Ev Adresi',
-                            full_address: 'Adres bilgisi girilmemiş, lütfen profil sayfanızdan güncelleyin',
-                            district: 'İstanbul',
-                            city: 'İstanbul',
-                            is_default: true
-                        });
-                        
-                        addressId = newAddress.id;
                     }
                 }
             }
@@ -440,7 +430,9 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                         cardHolderName: saved.card_name,
                         cardNumber,
                         expireMonth: String(saved.card_expiry_month).padStart(2, '0'),
-                        expireYear: String(saved.card_expiry_year).slice(-2),
+                        expireYear: String(saved.card_expiry_year).length === 2
+                            ? String(new Date().getFullYear()).slice(0, 2) + String(saved.card_expiry_year)
+                            : String(saved.card_expiry_year),
                         cvc: String(iyzicoSavedCardCvc).replace(/\D/g, '').slice(0, 4)
                     };
                 }
@@ -559,9 +551,11 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                             });
                         }
                         if (couponRow.usage_limit > 0) {
+                            // Race condition önlemi: transaction içinde FOR UPDATE ile kilitle
                             const usageNow = await CouponUsage.count({
                                 where: { coupon_id: appliedCouponId },
-                                transaction
+                                transaction,
+                                lock: transaction.LOCK.UPDATE
                             });
                             if (usageNow >= couponRow.usage_limit) {
                                 await transaction.rollback();
@@ -652,10 +646,10 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
 
             if (lastDbError || !order) {
+                console.error('Sipariş oluşturma DB hatası:', lastDbError?.message);
                 return res.status(500).json({
                     success: false,
-                    message: "Sipariş oluşturulurken veritabanı hatası oluştu: " + (lastDbError && lastDbError.message ? lastDbError.message : "Bilinmeyen hata"),
-                    error: process.env.NODE_ENV === 'development' && lastDbError ? lastDbError.message : undefined
+                    message: "Sipariş oluşturulurken bir hata oluştu. Lütfen tekrar deneyin."
                 });
             }
 
@@ -741,10 +735,10 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
 
         } catch (routeError) {
-            return res.status(500).json({ 
-                success: false, 
-                message: "Sipariş oluşturulurken veritabanı hatası oluştu: " + (routeError && routeError.message ? routeError.message : String(routeError)),
-                error: process.env.NODE_ENV === 'development' ? (routeError && routeError.message) : undefined
+            console.error('Sipariş route hatası:', routeError?.message);
+            return res.status(500).json({
+                success: false,
+                message: "Sipariş oluşturulurken bir hata oluştu. Lütfen tekrar deneyin."
             });
         }
 
@@ -757,9 +751,16 @@ router.post("/", requireRole('buyer'), async (req, res) => {
 });
 
 
-router.get("/active/:userId", async (req, res) => {
+router.get("/active/:userId", requireAuth, async (req, res) => {
     try {
-        const userId = parseInt(req.params.userId);
+        const requestedId = parseInt(req.params.userId);
+        const sessionUserId = req.session?.user?.id;
+        const sessionRole = req.session?.user?.role;
+        // Yalnızca kendi siparişleri veya admin görebilir
+        if (!['admin','super_admin','support'].includes(sessionRole) && requestedId !== sessionUserId) {
+            return res.status(403).json({ success: false, message: "Bu siparişleri görüntüleme yetkiniz yok." });
+        }
+        const userId = requestedId;
 
         try {
             const activeOrdersData = await Order.findAll({
@@ -790,7 +791,7 @@ router.get("/active/:userId", async (req, res) => {
                 seller: order.seller?.shop_name || "Ev Lezzetleri",
                 total: parseFloat(order.total_amount) || 0,
                 items: order.items.map(item => item.meal_name).join(', ') || "Belirtilmemiş",
-                canCancel: ['pending', 'confirmed', 'preparing', 'ready'].includes(order.status),
+                canCancel: ['pending', 'confirmed'].includes(order.status),
                 canDetail: true,
                 type: 'active'
             }));
@@ -815,9 +816,15 @@ router.get("/active/:userId", async (req, res) => {
     }
 });
 
-router.get("/past/:userId", async (req, res) => {
+router.get("/past/:userId", requireAuth, async (req, res) => {
     try {
-        const userId = parseInt(req.params.userId);
+        const requestedId = parseInt(req.params.userId);
+        const sessionUserId = req.session?.user?.id;
+        const sessionRole = req.session?.user?.role;
+        if (!['admin','super_admin','support'].includes(sessionRole) && requestedId !== sessionUserId) {
+            return res.status(403).json({ success: false, message: "Bu siparişleri görüntüleme yetkiniz yok." });
+        }
+        const userId = requestedId;
 
         try {
             const pastOrdersData = await Order.findAll({
@@ -998,17 +1005,18 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
         } else if (tab === 'preparing') {
             statuses = ['preparing'];
         } else if (tab === 'cargo_ready') {
-            statuses = ['ready'];
+            statuses = ['ready', 'confirmed', 'preparing'];
         } else if (tab === 'shipped') {
             statuses = ['on_delivery'];
         } else if (tab === 'history') {
             statuses = ['delivered', 'cancelled'];
         }
+        const orderWhere = { seller_id: shopId, status: { [Op.in]: statuses } };
+        // Kargo sekmesi yalnızca kargo teslimat tipini göstermeli
+        if (tab === 'cargo_ready') orderWhere.delivery_type = 'cargo';
+
         const ordersRaw = await Order.findAll({
-            where: {
-                seller_id: shopId,
-                status: { [Op.in]: statuses }
-            },
+            where: orderWhere,
             include: [
                 { model: User, as: 'buyer', attributes: ['fullname'] },
                 { model: Address, as: 'address', attributes: ['district', 'city', 'full_address'], required: false },
@@ -1024,7 +1032,15 @@ router.get("/seller/orders", requireRole('seller'), async (req, res) => {
             let deliveryTypeBadge = '';
             if (order.delivery_type === 'pickup') deliveryTypeBadge = '<span class="badge badge-warning" style="background:#f39c12;color:white;padding:2px 6px;border-radius:4px;font-size:0.8rem;">Gel Al</span>';
             else if (isCargo) deliveryTypeBadge = '<span class="badge" style="background:#8e44ad;color:white;padding:2px 6px;border-radius:4px;font-size:0.8rem;">📦 Kargo</span>';
-            const deliveryAddress = order.delivery_type === 'pickup' ? 'Gel Al (Mağazadan Teslim)' : isCargo ? (order.address ? order.address.full_address || `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') : '') : (order.address ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || order.address.full_address : `Adres ID: ${order.address_id}`);
+            // Kargo siparişlerde tam adres zorunlu — boş bırakılmamalı
+            const cargoAddr = order.address
+                ? (order.address.full_address || `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || 'Adres belirtilmemiş')
+                : (order.address_id ? `Adres ID: ${order.address_id}` : 'Adres bilgisi yok');
+            const deliveryAddress = order.delivery_type === 'pickup'
+                ? 'Gel Al (Mağazadan Teslim)'
+                : isCargo
+                    ? cargoAddr
+                    : (order.address ? `${order.address.district || ''}, ${order.address.city || ''}`.replace(/^,\s*|,\s*$/g, '') || order.address.full_address : `Adres ID: ${order.address_id}`);
             const customerNameWithBadge = deliveryTypeBadge ? `${customerName} ${deliveryTypeBadge}` : customerName;
             const itemsStr = (order.items || []).map(i => `${i.quantity} x ${i.meal_name}`).join(', ') || 'Belirtilmemiş';
 
@@ -1079,7 +1095,7 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                 message: "Durum belirtilmedi."
             });
         }
-        const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
+        const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery', 'delivered', 'cancelled'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -1360,6 +1376,14 @@ router.post("/seller/assign-own-courier/:id", requireRole('seller'), async (req,
             return res.status(400).json({ success: false, message: "Gel Al siparişlerde kurye atanamaz." });
         }
 
+        // Kargo siparişleri kendi kuryeyle teslim edilemez — kargo firmasına verilmeli
+        if (order.delivery_type === 'cargo') {
+            return res.status(400).json({
+                success: false,
+                message: "Kargo siparişleri 'Kendi Kuryem' ile gönderilemez. 'Kargoya Verildi' butonunu kullanın."
+            });
+        }
+
         // Kuryenin bu satıcıya ait olduğunu kontrol et
         const courier = await Courier.findOne({
             where: { id: parseInt(courierId), seller_id: shopId },
@@ -1369,27 +1393,30 @@ router.post("/seller/assign-own-courier/:id", requireRole('seller'), async (req,
             return res.status(404).json({ success: false, message: "Bu kurye kadronuzda bulunamadı." });
         }
 
-        // Siparişe kurye ata
+        // Siparişe kurye ata — durum 'on_delivery' olarak güncellenir (kurye yola çıkıyor)
         await Order.update(
-            { courier_id: courier.user.id, status: 'ready' },
+            { courier_id: courier.user.id, status: 'on_delivery' },
             { where: { id: orderId } }
         );
 
-        // CourierTask oluştur
+        // CourierTask oluştur ve ID'yi al (socket'e CourierTask.id gönderilmeli)
+        let newTaskId = null;
         try {
-            await CourierTask.create({
+            const newTask = await CourierTask.create({
                 order_id: orderId,
                 courier_id: courier.user.id,
                 status: 'assigned'
             });
+            newTaskId = newTask.id;
         } catch (taskErr) {
             console.error('CourierTask oluşturma hatası:', taskErr);
         }
 
         // Socket.IO ile kuryeye bildir
+        // taskId = CourierTask.id (accept-assigned endpoint'i CourierTask.id bekler)
         if (global.io) {
             global.io.to(`courier-${courier.user.id}`).emit('courier_task_assigned', {
-                taskId: orderId,
+                taskId: newTaskId || orderId,  // CourierTask.id gönderilir
                 orderId: orderId,
                 orderNumber: order.order_number,
                 message: `${sellerRecord.shop_name} size sipariş #${order.order_number} atadı.`
@@ -1471,7 +1498,8 @@ router.post("/seller/cargo-ship/:id", requireRole('seller'), async (req, res) =>
 
         res.json({ success: true, message: "Sipariş kargoya verildi." });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message || "Sunucu hatası." });
+        console.error('cargo-ship error:', error?.message);
+        res.status(500).json({ success: false, message: "Sunucu hatası. Kargo işlemi tamamlanamadı." });
     }
 });
 
@@ -1582,6 +1610,75 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
             success: false,
             message: "Sunucu hatası. Sipariş iptal edilemedi."
         });
+    }
+});
+
+// Admin: Kısmi iade
+router.post("/:id/partial-refund", requireAuth, async (req, res) => {
+    try {
+        const userRole = req.session?.user?.role;
+        if (!['admin', 'super_admin'].includes(userRole)) {
+            return res.status(403).json({ success: false, message: "Bu işlem için admin yetkisi gereklidir." });
+        }
+
+        const orderId = parseInt(req.params.id);
+        if (isNaN(orderId) || orderId <= 0) {
+            return res.status(400).json({ success: false, message: "Geçersiz sipariş ID'si." });
+        }
+
+        const { refundAmount, reason } = req.body;
+        const amount = parseFloat(refundAmount);
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ success: false, message: "Geçerli bir iade tutarı girin." });
+        }
+
+        const order = await Order.findByPk(orderId, {
+            attributes: ['id', 'status', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at',
+                        'order_number', 'total_amount', 'partial_refund_amount']
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
+        }
+
+        if (order.payment_method !== 'iyzico' || !order.iyzico_payment_data) {
+            return res.status(400).json({ success: false, message: "Bu sipariş için iade yapılamaz (ödeme yöntemi uyumsuz)." });
+        }
+
+        const alreadyRefunded = parseFloat(order.partial_refund_amount || 0);
+        const totalPaid = parseFloat(order.total_amount || 0);
+        const maxRefundable = totalPaid - alreadyRefunded;
+
+        if (amount > maxRefundable) {
+            return res.status(400).json({
+                success: false,
+                message: `İade edilebilir maksimum tutar: ${maxRefundable.toFixed(2)} TL`
+            });
+        }
+
+        await refundIyzicoPaymentPartial(order, amount, req.ip, reason || 'Admin kısmi iade');
+
+        const newRefundTotal = alreadyRefunded + amount;
+        const updateData = { partial_refund_amount: newRefundTotal.toFixed(2) };
+        if (newRefundTotal >= totalPaid) {
+            updateData.iyzico_refunded_at = new Date();
+        }
+        await Order.update(updateData, { where: { id: orderId } });
+
+        const { writeLog } = require('../../config/logger');
+        writeLog('INFO', 'Kısmi iade yapıldı', {
+            orderId, amount, reason, adminId: req.session?.user?.id
+        });
+
+        res.json({
+            success: true,
+            message: `${amount.toFixed(2)} TL iade başarıyla yapıldı.`,
+            refundedAmount: amount,
+            totalRefunded: newRefundTotal
+        });
+    } catch (error) {
+        console.error('Kısmi iade hatası:', error?.message);
+        res.status(500).json({ success: false, message: "İade işlemi sırasında hata oluştu. Lütfen tekrar deneyin." });
     }
 });
 

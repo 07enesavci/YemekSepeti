@@ -35,15 +35,10 @@
 
             <div class="card checkout-card" id="address-card">
                 <h3 class="checkout-card-title">2. Teslimat Adresi</h3>
-                <div class="role-selector"> 
-                    <div class="form-check form-check-radio">
-                        <input type="radio" id="address-1" name="address" value="1" checked>
-                        <label for="address-1">
-                            <strong>Ev Adresi</strong>
-                            <span>(Çerkezköy, Tekirdağ...)</span>
-                        </label>
-                    </div>
-                    <div class="form-check form-check-radio">
+                <div class="role-selector" id="address-list">
+                    <!-- Adresler JS ile yüklenir — placeholder gösterilmez -->
+                    <div class="ys-skeleton ys-skeleton-text medium" style="margin-bottom:0.75rem;height:2rem;border-radius:8px;" id="address-loading-skeleton"></div>
+                    <div class="form-check form-check-radio" style="display:none;">
                         <input type="radio" id="address-new" name="address" value="new">
                         <label for="address-new">
                             <strong>Yeni Adres Ekle</strong>
@@ -54,13 +49,9 @@
 
             <div class="card checkout-card" id="payment-method-card">
                 <h3 class="checkout-card-title">3. Ödeme Yöntemi</h3>
-                <div class="role-selector">
-                    <div class="form-check form-check-radio">
-                        <input type="radio" id="card-1" name="payment-card" value="1" checked>
-                        <label for="card-1">
-                            <strong>💳 **** **** **** 1234</strong>
-                        </label>
-                    </div>
+                <div class="role-selector" id="card-list">
+                    <!-- Kartlar JS ile yüklenir — placeholder gösterilmez -->
+                    <div class="ys-skeleton ys-skeleton-text medium" style="margin-bottom:0.75rem;height:2rem;border-radius:8px;" id="card-loading-skeleton"></div>
                     <div class="form-check form-check-radio">
                         <input type="radio" id="card-new" name="payment-card" value="new">
                         <label for="card-new">

@@ -11,7 +11,7 @@ const { User, EmailVerificationCode, Seller, Courier, Address } = require("../..
 const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
 const { body, validationResult } = require('express-validator');
-const { authLimiter } = require('../../middleware/security');
+const { authLimiter, strictLimiter } = require('../../middleware/security');
 const { submitDocumentsJsonValidation, handleValidationErrors: handleValidate } = require('../../middleware/validate');
 const { getDomainType, roleAllowedOnDomain } = require('../../middleware/auth');
 const { isGoogleOAuthConfigured } = require('../../config/google-oauth');
@@ -51,7 +51,7 @@ function ensureSecret() {
 function generateToken(user) {
     const secret = ensureSecret();
     const payload = { id: user.id, email: user.email, role: user.role };
-    return jwt.sign(payload, secret, { expiresIn: "7d", algorithm: "HS256" });
+    return jwt.sign(payload, secret, { expiresIn: "4h", algorithm: "HS256" });
 }
 
 async function hashPassword(password) {
@@ -213,19 +213,37 @@ router.post("/login", authLimiter, [
         }
         const token = generateToken(user);
         const userData = await buildSessionUserData(user);
+
+        // Session'ı yenile (oturum sabitleme saldırısını önler)
+        await new Promise((resolve, reject) => {
+            req.session.regenerate((err) => {
+                if (err) return reject(err);
+                resolve();
+            });
+        });
+
         req.session.user = userData;
         req.session.isAuthenticated = true;
-        if (req.body.remember_me) {
-            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 gün
+        req.session.loginAt = Date.now();
+        req.session.csrfToken = require('crypto').randomBytes(32).toString('hex');
+
+        // Oturum süresini role'e göre ayarla
+        const isAdmin = ['admin', 'super_admin', 'support'].includes(user.role);
+        if (req.body.remember_me && !isAdmin) {
+            req.session.cookie.maxAge = global.SESSION_MAX_AGE_REMEMBER || (30 * 24 * 60 * 60 * 1000);
+        } else if (isAdmin) {
+            req.session.cookie.maxAge = global.SESSION_MAX_AGE_ADMIN || (60 * 60 * 1000);
+        } else {
+            req.session.cookie.maxAge = global.SESSION_MAX_AGE_DEFAULT || (4 * 60 * 60 * 1000);
         }
-        
+
         if (typeof req.session.save === 'function') {
             req.session.save((err) => {
                 if (err) console.error("Session save error in login:", err);
-                res.json({ success: true, user: userData, token });
+                res.json({ success: true, user: userData, token, csrfToken: req.session.csrfToken });
             });
         } else {
-            res.json({ success: true, user: userData, token });
+            res.json({ success: true, user: userData, token, csrfToken: req.session.csrfToken });
         }
     } catch (error) {
         console.error("Login error:", error);
@@ -426,23 +444,29 @@ router.get('/google/callback', async (req, res) => {
 });
 
 // REGISTER (Önce kod gönderir)
-router.post("/register", [
-    body('email').isEmail().withMessage('Geçerli bir e-posta girin.')
+// Rate limit: dakikada 5 deneme (strictLimiter)
+router.post("/register", strictLimiter, [
+    body('email').isEmail().normalizeEmail().withMessage('Geçerli bir e-posta girin.')
 ], handleValidationErrors, async (req, res) => {
     const { email } = req.body;
+    const GENERIC_MSG = "Eğer bu e-posta geçerliyse, doğrulama kodu gönderildi.";
     try {
         const domainType = getDomainType(req);
         if (domainType === 'admin') {
             return res.status(403).json({ success: false, message: "Admin domaininde kayıt kapalıdır." });
         }
+
         const existingUser = await User.findOne({ where: { email }, attributes: ['id', 'email'] });
-        if (existingUser) return res.status(400).json({ success: false, message: "Bu e-posta kayıtlı." });
+        if (existingUser) {
+            // Email adresinin varlığını sızdırma — her zaman aynı mesaj
+            return res.json({ success: true, requiresVerification: true, message: GENERIC_MSG });
+        }
 
         const code = generateVerificationCode();
         await saveVerificationCode(email, code, 'registration');
         await sendVerificationCode(email, code, 'registration');
-        
-        res.json({ success: true, requiresVerification: true, message: "Kod gönderildi." });
+
+        res.json({ success: true, requiresVerification: true, message: GENERIC_MSG });
     } catch (error) {
         res.status(500).json({ success: false, message: "Kayıt başlatılamadı." });
     }
@@ -736,49 +760,81 @@ router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValid
     }
 });
 
-// Şifre Sıfırlama - Link Gönder
-router.post("/forgot-password", async (req, res) => {
+// Şifre Sıfırlama - Link Gönder (DB tabanlı tek kullanımlık token, 15 dakika)
+// Rate limit: strictLimiter (dakikada 5 deneme)
+router.post("/forgot-password", strictLimiter, async (req, res) => {
     const { email } = req.body;
+    const GENERIC_OK = "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.";
     try {
-        const user = await User.findOne({ where: { email }, attributes: ['id', 'email', 'role'] });
-        if (!user) {
-            // Güvenlik: kullanıcı var mı belli etme
-            return res.json({ success: true, message: "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi." });
+        if (!email || typeof email !== 'string') {
+            return res.json({ success: true, message: GENERIC_OK });
         }
-        const token = generateToken(user);
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ where: { email: normalizedEmail }, attributes: ['id', 'email', 'role'] });
+
+        // Kullanıcı yoksa da aynı mesaj döndür (email enumeration'ı önler)
+        if (!user) {
+            return res.json({ success: true, message: GENERIC_OK });
+        }
+
+        // Tek kullanımlık rastgele token oluştur (JWT değil)
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 dakika
+
+        // Eski tokenları geçersiz kıl, yenisini kaydet
+        await EmailVerificationCode.destroy({ where: { email: normalizedEmail, type: 'password_reset' } });
+        await EmailVerificationCode.create({
+            email: normalizedEmail,
+            code: resetToken,
+            type: 'password_reset',
+            expires_at: expiresAt,
+            used: false
+        });
+
         const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-        const resetLink = `${baseUrl}/reset-password?token=${token}`;
-        await sendPasswordResetLink(email, resetLink);
-        res.json({ success: true, message: "Şifre sıfırlama bağlantısı gönderildi." });
+        const resetLink = `${baseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
+        await sendPasswordResetLink(normalizedEmail, resetLink);
+
+        res.json({ success: true, message: GENERIC_OK });
     } catch (error) {
-        console.error('Forgot password hatası:', error);
+        console.error('Forgot password hatası:', error.message);
         res.status(500).json({ success: false, message: "İşlem sırasında hata oluştu." });
     }
 });
 
 // Şifre Sıfırlama - Yeni Şifre Kaydet
-router.post("/reset-password", async (req, res) => {
-    const { token, password } = req.body;
+// Rate limit: strictLimiter (dakikada 5 deneme)
+router.post("/reset-password", strictLimiter, async (req, res) => {
+    const { token, email, password } = req.body;
     try {
-        if (!token || !password) {
-            return res.status(400).json({ success: false, message: "Token ve yeni şifre gereklidir." });
+        if (!token || !email || !password) {
+            return res.status(400).json({ success: false, message: "Gerekli bilgiler eksik." });
         }
-        if (password.length < 6) {
-            return res.status(400).json({ success: false, message: "Şifre en az 6 karakter olmalıdır." });
+        if (password.length < 8) {
+            return res.status(400).json({ success: false, message: "Şifre en az 8 karakter olmalıdır." });
+        }
+        if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+            return res.status(400).json({ success: false, message: "Şifre en az bir büyük harf ve bir rakam içermelidir." });
         }
 
-        const secret = ensureSecret();
-        let decoded;
-        try {
-            decoded = jwt.verify(token, secret);
-        } catch (err) {
-            if (err.name === 'TokenExpiredError') {
-                return res.status(400).json({ success: false, message: "Sıfırlama bağlantısının süresi dolmuş. Lütfen yeni bir bağlantı isteyin." });
+        const normalizedEmail = String(email).trim().toLowerCase();
+
+        // Token'ı DB'den doğrula (tek kullanımlık, 15 dakika geçerli)
+        const resetRecord = await EmailVerificationCode.findOne({
+            where: {
+                email: normalizedEmail,
+                code: token,
+                type: 'password_reset',
+                used: false,
+                expires_at: { [Op.gt]: new Date() }
             }
-            return res.status(400).json({ success: false, message: "Geçersiz sıfırlama bağlantısı." });
+        });
+
+        if (!resetRecord) {
+            return res.status(400).json({ success: false, message: "Geçersiz veya süresi dolmuş bağlantı. Lütfen yeni sıfırlama isteği yapın." });
         }
 
-        const user = await User.findByPk(decoded.id);
+        const user = await User.findOne({ where: { email: normalizedEmail } });
         if (!user) {
             return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
         }
@@ -786,11 +842,43 @@ router.post("/reset-password", async (req, res) => {
         const hashedPassword = await hashPassword(password);
         await user.update({ password: hashedPassword });
 
+        // Kullanıldı olarak işaretle (tek kullanım)
+        await resetRecord.update({ used: true });
+
         res.json({ success: true, message: "Şifreniz başarıyla güncellendi. Şimdi giriş yapabilirsiniz." });
     } catch (error) {
-        console.error('Reset password hatası:', error);
+        console.error('Reset password hatası:', error.message);
         res.status(500).json({ success: false, message: "Şifre sıfırlama sırasında hata oluştu." });
     }
+});
+
+// Oturum bitiş zamanı (frontend countdown için)
+router.get("/session-info", (req, res) => {
+    if (!req.session || !req.session.isAuthenticated) {
+        return res.status(401).json({ success: false, message: "Oturum yok." });
+    }
+    const maxAge = req.session.cookie && req.session.cookie.maxAge;
+    const expiresAt = maxAge ? new Date(Date.now() + maxAge).toISOString() : null;
+    res.json({ success: true, expiresAt });
+});
+
+// Oturum uzatma (kullanıcı "Uzat" butonuna basınca)
+router.post("/extend-session", (req, res) => {
+    if (!req.session || !req.session.isAuthenticated) {
+        return res.status(401).json({ success: false, message: "Oturum yok." });
+    }
+    const userRole = req.session.user && req.session.user.role;
+    const isAdmin = ['admin', 'super_admin', 'support'].includes(userRole);
+    const newMaxAge = isAdmin
+        ? (global.SESSION_MAX_AGE_ADMIN || 60 * 60 * 1000)
+        : (global.SESSION_MAX_AGE_DEFAULT || 4 * 60 * 60 * 1000);
+
+    req.session.cookie.maxAge = newMaxAge;
+    req.session.save((err) => {
+        if (err) return res.status(500).json({ success: false, message: "Oturum uzatılamadı." });
+        const expiresAt = new Date(Date.now() + newMaxAge).toISOString();
+        res.json({ success: true, expiresAt });
+    });
 });
 
 // Mevcut Kullanıcı Bilgisi

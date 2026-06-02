@@ -20,6 +20,58 @@
 .status-offline { background-color: rgba(239, 68, 68, 0.15); color: #E74C3C; }
 .status-pending { background-color: rgba(245, 158, 11, 0.15); color: #F59E0B; }
 
+.actions-bar input, .actions-bar select {
+    background: #fff; color: #111;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.actions-bar input::placeholder { color: #999; }
+
+:root[data-theme="dark"] .actions-bar input,
+:root[data-theme="dark"] .actions-bar select {
+    background: rgba(30, 41, 59, 0.85);
+    color: #F8FAFC;
+    border-color: rgba(148, 163, 184, 0.28);
+}
+:root[data-theme="dark"] .actions-bar input::placeholder { color: #94A3B8; }
+:root[data-theme="dark"] .actions-bar select option { background: #1E293B; color: #F8FAFC; }
+
+/* === MODERN ARAMALI SELECT === */
+.ys-select-wrapper { position: relative; width: 100%; text-align: left; }
+.ys-select-original { display: none !important; }
+.ys-select-trigger {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 0.65rem 1rem; background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px;
+    color: var(--text-color, #334155); font-size: 0.9rem; cursor: pointer; transition: all 0.2s;
+    user-select: none;
+}
+.ys-select-trigger:hover { border-color: rgba(220, 38, 38, 0.4); }
+.ys-select-trigger.open { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+.ys-select-arrow { opacity: 0.5; transition: transform 0.2s; font-size: 0.7rem; }
+.ys-select-trigger.open .ys-select-arrow { transform: rotate(180deg); }
+.ys-select-panel {
+    position: absolute; top: calc(100% + 5px); left: 0; right: 0; background: var(--card-bg, #fff);
+    border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 200; opacity: 0; visibility: hidden;
+    transform: translateY(-5px); transition: all 0.2s; display: flex; flex-direction: column;
+}
+.ys-select-panel.open { opacity: 1; visibility: visible; transform: translateY(0); }
+.ys-select-search { padding: 0.5rem; border-bottom: 1px solid var(--border-color, #f1f5f9); position: relative; }
+.ys-select-search input {
+    width: 100%; padding: 0.5rem 0.5rem 0.5rem 2.2rem; border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px;
+    font-size: 0.85rem; outline: none; background: transparent; color: var(--text-color); box-sizing: border-box; transition: border-color 0.2s;
+}
+.ys-select-search input:focus { border-color: #ef4444; }
+.ys-select-search svg { position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); color: var(--text-color, #94a3b8); width: 14px; height: 14px; pointer-events: none; opacity: 0.5; }
+.ys-select-list { list-style: none; padding: 0; margin: 0; max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(239, 68, 68, 0.3) transparent; }
+.ys-select-list::-webkit-scrollbar { width: 6px; }
+.ys-select-list::-webkit-scrollbar-thumb { background: rgba(239, 68, 68, 0.3); border-radius: 4px; }
+.ys-select-list li { padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; color: var(--text-color, #334155); transition: background 0.15s; }
+.ys-select-list li:hover { background: rgba(239, 68, 68, 0.05); color: #ef4444; }
+.ys-select-list li.selected { background: rgba(239, 68, 68, 0.1); color: #ef4444; font-weight: 600; border-left: 3px solid #ef4444; padding-left: calc(1rem - 3px); }
+.ys-select-list li.hidden { display: none; }
+.ys-select-empty { padding: 1rem; text-align: center; color: #888; font-size: 0.85rem; display: none; }
+
 /* Modal CSS */
 .stats-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: none; align-items: center; justify-content: center; padding: 1.5rem; }
 .stats-modal { background: var(--card-bg, #fff); border-radius: 16px; width: 100%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
@@ -43,7 +95,7 @@
             <div class="form-group">
                 <label>Durum</label>
                 <select id="filter-status">
-                    <option value="all">Farketmez</option>
+                    <option value="all">Tümü</option>
                     <option value="online">Sadece Çevrimiçi (Aktif Görev Alabilir)</option>
                     <option value="offline">Sadece Çevrimdışı (Pasif)</option>
                 </select>
@@ -51,7 +103,7 @@
             <div class="form-group">
                 <label>Araç Tipi</label>
                 <select id="filter-vehicle">
-                    <option value="all">Farketmez</option>
+                    <option value="all">Tümü</option>
                     <option value="motorcycle">Motosiklet</option>
                     <option value="car">Otomobil</option>
                     <option value="bicycle">Bisiklet</option>
@@ -269,7 +321,101 @@ async function openDetailsModal(id) {
     }
 }
 
+// === CUSTOM SELECT ===
+function initCustomSelects() {
+    document.querySelectorAll('.actions-bar select').forEach(select => {
+        if (select.classList.contains('ys-select-original')) return;
+        select.classList.add('ys-select-original');
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'ys-select-wrapper';
+        select.parentNode.insertBefore(wrapper, select);
+        wrapper.appendChild(select);
+
+        const trigger = document.createElement('div');
+        trigger.className = 'ys-select-trigger';
+        trigger.innerHTML = `<span class="ys-select-text">${select.options[select.selectedIndex]?.text || ''}</span><span class="ys-select-arrow">▼</span>`;
+
+        const panel = document.createElement('div');
+        panel.className = 'ys-select-panel';
+        panel.innerHTML = `
+            <div class="ys-select-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Ara...">
+            </div>
+            <ul class="ys-select-list"></ul>
+            <div class="ys-select-empty">Sonuç bulunamadı</div>
+        `;
+
+        wrapper.appendChild(trigger);
+        wrapper.appendChild(panel);
+
+        const list = panel.querySelector('.ys-select-list');
+        const searchInput = panel.querySelector('input');
+        const emptyMsg = panel.querySelector('.ys-select-empty');
+        const textSpan = trigger.querySelector('.ys-select-text');
+
+        const renderOptions = () => {
+            list.innerHTML = '';
+            Array.from(select.options).forEach(opt => {
+                const li = document.createElement('li');
+                li.textContent = opt.text;
+                li.dataset.value = opt.value;
+                if (opt.selected) li.classList.add('selected');
+                li.addEventListener('click', e => {
+                    e.stopPropagation();
+                    select.value = opt.value;
+                    textSpan.textContent = opt.text;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    closePanel();
+                    Array.from(list.children).forEach(c => c.classList.remove('selected'));
+                    li.classList.add('selected');
+                });
+                list.appendChild(li);
+            });
+        };
+        renderOptions();
+
+        const openPanel = () => {
+            document.querySelectorAll('.ys-select-panel.open').forEach(p => {
+                p.classList.remove('open');
+                p.parentNode.querySelector('.ys-select-trigger')?.classList.remove('open');
+            });
+            trigger.classList.add('open');
+            panel.classList.add('open');
+            searchInput.value = '';
+            filterList('');
+            setTimeout(() => searchInput.focus(), 50);
+        };
+
+        const closePanel = () => {
+            trigger.classList.remove('open');
+            panel.classList.remove('open');
+        };
+
+        trigger.addEventListener('click', e => {
+            e.stopPropagation();
+            panel.classList.contains('open') ? closePanel() : openPanel();
+        });
+
+        searchInput.addEventListener('input', e => filterList(e.target.value.trim().toLowerCase()));
+
+        function filterList(query) {
+            let hasVisible = false;
+            Array.from(list.children).forEach(li => {
+                const match = li.textContent.toLowerCase().includes(query);
+                li.classList.toggle('hidden', !match);
+                if (match) hasVisible = true;
+            });
+            emptyMsg.style.display = hasVisible ? 'none' : 'block';
+        }
+
+        document.addEventListener('click', e => { if (!wrapper.contains(e.target)) closePanel(); });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    initCustomSelects();
     loadCouriers();
 
     document.getElementById('filter-form').addEventListener('submit', (e) => {

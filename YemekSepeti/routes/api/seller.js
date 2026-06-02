@@ -211,8 +211,12 @@ router.put("/menu/:id", async (req, res) => {
             updateValues.push(description);
         }
         if (price !== undefined) {
+            const priceNum = parseFloat(price);
+            if (isNaN(priceNum) || priceNum < 0) {
+                return res.status(400).json({ success: false, message: "Geçersiz fiyat. Fiyat 0 veya daha büyük bir sayı olmalıdır." });
+            }
             updateFields.push("price = ?");
-            updateValues.push(price);
+            updateValues.push(priceNum);
         }
         if (imageUrl !== undefined) {
             let finalImageUrl = null;
@@ -367,12 +371,12 @@ router.put("/toggle-shop-status", async (req, res) => {
             return res.status(400).json({ success: false, message: "Geçerli bir durum belirtin." });
         }
 
-        const [result] = await db.query(
-            "UPDATE sellers SET is_open = ? WHERE user_id = ?",
-            [is_open ? 1 : 0, userId]
+        const [updatedCount] = await Seller.update(
+            { is_open: is_open ? 1 : 0 },
+            { where: { user_id: userId } }
         );
 
-        if (result.affectedRows === 0) {
+        if (updatedCount === 0) {
             return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
         }
 
@@ -797,8 +801,7 @@ router.get("/coupons", async (req, res) => {
                 created_at
             FROM coupons
             WHERE (applicable_seller_ids IS NULL OR JSON_CONTAINS(applicable_seller_ids, ?))
-            AND is_active = TRUE
-            ORDER BY created_at DESC
+            ORDER BY is_active DESC, created_at DESC
         `;
         
         const coupons = await db.query(sql, [JSON.stringify([sellerId])]);
@@ -843,10 +846,14 @@ router.post("/coupons", async (req, res) => {
         const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, validDays } = req.body;
         
         if (!code || !discountValue) {
-            return res.status(400).json({
-                success: false,
-                message: "Kupon kodu ve indirim değeri gereklidir."
-            });
+            return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gereklidir." });
+        }
+        const discountNum = parseFloat(discountValue);
+        if (isNaN(discountNum) || discountNum <= 0) {
+            return res.status(400).json({ success: false, message: "İndirim değeri 0'dan büyük olmalıdır." });
+        }
+        if (discountType === 'percentage' && discountNum > 100) {
+            return res.status(400).json({ success: false, message: "Yüzde indirim 100'ü aşamaz." });
         }
         
         const sellerQuery = await db.query(
@@ -863,13 +870,13 @@ router.post("/coupons", async (req, res) => {
         
         const sellerId = sellerQuery[0].id;
         const applicableSellerIds = JSON.stringify([sellerId]);
-        const validUntil = validDays ? `DATE_ADD(NOW(), INTERVAL ${validDays} DAY)` : 'DATE_ADD(NOW(), INTERVAL 30 DAY)';
-        
+        // SQL injection önlemi: validDays parseInt ile sayıya dönüştürülüyor, sonra parametre olarak geçiliyor
+        const safeValidDays = Math.max(1, Math.min(3650, parseInt(validDays) || 30));
         const sql = `
-            INSERT INTO coupons 
-            (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, 
-             applicable_seller_ids, valid_from, valid_until, created_by, created_at, updated_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ${validUntil}, ?, NOW(), NOW())
+            INSERT INTO coupons
+            (code, description, discount_type, discount_value, min_order_amount, max_discount_amount,
+             applicable_seller_ids, valid_from, valid_until, created_by, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL ? DAY), ?, NOW(), NOW())
         `;
         
         await db.execute(sql, [
@@ -880,6 +887,7 @@ router.post("/coupons", async (req, res) => {
             minOrderAmount || 0,
             maxDiscountAmount || null,
             applicableSellerIds,
+            safeValidDays,
             userId
         ]);
         
@@ -958,6 +966,13 @@ router.put("/coupons/:id", async (req, res) => {
         if (!code || !discountValue) {
             return res.status(400).json({ success: false, message: "Kupon kodu ve indirim değeri gereklidir." });
         }
+        const discountNumUpd = parseFloat(discountValue);
+        if (isNaN(discountNumUpd) || discountNumUpd <= 0) {
+            return res.status(400).json({ success: false, message: "İndirim değeri 0'dan büyük olmalıdır." });
+        }
+        if (discountType === 'percentage' && discountNumUpd > 100) {
+            return res.status(400).json({ success: false, message: "Yüzde indirim 100'ü aşamaz." });
+        }
 
         const checkCouponQuery = await db.query(
             "SELECT id, valid_from FROM coupons WHERE id = ? AND created_by = ?",
@@ -968,35 +983,24 @@ router.put("/coupons/:id", async (req, res) => {
             return res.status(404).json({ success: false, message: "Kupon bulunamadı veya bu kuponu düzenleme yetkiniz yok." });
         }
 
-        const validUntil = validDays
-            ? `DATE_ADD(valid_from, INTERVAL ${parseInt(validDays)} DAY)`
-            : null;
+        // SQL injection önlemi: validDays parametre olarak geçiliyor
+        const safeValidDays2 = validDays ? Math.max(1, Math.min(3650, parseInt(validDays) || 30)) : null;
+        const sql = safeValidDays2
+            ? `UPDATE coupons SET code=?, description=?, discount_type=?, discount_value=?, min_order_amount=?, max_discount_amount=?, is_active=?, valid_until=DATE_ADD(valid_from, INTERVAL ? DAY), updated_at=NOW() WHERE id=? AND created_by=?`
+            : `UPDATE coupons SET code=?, description=?, discount_type=?, discount_value=?, min_order_amount=?, max_discount_amount=?, is_active=?, updated_at=NOW() WHERE id=? AND created_by=?`;
 
-        const sql = `
-            UPDATE coupons SET
-                code = ?,
-                description = ?,
-                discount_type = ?,
-                discount_value = ?,
-                min_order_amount = ?,
-                max_discount_amount = ?,
-                is_active = ?,
-                ${validUntil ? `valid_until = ${validUntil},` : ''}
-                updated_at = NOW()
-            WHERE id = ? AND created_by = ?
-        `;
-
-        await db.execute(sql, [
+        const execParams = [
             code,
             description || null,
             discountType || 'fixed',
             discountValue,
             minOrderAmount || 0,
             maxDiscountAmount || null,
-            isActive !== undefined ? (isActive ? 1 : 0) : 1,
-            couponId,
-            userId
-        ]);
+            isActive !== undefined ? (isActive ? 1 : 0) : 1
+        ];
+        if (safeValidDays2) execParams.push(safeValidDays2);
+        execParams.push(couponId, userId);
+        await db.execute(sql, execParams);
 
         res.json({ success: true, message: "Kupon başarıyla güncellendi." });
     } catch (error) {
@@ -1023,6 +1027,7 @@ router.get("/reports/summary", async (req, res) => {
         const days = period === '30' ? 30 : 7;
         const since = new Date();
         since.setDate(since.getDate() - days);
+        since.setHours(0, 0, 0, 0); // Günün başlangıcından itibaren say
         const orders = await Order.findAll({
             where: { seller_id: seller.id, created_at: { [Op.gte]: since }, status: { [Op.not]: 'cancelled' } },
             attributes: ['id', 'total_amount', 'created_at']
@@ -1146,7 +1151,7 @@ router.post("/own-couriers", async (req, res) => {
         }
 
         // Kurye kaydını bul
-        let courier = await Courier.findOne({ where: { user_id: courierUser.id }, attributes: ['id', 'seller_id'] });
+        let courier = await Courier.findOne({ where: { user_id: courierUser.id }, attributes: ['id', 'seller_id', 'is_active'] });
         if (!courier) {
             // Kurye kaydı yoksa oluştur
             courier = await Courier.create({
@@ -1162,7 +1167,13 @@ router.post("/own-couriers", async (req, res) => {
                 });
             }
             if (courier.seller_id === seller.id) {
-                return res.status(400).json({ success: false, message: "Bu kurye zaten kadronuzda kayıtlı." });
+                // Zaten kayıtlı — idempotent başarı döndür (çifte submit koruması)
+                return res.json({
+                    success: true,
+                    message: `${courierUser.fullname || courierUser.email} zaten kurye kadronuzda kayıtlı.`,
+                    courier: { id: courier.id, userId: courierUser.id, fullname: courierUser.fullname, email: courierUser.email },
+                    alreadyExists: true
+                });
             }
             await Courier.update(
                 { seller_id: seller.id, is_active: true },

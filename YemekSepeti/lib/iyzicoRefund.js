@@ -81,4 +81,71 @@ async function refundIyzicoPaymentForOrder(order, clientIp) {
     return { ok: true, results: results.map(r => r.result) };
 }
 
-module.exports = { refundIyzicoPaymentForOrder };
+/**
+ * Sipariş için kısmi iade yapar.
+ * @param {object} order Sequelize Order — order_number, iyzico_payment_data, total_amount
+ * @param {number} refundAmount İade edilecek tutar (TL)
+ * @param {string} [clientIp]
+ * @param {string} [reason] İade sebebi
+ */
+async function refundIyzicoPaymentPartial(order, refundAmount, clientIp, reason) {
+    if (!order || !order.iyzico_payment_data) {
+        return { skipped: true };
+    }
+    if (!process.env.IYZICO_API_KEY || !process.env.IYZICO_SECRET_KEY) {
+        throw new Error("iyzico yapılandırması eksik.");
+    }
+    if (!refundAmount || refundAmount <= 0) {
+        throw new Error("Geçersiz iade tutarı.");
+    }
+
+    let data;
+    try {
+        data = JSON.parse(order.iyzico_payment_data);
+    } catch (e) {
+        throw new Error("iyzico ödeme verisi okunamadı.");
+    }
+
+    const items = data.itemTransactions || [];
+    if (items.length === 0) {
+        throw new Error("iyzico iade için itemTransactions bulunamadı.");
+    }
+
+    const totalPaid = parseFloat(order.total_amount) || 0;
+    if (refundAmount > totalPaid) {
+        throw new Error(`İade tutarı (${refundAmount} TL) toplam ödemeden (${totalPaid} TL) büyük olamaz.`);
+    }
+
+    const ip = clientIp || "85.34.78.112";
+    const baseConv = data.conversationId || `order-${order.id}`;
+
+    // İlk transaction'a kısmi iade uygula (iyzico'da her txn için ayrı iade gerekir)
+    const it = items[0];
+    const price = refundAmount.toFixed(2);
+
+    const result = await new Promise((resolve, reject) => {
+        iyzipay.refund.create(
+            {
+                locale: Iyzipay.LOCALE.TR,
+                conversationId: `${baseConv}-partial-${order.id}-${Date.now()}`,
+                paymentTransactionId: String(it.paymentTransactionId),
+                price,
+                currency: Iyzipay.CURRENCY.TRY,
+                ip,
+                reason: reason || Iyzipay.REFUND_REASON.BUYER_REQUEST,
+                description: `Kısmi iade ${order.order_number || order.id}: ${refundAmount} TL`
+            },
+            (err, res) => {
+                if (err) return reject(err);
+                if (!res || res.status !== "success") {
+                    return reject(new Error(res?.errorMessage || "iyzico kısmi iade başarısız."));
+                }
+                resolve(res);
+            }
+        );
+    });
+
+    return { ok: true, result, refundedAmount: refundAmount };
+}
+
+module.exports = { refundIyzicoPaymentForOrder, refundIyzicoPaymentPartial };
