@@ -633,14 +633,19 @@ router.get("/earnings", async (req, res) => {
         const whereBase = { courier_id: courierId, status: 'delivered' };
         let whereDeliveredAt = {};
         if (period === 'day') {
-            const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-            whereDeliveredAt = { [Op.gte]: startOfDay };
+            // Türkiye saat diliminde (UTC+3) günün başlangıcını hesapla
+            const nowUtc = new Date();
+            const turkeyOffset = 3 * 60; // UTC+3 dakika cinsinden
+            const turkeyTime = new Date(nowUtc.getTime() + turkeyOffset * 60 * 1000);
+            const startOfDayTurkey = new Date(Date.UTC(turkeyTime.getUTCFullYear(), turkeyTime.getUTCMonth(), turkeyTime.getUTCDate()) - turkeyOffset * 60 * 1000);
+            whereDeliveredAt = { [Op.gte]: startOfDayTurkey };
         } else if (period === 'week') {
             whereDeliveredAt = { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
         } else if (period === 'month') {
             whereDeliveredAt = { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
         }
-        const whereClause = whereDeliveredAt && Object.keys(whereDeliveredAt).length ? { ...whereBase, delivered_at: whereDeliveredAt } : whereBase;
+        const hasDateFilter = whereDeliveredAt && (Object.keys(whereDeliveredAt).length > 0 || Object.getOwnPropertySymbols(whereDeliveredAt).length > 0);
+        const whereClause = hasDateFilter ? { ...whereBase, delivered_at: whereDeliveredAt } : whereBase;
 
         const statsRaw = await CourierTask.findAll({
             attributes: [

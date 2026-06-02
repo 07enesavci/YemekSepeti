@@ -1334,20 +1334,27 @@ function openGoogleMapsDirections(btn) {
 }
 
 async function updateStats() {
+    const earningValue = document.querySelector('.stat-grid .stat-card:nth-child(1) .stat-value');
+    const deliveryValue = document.querySelector('.stat-grid .stat-card:nth-child(2) .stat-value');
     try {
         const earnings = await fetchCourierEarnings('day');
         if (earnings && earnings.stats) {
-            const earningValue = document.querySelector('.stat-grid .stat-card:nth-child(1) .stat-value');
-            const deliveryValue = document.querySelector('.stat-grid .stat-card:nth-child(2) .stat-value');
-
             if (earningValue) {
                 earningValue.textContent = `${earnings.stats.totalEarnings.toFixed(2)} TL`;
             }
             if (deliveryValue) {
                 deliveryValue.textContent = earnings.stats.totalDeliveries;
             }
+        } else {
+            // API null döndüyse sıfırla
+            if (earningValue) earningValue.textContent = '0.00 TL';
+            if (deliveryValue) deliveryValue.textContent = '0';
         }
-    } catch (error) {}
+    } catch (error) {
+        // Hata durumunda da sıfırla
+        if (earningValue) earningValue.textContent = '0.00 TL';
+        if (deliveryValue) deliveryValue.textContent = '0';
+    }
 }
 
 async function loadActiveTasks() {
