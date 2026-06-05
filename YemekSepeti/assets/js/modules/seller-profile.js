@@ -45,42 +45,46 @@ async function loadSellerProfile() {
             sellerRatingEl.textContent = ratingText;
         }
         
+        // Skeleton'ları gizle
+        const logoSkeleton = document.getElementById('seller-logo-skeleton');
+        if (logoSkeleton) logoSkeleton.style.display = 'none';
+
         if (sellerLogoEl) {
+            const sellerName = (seller.name || 'Satıcı').substring(0, 15);
+            const svgFallback = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#667eea"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
+
             let logoUrl = seller.imageUrl;
-            if (!logoUrl || 
-                logoUrl.trim() === '' ||
-                logoUrl.includes('via.placeholder.com') ||
-                logoUrl.includes('placeholder.com')) {
-                const sellerName = (seller.name || 'Satıcı').substring(0, 15);
-                logoUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#667eea"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
-            } else {
-                const separator = logoUrl.includes('?') ? '&' : '?';
-                logoUrl = logoUrl + separator + '_t=' + Date.now();
-            }
-            console.log('🖼️ Logo URL:', logoUrl);
-            sellerLogoEl.src = logoUrl;
+            const isValidLogo = logoUrl && logoUrl.trim() !== '' &&
+                !logoUrl.includes('via.placeholder.com') && !logoUrl.includes('placeholder.com');
+
+            sellerLogoEl.style.display = 'block'; // skeleton'ı geç, logoyu göster
             sellerLogoEl.alt = seller.name || 'Satıcı Logosu';
-            sellerLogoEl.onerror = function() {
-                this.onerror = null;
-                const sellerName = (seller.name || 'Satıcı').substring(0, 15);
-                this.src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#667eea"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
-            };
-        }
-        
-        if (sellerBannerEl) {
-            let bannerUrl = seller.bannerUrl;
-            if (!bannerUrl || 
-                bannerUrl.trim() === '' ||
-                bannerUrl.includes('via.placeholder.com') ||
-                bannerUrl.includes('placeholder.com')) {
-                const sellerName = (seller.name || 'Satıcı').substring(0, 30);
-                bannerUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="400"><rect width="1920" height="400" fill="#764ba2"/><text x="50%" y="50%" font-family="Arial" font-size="48" fill="white" text-anchor="middle" dominant-baseline="middle">${sellerName}</text></svg>`)}`;
+            sellerLogoEl.onerror = function() { this.onerror = null; this.src = svgFallback; };
+
+            if (isValidLogo) {
+                sellerLogoEl.src = logoUrl + (logoUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
             } else {
-                const separator = bannerUrl.includes('?') ? '&' : '?';
-                bannerUrl = bannerUrl + separator + '_t=' + Date.now();
+                sellerLogoEl.src = svgFallback;
             }
-            console.log('🖼️ Banner URL:', bannerUrl);
-            sellerBannerEl.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.4)), url(${bannerUrl})`;
+        }
+
+        if (sellerBannerEl) {
+            // Skeleton arka planını temizle
+            sellerBannerEl.innerHTML = '';
+            sellerBannerEl.style.background = '';
+
+            let bannerUrl = seller.bannerUrl;
+            const isValidBanner = bannerUrl && bannerUrl.trim() !== '' &&
+                !bannerUrl.includes('via.placeholder.com') && !bannerUrl.includes('placeholder.com');
+
+            if (isValidBanner) {
+                const ts = bannerUrl.includes('?') ? '&_t=' : '?_t=';
+                sellerBannerEl.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.45)), url('${bannerUrl}${ts}${Date.now()}')`;
+                sellerBannerEl.style.backgroundSize = 'cover';
+                sellerBannerEl.style.backgroundPosition = 'center';
+            } else {
+                sellerBannerEl.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            }
         }
 
         await loadSellerMenu(sellerId, seller); // Pass seller parameter here

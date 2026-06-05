@@ -105,7 +105,7 @@ async function showOrderDetail(orderId) {
                         </div>
                         ${orderDetail.discount > 0 ? `
                         <div class="order-detail-total-row">
-                            <span>İndirim:</span>
+                            <span>İndirim${orderDetail.couponCode ? ` (${orderDetail.couponCode})` : ''}:</span>
                             <span>-${window.formatTL ? window.formatTL(orderDetail.discount) : (orderDetail.discount || 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}</span>
                         </div>
                         ` : ''}
@@ -432,14 +432,14 @@ async function handleOrderAction(e, orderId, actionType) {
         case 'tekrarla':
             try {
                 // Sepette ürün varsa uyar
-                const currentCart = (() => { try { return JSON.parse(localStorage.getItem('sepet') || '[]'); } catch(e) { return []; } })();
+                const currentCart = (() => { try { return JSON.parse(localStorage.getItem('evLezzetleriSepet') || '[]'); } catch(e) { return []; } })();
                 if (currentCart.length > 0) {
                     const confirmed = window.showConfirm
                         ? await window.showConfirm('Mevcut sepetiniz temizlenecek ve bu sipariş eklenecek. Devam etmek istiyor musunuz?')
                         : window.confirm('Mevcut sepetiniz temizlenecek ve bu sipariş eklenecek. Devam etmek istiyor musunuz?');
                     if (!confirmed) break;
                     // Mevcut sepeti temizle
-                    localStorage.removeItem('sepet');
+                    localStorage.removeItem('evLezzetleriSepet');
                     if (window.sepetiTemizle) window.sepetiTemizle();
                 }
 
@@ -775,11 +775,18 @@ function initBuyerSocket() {
         } else if (status === 'cancelled') {
             window.__socketManager.notifyQueue('order_cancelled', payload, 'Siparişiniz iptal edildi.');
         } else {
+            const deliveryType = payload && payload.deliveryType;
             const statusMessages = {
                 confirmed: 'Siparişiniz onaylandı',
                 preparing: 'Siparişiniz hazırlanıyor',
-                ready: 'Siparişiniz hazır, kurye alıyor',
-                on_delivery: 'Siparişiniz yolda!'
+                ready: deliveryType === 'pickup'
+                    ? 'Siparişiniz hazır! Restorana gelerek teslim alabilirsiniz.'
+                    : deliveryType === 'cargo'
+                        ? 'Siparişiniz kargoya verilmek üzere hazır.'
+                        : 'Siparişiniz hazır, kurye teslim alacak.',
+                on_delivery: deliveryType === 'cargo'
+                    ? 'Siparişiniz kargoya verildi!'
+                    : 'Siparişiniz yolda!'
             };
             const msg = (payload && payload.message) || statusMessages[status] || 'Sipariş durumunuz güncellendi';
             window.__socketManager.notifyQueue('status_update', null, msg);

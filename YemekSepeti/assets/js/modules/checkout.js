@@ -356,10 +356,9 @@ async function reverseGeocode(lat, lng) {
 
         const city = addr.city || addr.province || addr.state || addr.state_district || '';
         const district = addr.town || addr.city_district || addr.county || addr.municipality || '';
-        const road = addr.road || '';
-        const houseNumber = addr.house_number || '';
         const neighbourhood = addr.neighbourhood || addr.quarter || addr.suburb || addr.village || '';
-        const detail = [neighbourhood, road, houseNumber].filter(Boolean).join(', ') || (data.display_name || '');
+        // Sokak (road) ve kapı no dahil edilmiyor — yalnızca il, ilçe, mahalle
+        const detail = neighbourhood;
 
         return {
             district,

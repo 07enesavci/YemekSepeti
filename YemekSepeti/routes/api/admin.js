@@ -5,8 +5,8 @@ const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
 const { User, Seller, Courier, Order, Meal, Review, Address, Coupon, CouponUsage, CourierTask }=require("../../models");
 const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
-const { Op }=require("sequelize");
-const { Sequelize }=require("sequelize");
+const { Op, Sequelize }=require("sequelize");
+const { sequelize }=require("../../models");
 const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
 const { createCouponValidation, idParam, handleValidationErrors }=require("../../middleware/validate");
 
@@ -17,12 +17,22 @@ router.use((req,res,next)=>{ requireRole(['admin','super_admin','support'])(req,
 router.get("/users", async (req, res) => {
     try
     {
-        const { role, search, page = 1, limit = 100 } = req.query;
+        const { role, search, status: statusFilter, page = 1, limit = 100 } = req.query;
         const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
 
         const where = { role: { [Op.in]: ['seller', 'courier', 'user', 'buyer'] } };
         if (role && ['seller','courier','buyer','user'].includes(role)) {
             where.role = role === 'buyer' ? { [Op.in]: ['buyer','user'] } : role;
+        }
+        // Durum filtresi
+        if (statusFilter === 'active') {
+            where.is_active = true;
+        } else if (statusFilter === 'suspended') {
+            where.is_active = false;
+            where.fullname = { [Op.ne]: 'Silinmiş Kullanıcı' };
+        } else if (statusFilter === 'deleted') {
+            where.is_active = false;
+            where.fullname = 'Silinmiş Kullanıcı';
         }
         if (search && search.trim()) {
             where[Op.or] = [
@@ -39,15 +49,21 @@ router.get("/users", async (req, res) => {
             offset: offset || 0
         });
 
-        const formattedUsers = result.rows.map(user => ({
-            id: user.id,
-            fullname: user.fullname,
-            email: user.email,
-            role: user.role,
-            is_active: user.is_active,
-            created_at: user.created_at,
-            status: user.is_active ? 'active' : 'suspended'
-        }));
+        const formattedUsers = result.rows.map(u => {
+            let status = 'active';
+            if (!u.is_active) {
+                status = u.fullname === 'Silinmiş Kullanıcı' ? 'deleted' : 'suspended';
+            }
+            return {
+                id: u.id,
+                fullname: u.fullname,
+                email: u.email,
+                role: u.role,
+                is_active: u.is_active,
+                created_at: u.created_at,
+                status
+            };
+        });
 
         res.json(formattedUsers);
     }
@@ -214,9 +230,36 @@ router.delete("/users/:id", async (req, res) => {
             return res.status(403).json({ success: false, message: "Kendi hesabınızı silemezsiniz." });
         }
 
+        // Aktif siparişi olan kullanıcı silinemez — geçmiş korunur
+        const activeOrderCount = await Order.count({
+            where: {
+                user_id: userId,
+                status: { [Op.in]: ['pending', 'confirmed', 'preparing', 'ready', 'on_delivery'] }
+            }
+        });
+        if (activeOrderCount > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Kullanıcının ${activeOrderCount} aktif siparişi var. Siparişler tamamlanmadan hesap silinemez.`
+            });
+        }
+
         const userReviews = await Review.findAll({ where: { user_id: userId }, attributes: ['seller_id'] });
 
-        await user.destroy();
+        // Soft-delete: e-posta korunur, isim "Silinmiş Kullanıcı" olarak değiştirilir
+        await user.update({
+            is_active: false,
+            fullname: 'Silinmiş Kullanıcı',
+            phone: null
+        });
+
+        // Kurye/Satıcı kaydı da devre dışı bırakılsın (raporlarda aktif sayılmasın)
+        if (user.role === 'courier') {
+            await Courier.update({ is_active: false }, { where: { user_id: userId } });
+        }
+        if (user.role === 'seller') {
+            await Seller.update({ is_active: false }, { where: { user_id: userId } });
+        }
 
         if (userReviews.length > 0) {
             const sellerIds = userReviews.map(r => r.seller_id);
@@ -286,16 +329,32 @@ router.get("/sellers", async (req, res) => {
 router.get("/coupons", async (req, res) => {
     try
     {
-        const { page = 1, limit = 50, search } = req.query;
-        const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+        const { page = 1, limit = 50, search, filter } = req.query;
+        const safeLimit = Math.max(1, Math.min(200, parseInt(limit) || 50));
+        const safeOffset = (Math.max(1, parseInt(page)) - 1) * safeLimit;
         let sql = "SELECT id, code, description, discount_type, discount_value, min_order_amount, max_discount_amount, applicable_seller_ids, usage_limit, used_count, valid_from, valid_until, is_active, created_at FROM coupons";
         const params = [];
+        const conditions = [];
+
+        // Durum filtresi: active, inactive (pasifleştirilmiş), expired (süresi dolmuş)
+        if (filter === 'active') {
+            conditions.push("is_active = 1 AND valid_until >= NOW()");
+        } else if (filter === 'inactive') {
+            conditions.push("is_active = 0");
+        } else if (filter === 'expired') {
+            conditions.push("valid_until < NOW()");
+        }
+        // Varsayılan: tümünü göster (geçmiş dahil)
+
         if (search && search.trim()) {
-            sql += " WHERE code LIKE ? OR description LIKE ?";
+            conditions.push("(code LIKE ? OR description LIKE ?)");
             params.push(`%${search.trim()}%`, `%${search.trim()}%`);
         }
-        sql += ` ORDER BY created_at DESC LIMIT ${parseInt(limit) || 50} OFFSET ${offset || 0}`;
-        const rows = await db.query(sql, params.length ? params : undefined);
+        if (conditions.length > 0) sql += " WHERE " + conditions.join(" AND ");
+        // LIMIT ve OFFSET parametrik olarak bağlanıyor
+        sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+        params.push(safeLimit, safeOffset);
+        const rows = await db.query(sql, params);
         if (!Array.isArray(rows)) {
             return res.json([]);
         }
@@ -806,44 +865,67 @@ router.get("/all-couriers", requireRole(['admin','super_admin','support']), asyn
     try {
         const { status, vehicleType, search } = req.query;
 
-        // User tablosundaki filtreler
-        let userWhere = { role: 'courier' };
-        // courier_status sütunu User tablosunda varsayılan olarak var (sequelize migration ile eklendi)
+        // Raw SQL ile güvenli kurye listesi — sütun bağımlılığını minimize et
+        let sql = `
+            SELECT
+                u.id, u.fullname, u.email, u.phone, u.is_active, u.created_at,
+                COALESCE(u.courier_status, 'offline') as courier_status,
+                u.last_latitude, u.last_longitude,
+                c.id as courier_id, c.is_active as courier_is_active,
+                c.vehicle_type, c.seller_id
+            FROM users u
+            LEFT JOIN couriers c ON c.user_id = u.id
+            WHERE u.role = 'courier'
+              AND u.fullname != 'Silinmiş Kullanıcı'
+        `;
+        const replacements = [];
+
         if (status === 'online' || status === 'offline') {
-            userWhere.courier_status = status;
-        }
-        // status 'pending' ise henüz is_active=false olan kuryeler
-        if (status === 'pending') {
-            userWhere['$courier.is_active$'] = false;
-        }
-        if (search && search.trim() !== '') {
-            userWhere[Op.or] = [
-                { fullname: { [Op.like]: `%${search}%` } },
-                { email: { [Op.like]: `%${search}%` } },
-                { phone: { [Op.like]: `%${search}%` } }
-            ];
+            sql += ` AND COALESCE(u.courier_status, 'offline') = ?`;
+            replacements.push(status);
+        } else if (status === 'pending') {
+            sql += ` AND (c.is_active = 0 OR c.id IS NULL)`;
+        } else if (status === 'active') {
+            sql += ` AND u.is_active = 1 AND c.is_active = 1`;
         }
 
-        // vehicle_type Courier tablosunda, vehicle_type filtresi için include where kullan
-        const courierInclude = {
-            model: Courier,
-            as: 'courier',
-            attributes: ['id', 'is_active', 'vehicle_type', 'seller_id'],
-            required: false
-        };
         if (vehicleType && vehicleType !== 'all') {
-            courierInclude.where = { vehicle_type: vehicleType };
-            courierInclude.required = true;
+            sql += ` AND c.vehicle_type = ?`;
+            replacements.push(vehicleType);
         }
 
-        const queryResult = await User.findAll({
-            where: userWhere,
-            attributes: ['id', 'fullname', 'email', 'phone', 'courier_status', 'is_active', 'last_latitude', 'last_longitude', 'created_at'],
-            include: [courierInclude],
-            order: [['created_at', 'DESC']]
+        if (search && search.trim()) {
+            sql += ` AND (u.fullname LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)`;
+            const s = `%${search.trim()}%`;
+            replacements.push(s, s, s);
+        }
+
+        sql += ` ORDER BY u.created_at DESC LIMIT 200`;
+
+        const rows = await sequelize.query(sql, {
+            replacements,
+            type: require('sequelize').QueryTypes.SELECT
         });
 
-        res.json({ success: true, data: queryResult });
+        const formatted = (rows || []).map(u => ({
+            id: u.id,
+            fullname: u.fullname,
+            email: u.email,
+            phone: u.phone,
+            courier_status: u.courier_status || 'offline',
+            is_active: !!u.is_active,
+            last_latitude: u.last_latitude,
+            last_longitude: u.last_longitude,
+            created_at: u.created_at,
+            courier: u.courier_id ? {
+                id: u.courier_id,
+                is_active: !!u.courier_is_active,
+                vehicle_type: u.vehicle_type,
+                seller_id: u.seller_id
+            } : null
+        }));
+
+        res.json({ success: true, data: formatted });
     } catch (error) {
         console.error("All couriers list error:", error);
         res.status(500).json({ success: false, message: "Kuryeler getirilemedi." });
@@ -965,6 +1047,47 @@ router.put("/orders/:id/status", requireRole(['admin','super_admin']), async (re
         const order = await Order.findByPk(orderId);
         if (!order) return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
 
+        // Admin iptali: iyzico iade + kupon kurtarma
+        if (status === 'cancelled' && order.status !== 'cancelled') {
+            // iyzico iadesi
+            if (order.payment_method === 'iyzico' && order.iyzico_payment_data && !order.iyzico_refunded_at) {
+                try {
+                    const { refundIyzicoPaymentForOrder } = require('../../lib/iyzicoRefund');
+                    await refundIyzicoPaymentForOrder(order, req.ip);
+                    await order.update({ iyzico_refunded_at: new Date() });
+                } catch (refErr) {
+                    console.error('Admin iyzico iade hatası:', refErr);
+                    return res.status(502).json({ success: false, message: "Ödeme iadesi tamamlanamadı." });
+                }
+            }
+            // Kupon kurtarma
+            if (order.coupon_code) {
+                try {
+                    const { CouponUsage, Coupon } = require('../../models');
+                    const { Op } = require('sequelize');
+                    const usageRow = await CouponUsage.findOne({ where: { order_id: orderId } });
+                    if (usageRow) {
+                        await CouponUsage.destroy({ where: { order_id: orderId } });
+                        await Coupon.decrement('used_count', {
+                            by: 1,
+                            where: { id: usageRow.coupon_id, used_count: { [Op.gt]: 0 } }
+                        });
+                    }
+                } catch (couponErr) {
+                    console.error('Admin kupon kurtarma hatası:', couponErr);
+                }
+            }
+            // Aktif kurye görevini iptal et
+            if (order.courier_id) {
+                await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId } });
+                if (global.io) {
+                    global.io.to(`courier-${order.courier_id}`).emit('order_cancelled', {
+                        id: order.id, orderNumber: order.order_number, status: 'cancelled'
+                    });
+                }
+            }
+        }
+
         const updateData = { status };
         if (status === 'delivered') updateData.delivered_at = new Date();
         await order.update(updateData);
@@ -976,7 +1099,7 @@ router.put("/orders/:id/status", requireRole(['admin','super_admin']), async (re
 
         if (global.io) {
             global.io.to(`buyer-${order.user_id}`).emit('order_status_updated', {
-                orderId, status, message: `Siparişinizin durumu güncellendi: ${status}`
+                orderId, status, message: `Siparişinizin durumu güncellendi.`
             });
         }
 
@@ -1010,9 +1133,17 @@ router.get("/reports/summary", async (req, res) => {
         });
         const totalRevenue = revenueResult && revenueResult.total != null ? parseFloat(revenueResult.total) : 0;
         const activeSellers = await Seller.count({ where: { is_active: true } });
-        const activeCouriers = await Courier.count({ where: { is_active: true } });
+        // Silinmiş kullanıcıları hariç tut: User.is_active=false olanların Courier kaydı sayılmaz
+        const activeCouriers = await Courier.count({
+            where: { is_active: true },
+            include: [{ model: User, as: 'user', where: { is_active: true, fullname: { [Op.ne]: 'Silinmiş Kullanıcı' } }, attributes: [] }]
+        });
         const totalUsers = await User.count({
-            where: { role: { [Op.in]: ['buyer', 'seller', 'courier'] } }
+            where: {
+                role: { [Op.in]: ['buyer', 'seller', 'courier'] },
+                is_active: true,
+                fullname: { [Op.ne]: 'Silinmiş Kullanıcı' }
+            }
         });
 
         res.json({

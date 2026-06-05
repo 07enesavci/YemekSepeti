@@ -3,14 +3,36 @@ window.getCsrfToken = window.getCsrfToken || function() {
     return (window.YsUI && window.YsUI.getCsrfToken) ? window.YsUI.getCsrfToken() : '';
 };
 
+// CSRF token'ı garanti eden async helper
+window.ensureCsrfToken = window.ensureCsrfToken || async function() {
+    if (window.YsUI && window.YsUI.ensureCsrfToken) {
+        return await window.YsUI.ensureCsrfToken();
+    }
+    // Fallback: token yoksa kendin çek
+    let token = window.getCsrfToken();
+    if (!token) {
+        try {
+            const base = window.getApiBaseUrl ? window.getApiBaseUrl() : '';
+            const res = await fetch(`${base}/api/csrf-token`, { credentials: 'include', cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                token = data.token || '';
+            }
+        } catch (_) {}
+    }
+    return token;
+};
+
 // CSRF token'ı otomatik ekleyen fetch wrapper
+// POST/PUT/DELETE/PATCH isteklerinde token yüklenene kadar bekler
 window.apiFetch = async function(url, options) {
     options = options || {};
     options.credentials = 'include';
     const method = (options.method || 'GET').toUpperCase();
     if (['POST','PUT','DELETE','PATCH'].includes(method)) {
         options.headers = options.headers || {};
-        const token = window.getCsrfToken();
+        // Token yüklenene kadar bekle (production race condition önlemi)
+        const token = await window.ensureCsrfToken();
         if (token) options.headers['X-CSRF-Token'] = token;
     }
     return fetch(url, options);

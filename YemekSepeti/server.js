@@ -187,16 +187,22 @@ try {
     });
 
     // --- CORS VE HEADERLAR ---
-    // Güvenli CORS: regex yerine açık whitelist + üretim için HTTPS zorunluluğu
+    // Güvenli CORS: production domain'leri + localhost + env'den extra
     const _buildCorsAllowList = () => {
         const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
-        const devOrigins = [
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://partner.localhost:3000',
-            'http://admin.localhost:3000'
+        const buyerDomain  = process.env.BUYER_DOMAIN  || 'evlezzetleri.site';
+        const partnerDomain = process.env.PARTNER_DOMAIN || `partner.${buyerDomain}`;
+        const adminDomain  = process.env.ADMIN_DOMAIN  || `admin.${buyerDomain}`;
+        const productionOrigins = [
+            `https://${buyerDomain}`, `http://${buyerDomain}`,
+            `https://${partnerDomain}`, `http://${partnerDomain}`,
+            `https://${adminDomain}`, `http://${adminDomain}`
         ];
-        return new Set([...devOrigins, ...extra]);
+        const devOrigins = [
+            'http://localhost:3000', 'http://127.0.0.1:3000',
+            'http://partner.localhost:3000', 'http://admin.localhost:3000'
+        ];
+        return new Set([...devOrigins, ...productionOrigins, ...extra]);
     };
     const _corsAllowSet = _buildCorsAllowList();
 
@@ -321,6 +327,15 @@ try {
     global.SESSION_MAX_AGE_ADMIN   = SESSION_MAX_AGE_ADMIN;
     global.SESSION_MAX_AGE_REMEMBER = SESSION_MAX_AGE_REMEMBER;
 
+    // Tüm subdomain'lerde session paylaşımı için cookie domain
+    const _rootDomain = (() => {
+        const d = process.env.BUYER_DOMAIN || '';
+        if (!d || d === 'localhost') return undefined;
+        // partner.example.com → .example.com  |  example.com → .example.com
+        const parts = d.split('.');
+        return parts.length >= 2 ? '.' + parts.slice(-2).join('.') : ('.' + d);
+    })();
+
     const sessionConfig = {
         name: 'ys-sid',
         secret: process.env.SESSION_SECRET || 'gizli-anahtar-degistirin',
@@ -328,10 +343,12 @@ try {
         saveUninitialized: false,
         store: sessionStore || undefined,
         cookie: {
-            secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
+            secure: process.env.NODE_ENV === 'production',
             httpOnly: true,
             sameSite: 'lax',
-            maxAge: SESSION_MAX_AGE_DEFAULT
+            maxAge: SESSION_MAX_AGE_DEFAULT,
+            // Production'da tüm subdomain'ler aynı session'ı paylaşır
+            domain: process.env.NODE_ENV === 'production' ? _rootDomain : undefined
         }
     };
 
@@ -342,10 +359,14 @@ try {
         originalWarn.apply(console, args);
     };
 
+    // Session middleware örneği — hem HTTP route'larında hem Socket.IO'da paylaşılır
+    let sessionMiddlewareInstance;
     try {
-        app.use(session(sessionConfig));
+        sessionMiddlewareInstance = session(sessionConfig);
+        app.use(sessionMiddlewareInstance);
     } catch (sessionError) {
-        app.use((req, res, next) => { req.session = {}; next(); });
+        sessionMiddlewareInstance = (req, res, next) => { req.session = {}; next(); };
+        app.use(sessionMiddlewareInstance);
     }
     console.warn = originalWarn;
 
@@ -700,14 +721,25 @@ try {
     app.get("/seller/reviews", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/reviews", { title: "Müşteri Yorumları", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
     app.get("/seller/:id/reviews", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/reviews", { title: "Müşteri Yorumları", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
 
-    app.get("/seller/:id/dashboard", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/orders", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/menu", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/earnings", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/profile", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/coupons", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/uzak-mesafe", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
-    app.get("/seller/:id/own-couriers", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    // URL :id parametresi session'daki seller ID ile eşleşmeli (IDOR önlemi)
+    function requireSelfSeller(req, res, next) {
+        const urlId = parseInt(req.params.id, 10);
+        const sessionId = req.session && req.session.user && req.session.user.sellerId;
+        if (!sessionId || urlId !== parseInt(sessionId, 10)) {
+            const correctId = sessionId || '';
+            return res.redirect('/seller/' + correctId + '/dashboard');
+        }
+        next();
+    }
+
+    app.get("/seller/:id/dashboard", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/dashboard", { title: "Satıcı Paneli", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/orders", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/orders", { title: "Gelen Siparişler", pageCss: "seller-orders.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/menu", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/menu", { title: "Menü Yönetimi", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/earnings", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/earnings", { title: "Kazanç Raporları", pageCss: "seller-earnings.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/profile", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/profile", { title: "Restoran Profili", pageCss: "seller-profile.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/coupons", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/uzak-mesafe", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/own-couriers", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
 
     // --- KURYE (COURIER) ROUTE'LARI ---
     app.get("/courier/pending-approval", requireRole('courier'), async (req, res) => {
@@ -722,11 +754,22 @@ try {
             renderError(res, err, "Bekleme");
         }
     });
-    app.get("/courier/:id/dashboard", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/dashboard", { title: "Kurye Paneli", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/available", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/available", { title: "Müsait Siparişler", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/history", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/profile", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
-    app.get("/courier/:id/reports", requireRole('courier'), requireCourierApproved, (req, res) => res.render("courier/reports", { title: "Raporlar", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    // URL :id parametresi session'daki kullanıcıyla eşleşmeli (IDOR önlemi)
+    function requireSelfCourier(req, res, next) {
+        const urlId = parseInt(req.params.id, 10);
+        const sessionId = req.session && req.session.user && (req.session.user.courierId || req.session.user.id);
+        if (!sessionId || urlId !== parseInt(sessionId, 10)) {
+            const correctId = sessionId || '';
+            return res.redirect('/courier/' + correctId + '/dashboard');
+        }
+        next();
+    }
+
+    app.get("/courier/:id/dashboard", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/dashboard", { title: "Kurye Paneli", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/available", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/available", { title: "Müsait Siparişler", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/history", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/profile", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/reports", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/reports", { title: "Raporlar", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
 
     // ID'siz kurye URL'leri için otomatik yönlendirme (F5 / manuel URL ihtiyacını azaltır)
     app.get("/courier/dashboard", requireRole('courier'), requireCourierApproved, (req, res) => {
@@ -825,12 +868,29 @@ try {
         transports: ['websocket', 'polling']
     });
 
+    // Socket.IO isteklerinde session verisine erişebilmek için aynı session middleware örneğini paylaş
+    global.io.engine.use(sessionMiddlewareInstance);
+
+    // Socket.IO authentication middleware — session ile doğrula, handshake.query'e güvenme
+    global.io.use((socket, next) => {
+        const session = socket.request.session;
+        if (!session || !session.user) {
+            // Oturum yoksa guest olarak devam et
+            socket.userId = 'guest';
+            socket.userRole = 'guest';
+            return next();
+        }
+        socket.userId = session.user.id;
+        socket.userRole = session.user.role;
+        next();
+    });
+
     // Socket.IO connection handling
     global.io.on('connection', (socket) => {
-        const userId = socket.handshake.query.userId;
-        const userRole = socket.handshake.query.role;
-        console.log(`🟢 Socket.IO client bağlandı - Socket ID: ${socket.id}, User ID: ${userId}, Role: ${userRole || 'unknown'}`);
-        
+        const userId = socket.userId;
+        const userRole = socket.userRole;
+        console.log(`Socket.IO client baglandi - Socket ID: ${socket.id}, User ID: ${userId}, Role: ${userRole || 'unknown'}`);
+
         if (userId && userId !== 'guest') {
             // Her kullanıcı kendi user ID ile genel odaya girer
             socket.join(`user-${userId}`);
@@ -838,32 +898,32 @@ try {
             if (userRole === 'seller') {
                 const sellerRoom = `seller-${userId}`;
                 socket.join(sellerRoom);
-                console.log(`   ✅ Room'a katıldı: ${sellerRoom}`);
+                console.log(`   Room'a katildi: ${sellerRoom}`);
             }
             if (userRole === 'courier') {
                 const courierRoom = `courier-${userId}`;
                 socket.join(courierRoom);
-                console.log(`   ✅ Room'a katıldı: ${courierRoom}`);
+                console.log(`   Room'a katildi: ${courierRoom}`);
             }
             if (userRole === 'buyer' || userRole === 'user') {
                 const buyerRoom = `buyer-${userId}`;
                 socket.join(buyerRoom);
-                console.log(`   ✅ Room'a katıldı: ${buyerRoom}`);
+                console.log(`   Room'a katildi: ${buyerRoom}`);
             }
             if (userRole === 'admin' || userRole === 'super_admin') {
                 socket.join('admin');
-                console.log(`   ✅ Room'a katıldı: admin`);
+                console.log(`   Room'a katildi: admin`);
             }
         } else {
-            console.warn(`   ⚠️ User ID geçilmedi`);
+            console.warn(`   Kimlik dogrulamasi yapilmamis guest baglantisi - Socket ID: ${socket.id}`);
         }
-        
+
         socket.on('disconnect', () => {
-            console.log(`🔴 Socket.IO client disconnect - Socket ID: ${socket.id}, User ID: ${userId}`);
+            console.log(`Socket.IO client disconnect - Socket ID: ${socket.id}, User ID: ${userId}`);
         });
-        
+
         socket.on('error', (error) => {
-            console.error(`❌ Socket.IO error - Socket ID: ${socket.id}:`, error);
+            console.error(`Socket.IO error - Socket ID: ${socket.id}:`, error);
         });
     });
 

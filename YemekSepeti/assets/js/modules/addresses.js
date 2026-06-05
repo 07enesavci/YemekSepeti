@@ -106,13 +106,11 @@ async function reverseGeocode(lat, lng) {
         if (!response.ok) return null;
         const data = await response.json();
         const addr = data.address || {};
-        const district = addr.town || addr.suburb || addr.city_district || addr.county || '';
+        const district = addr.town || addr.city_district || addr.county || addr.suburb || '';
         const city = addr.city || addr.state || addr.province || '';
-        const road = addr.road || '';
-        const houseNumber = addr.house_number || '';
         const neighbourhood = addr.neighbourhood || addr.quarter || addr.suburb || '';
-        const detail = [neighbourhood, road, houseNumber].filter(Boolean).join(', ') || (data.display_name || '');
-        return { district, city, detail };
+        // Sokak (road) ve kapı no dahil edilmiyor — yalnızca mahalle
+        return { district, city, detail: neighbourhood };
     } catch (error) {
         return null;
     }

@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireSellerApproved } = require("../../middleware/auth");
-const { Seller, Meal, UserFavoriteSeller, Order, Courier, User, sequelize } = require("../../models");
+const { Seller, Meal, UserFavoriteSeller, Order, Courier, User, Coupon, CouponUsage, sequelize } = require("../../models");
 const { Op } = require("sequelize");
 const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
@@ -383,6 +383,33 @@ router.put("/toggle-shop-status", async (req, res) => {
         // Ana sayfa restoran listesi anlık güncellensin
         if (global.io) {
             global.io.emit('seller_status_updated', { userId, isOpen: is_open });
+        }
+
+        // Dükkan kapandığında bekleyen siparişler için uyarı bildirimi oluştur
+        if (!is_open) {
+            try {
+                const sellerRecord = await Seller.findOne({ where: { user_id: userId }, attributes: ['id'] });
+                if (sellerRecord) {
+                    const pendingOrders = await Order.findAll({
+                        where: {
+                            seller_id: sellerRecord.id,
+                            status: { [Op.in]: ['pending', 'confirmed'] }
+                        },
+                        attributes: ['id', 'user_id', 'order_number']
+                    });
+                    for (const pendingOrder of pendingOrders) {
+                        if (global.io) {
+                            global.io.to(`buyer-${pendingOrder.user_id}`).emit('order_status_updated', {
+                                orderId: pendingOrder.id,
+                                status: pendingOrder.status,
+                                message: 'Dikkat: Sipariş verdiğiniz dükkan kapandı. Siparişiniz hakkında bilgi almak için destek ile iletişime geçin.'
+                            });
+                        }
+                    }
+                }
+            } catch (notifErr) {
+                console.error('Dükkan kapanma bildirimi hatası:', notifErr);
+            }
         }
 
         res.json({ success: true, message: "Dükkan durumu güncellendi." });
@@ -913,41 +940,35 @@ router.delete("/coupons/:id", async (req, res) => {
     try {
         const couponId = parseInt(req.params.id);
         const userId = req.session.user.id;
-        
-        // Önce bu kullanıcının seller kaydını bulalım
-        const sellerQuery = await db.query(
-            "SELECT id FROM sellers WHERE user_id = ?",
-            [userId]
-        );
-        
-        if (sellerQuery.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "Satıcı kaydı bulunamadı."
-            });
-        }
-        
-        // Kupon bu kullanıcı tarafından mı oluşturulmuş kontrol edelim (created_by field)
-        const checkCouponQuery = await db.query(
-            "SELECT id FROM coupons WHERE id = ? AND created_by = ?",
-            [couponId, userId]
-        );
-        
-        if (checkCouponQuery.length === 0) {
+
+        const coupon = await Coupon.findOne({
+            where: { id: couponId, created_by: userId }
+        });
+
+        if (!coupon) {
             return res.status(404).json({
                 success: false,
                 message: "Kupon bulunamadı veya bu kuponu silme yetkiniz yok."
             });
         }
-        
-        // Kuponu sil
-        await db.execute("DELETE FROM coupons WHERE id = ?", [couponId]);
-        
+
+        // Kullanılmış kuponlar silinemez — pasifleştir
+        const usageCount = await CouponUsage.count({ where: { coupon_id: couponId } });
+        if (usageCount > 0) {
+            await coupon.update({ is_active: false });
+            return res.json({
+                success: true,
+                message: `Bu kupon ${usageCount} kez kullanıldığı için muhasebe kaydı korunarak pasifleştirildi.`
+            });
+        }
+
+        await coupon.destroy();
+
         res.json({
             success: true,
             message: "Kupon başarıyla silindi."
         });
-        
+
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -1076,7 +1097,7 @@ router.post("/menu/bulk-price", async (req, res) => {
         const multiplier = 1 + percent / 100;
         const [updatedCount] = await Meal.update(
             { price: Sequelize.literal('price * ' + multiplier) },
-            { where: { seller_id: seller.id } }
+            { where: { seller_id: seller.id, is_approved: true } }
         );
         res.json({ success: true, message: "Fiyatlar güncellendi.", percent, updatedCount });
     } catch (e) {

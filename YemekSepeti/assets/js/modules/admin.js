@@ -9,6 +9,7 @@ var kuponlariGetir = window.getCoupons;
 var kuponSil = window.adminDeleteCoupon;
 
 var currentRoleFilter = 'buyer';
+var currentStatusFilter = 'all'; // all | active | suspended | deleted
 var tumKullanicilar = [];
 
 function yeniId() 
@@ -40,15 +41,23 @@ function kullanicilariYukleVeListele()
         });
 }
 
-function listeyiFiltreleVeCiz() 
+function listeyiFiltreleVeCiz()
 {
     var filtrelenmis = tumKullanicilar.filter(function(k) {
+        // Rol filtresi
+        var rolEslesiyor;
         if (currentRoleFilter === 'buyer') {
-            return k.role === 'user' || k.role === 'buyer' || !k.role;
+            rolEslesiyor = k.role === 'user' || k.role === 'buyer' || !k.role;
+        } else {
+            rolEslesiyor = k.role === currentRoleFilter;
         }
-        return k.role === currentRoleFilter;
+        if (!rolEslesiyor) return false;
+        // Durum filtresi
+        if (currentStatusFilter === 'active')    return k.status === 'active';
+        if (currentStatusFilter === 'suspended') return k.status === 'suspended';
+        if (currentStatusFilter === 'deleted')   return k.status === 'deleted';
+        return true; // 'all'
     });
-
     kullaniciListesiniCiz(filtrelenmis);
 }
 
@@ -92,58 +101,62 @@ function kullaniciListesiniCiz(kullanicilar)
     kullaniciListesiElementi.appendChild(belgeParcasi);
 }
 
-function kullaniciSatiriOlustur(kullanici) 
+function kullaniciSatiriOlustur(kullanici)
 {
-    var dondurulmus=kullanici.status === 'suspended' || kullanici.is_active === 0 || kullanici.is_active === false;
-    
+    var silinmis = kullanici.status === 'deleted';
+    var dondurulmus = !silinmis && (kullanici.status === 'suspended' || kullanici.is_active === 0 || kullanici.is_active === false);
+
     var itemDiv=document.createElement('div');
-    itemDiv.className='admin-list-item';    
-    var durumYazisi;
-    if (dondurulmus) 
-    {
-        durumYazisi='Donduruldu';
-    } 
-    else 
-    {
-        durumYazisi='Aktif';
-    }
-    var butonYazisi;
-    if (dondurulmus) 
-    {
-        butonYazisi='Aktif Et';
-    } 
-    else 
-    {
-        butonYazisi='Dondur';
-    }
-    var durumSinifi;
-    if (dondurulmus) 
-    {
-        durumSinifi='suspended';
-    } 
-    else 
-    {
-        durumSinifi='active';
-    }
+    itemDiv.className='admin-list-item';
+    if (silinmis) itemDiv.style.opacity = '0.65';
+
+    var durumYazisi = silinmis ? '🗑 Silinmiş' : (dondurulmus ? 'Donduruldu' : 'Aktif');
+    var butonYazisi = dondurulmus ? 'Aktif Et' : 'Dondur';
+    var durumSinifi = silinmis ? 'deleted' : (dondurulmus ? 'suspended' : 'active');
     
     var rolYazi = (kullanici.role === 'seller') ? 'Satıcı' : (kullanici.role === 'courier') ? 'Kurye' : 'Müşteri';
-    itemDiv.innerHTML = `
-        <div class="user-info">
-            <strong>${kullanici.fullname || kullanici.name || '-'}</strong>
-            <span>${kullanici.email || ''} – ${rolYazi}</span>
-        </div>
-        <div class="user-status">
-            <span class="status-dot ${durumSinifi}">
-                ${durumYazisi}
-            </span>
-        </div>
-        <div class="user-actions">
-            <button class="btn btn-secondary btn-sm btn-suspend" data-id="${kullanici.id}">
-                ${butonYazisi}
-            </button>
-            <button class="btn btn-danger btn-sm btn-delete" data-id="${kullanici.id}">Sil</button>
-        </div>
-    `;
+
+    // XSS önlemi: Kullanıcı verisi textContent ile ekleniyor, innerHTML'e ham veri yazılmıyor
+    var userInfoDiv = document.createElement('div');
+    userInfoDiv.className = 'user-info';
+    var strongEl = document.createElement('strong');
+    strongEl.textContent = kullanici.fullname || kullanici.name || '-';
+    var spanEl = document.createElement('span');
+    spanEl.textContent = (kullanici.email || '') + ' – ' + rolYazi;
+    userInfoDiv.appendChild(strongEl);
+    userInfoDiv.appendChild(spanEl);
+
+    var userStatusDiv = document.createElement('div');
+    userStatusDiv.className = 'user-status';
+    var statusSpan = document.createElement('span');
+    statusSpan.className = 'status-dot ' + durumSinifi;
+    statusSpan.textContent = durumYazisi;
+    userStatusDiv.appendChild(statusSpan);
+
+    var userActionsDiv = document.createElement('div');
+    userActionsDiv.className = 'user-actions';
+    if (!silinmis) {
+        var suspendBtn = document.createElement('button');
+        suspendBtn.className = 'btn btn-secondary btn-sm btn-suspend';
+        suspendBtn.dataset.id = kullanici.id;
+        suspendBtn.textContent = butonYazisi;
+        userActionsDiv.appendChild(suspendBtn);
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-danger btn-sm btn-delete';
+        deleteBtn.dataset.id = kullanici.id;
+        deleteBtn.textContent = 'Sil';
+        userActionsDiv.appendChild(deleteBtn);
+    } else {
+        var deletedLabel = document.createElement('span');
+        deletedLabel.textContent = 'Hesap silinmiş';
+        deletedLabel.style.cssText = 'font-size:0.8rem;color:#999;font-style:italic;';
+        userActionsDiv.appendChild(deletedLabel);
+    }
+
+    itemDiv.appendChild(userInfoDiv);
+    itemDiv.appendChild(userStatusDiv);
+    itemDiv.appendChild(userActionsDiv);
     return itemDiv;
 }
 
@@ -234,20 +247,60 @@ function saticilariYukleVeListele()
     }).catch(hata => listeElementi.innerHTML = "<p style='color:red;'>Satıcılar yüklenemedi.</p>");
 }
 
-function kuponlariYukleVeListele() 
-{ 
+// Aktif kupon filtresi durumu
+var _kuponFilter = 'all';
+
+function kuponlariYukleVeListele(filter)
+{
+    if (filter !== undefined) _kuponFilter = filter;
     var listeKonteyneri=document.getElementById("coupon-list-container");
-    if (!listeKonteyneri) return; 
-    
-    if (typeof kuponlariGetir !== 'function') 
+    if (!listeKonteyneri) return;
+
+    if (typeof kuponlariGetir !== 'function')
     {
         listeKonteyneri.innerHTML="<p style='color:red;'>Hata: Kupon verisi alınamadı.</p>";
         return;
     }
-    
+
+    // Filtre sekmelerini render et (yoksa ekle)
+    var filterBar = document.getElementById('coupon-filter-bar');
+    if (!filterBar) {
+        filterBar = document.createElement('div');
+        filterBar.id = 'coupon-filter-bar';
+        filterBar.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;';
+        var filters = [
+            { key: 'all', label: 'Tümü' },
+            { key: 'active', label: '✅ Aktif' },
+            { key: 'inactive', label: '🚫 Pasif' },
+            { key: 'expired', label: '⏰ Süresi Dolmuş' }
+        ];
+        filters.forEach(function(f) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = f.label;
+            btn.dataset.filterKey = f.key;
+            btn.className = 'btn btn-sm ' + (f.key === _kuponFilter ? 'btn-primary' : 'btn-secondary');
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('#coupon-filter-bar button').forEach(function(b){ b.className = 'btn btn-sm btn-secondary'; });
+                btn.className = 'btn btn-sm btn-primary';
+                kuponlariYukleVeListele(f.key);
+            });
+            filterBar.appendChild(btn);
+        });
+        listeKonteyneri.parentNode.insertBefore(filterBar, listeKonteyneri);
+    }
+
     listeKonteyneri.innerHTML="<p>Kuponlar yükleniyor...</p>";
-    
-    kuponlariGetir().then(function(kuponlar) 
+
+    // Filter parametresi ile API çağrısı
+    var fetchUrl = (window.getApiBaseUrl ? window.getApiBaseUrl() : '') +
+        '/api/admin/coupons?limit=200' +
+        (_kuponFilter && _kuponFilter !== 'all' ? '&filter=' + _kuponFilter : '');
+
+    fetch(fetchUrl, { credentials: 'include', headers: window.getAuthHeaders ? window.getAuthHeaders() : {} })
+        .then(function(r){ return r.json(); })
+        .then(function(data) { return Array.isArray(data) ? data : (data.coupons || []); })
+        .then(function(kuponlar)
     {
         var html="";
         if (!Array.isArray(kuponlar)) 
@@ -600,6 +653,34 @@ document.addEventListener("DOMContentLoaded", function()
                     }
                 });
             });
+        }
+
+        // Durum filtresi — Aktif / Dondurulmuş / Silinmiş
+        var userListEl = document.getElementById("user-list");
+        if (userListEl && userListEl.parentNode) {
+            var statusBar = document.createElement('div');
+            statusBar.id = 'user-status-filter-bar';
+            statusBar.style.cssText = 'display:flex;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap;';
+            var statusFilters = [
+                { key: 'all',       label: 'Tümü' },
+                { key: 'active',    label: '✅ Aktif' },
+                { key: 'suspended', label: '🔒 Dondurulmuş' },
+                { key: 'deleted',   label: '🗑 Silinmiş' }
+            ];
+            statusFilters.forEach(function(sf) {
+                var sbtn = document.createElement('button');
+                sbtn.type = 'button';
+                sbtn.textContent = sf.label;
+                sbtn.className = 'btn btn-sm ' + (sf.key === 'all' ? 'btn-primary' : 'btn-secondary');
+                sbtn.addEventListener('click', function() {
+                    document.querySelectorAll('#user-status-filter-bar button').forEach(function(b){ b.className = 'btn btn-sm btn-secondary'; });
+                    sbtn.className = 'btn btn-sm btn-primary';
+                    currentStatusFilter = sf.key;
+                    listeyiFiltreleVeCiz();
+                });
+                statusBar.appendChild(sbtn);
+            });
+            userListEl.parentNode.insertBefore(statusBar, userListEl);
         }
     }
     

@@ -55,6 +55,11 @@ module.exports=(sequelize, DataTypes)=>{
             type: DataTypes.BOOLEAN,
             defaultValue: true
         },
+        per_user_limit: {
+            type: DataTypes.INTEGER,
+            defaultValue: 1,
+            comment: 'Kişi başı maksimum kullanım sayısı (-1 = sınırsız)'
+        },
         created_by: {
             type: DataTypes.INTEGER,
             allowNull: true

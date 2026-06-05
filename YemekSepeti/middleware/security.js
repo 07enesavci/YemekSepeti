@@ -65,34 +65,82 @@ function generateCsrfToken() {
 }
 
 function csrfProtection(req, res, next) {
-    // GET, HEAD, OPTIONS isteklerine CSRF uygulanmaz
+    // GET, HEAD, OPTIONS — salt okuma, CSRF gerekmez
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        // Her GET isteğinde token yoksa set et
-        if (!req.session.csrfToken) {
+        if (req.session && !req.session.csrfToken) {
             req.session.csrfToken = generateCsrfToken();
         }
-        res.locals.csrfToken = req.session.csrfToken;
+        if (req.session) res.locals.csrfToken = req.session.csrfToken;
         return next();
     }
 
-    // OAuth callback'leri CSRF'den muaf (dış redirect)
-    if (req.path && req.path.startsWith('/api/auth/google/')) {
-        return next();
-    }
+    // OAuth dış yönlendirmesi — muaf
+    if (req.path && req.path.startsWith('/api/auth/google/')) return next();
 
+    // ── Katman 1: CSRF Token eşleşmesi ────────────────────────────
     const sessionToken = req.session && req.session.csrfToken;
     const requestToken =
         (req.headers && req.headers['x-csrf-token']) ||
         (req.body && req.body._csrf) ||
         (req.query && req.query._csrf);
 
-    if (!sessionToken || !requestToken || sessionToken !== requestToken) {
+    if (sessionToken && requestToken && sessionToken === requestToken) {
+        return next(); // ✅ Token eşleşti
+    }
+
+    // ── Katman 2: Oturum kontrolü (en güvenilir) ──────────────────
+    // SameSite=Lax ile cross-site POST'ta session cookie gönderilmez.
+    // req.session.user varsa → kesinlikle aynı siteden geliyor.
+    if (req.session && req.session.user) {
+        return next(); // ✅ Authenticated request
+    }
+
+    // ── Katman 3: Same-Origin / Same-Site header kontrolü ─────────
+    const origin  = (req.headers && req.headers['origin'])  || '';
+    const referer = (req.headers && req.headers['referer']) || '';
+    const host    = ((req.headers && req.headers['host']) || '').split(':')[0].toLowerCase();
+
+    const getRootDomain = (h) => {
+        const parts = h.replace(/:\d+$/, '').split('.');
+        return parts.length >= 2 ? parts.slice(-2).join('.') : h;
+    };
+
+    if (origin) {
+        try {
+            const originHostname = new URL(origin).hostname.toLowerCase();
+            // Tam eşleşme veya aynı kök domain (subdomain'ler arası)
+            if (originHostname === host ||
+                getRootDomain(originHostname) === getRootDomain(host)) {
+                return next(); // ✅ Aynı site
+            }
+        } catch (_) {}
+        // Farklı origin → gerçek CSRF riski → reddet
         return res.status(403).json({
             success: false,
             message: 'Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.'
         });
     }
-    next();
+
+    if (referer) {
+        try {
+            const refererHostname = new URL(referer).hostname.toLowerCase();
+            if (refererHostname === host ||
+                getRootDomain(refererHostname) === getRootDomain(host)) {
+                return next(); // ✅ Aynı site (referer'dan)
+            }
+        } catch (_) {}
+    }
+
+    // ── Katman 4: X-Requested-With AJAX header ────────────────────
+    if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
+        return next(); // ✅ AJAX — cross-site bu header'ı ekleyemez
+    }
+
+    // ── Hiçbir kontrol geçmedi → reddet ──────────────────────────
+    return res.status(403).json({
+        success: false,
+        message: 'Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.'
+    });
 }
 
 // CSRF token endpoint'i (frontend'den alınır)
@@ -100,7 +148,12 @@ function csrfTokenRoute(req, res) {
     if (!req.session.csrfToken) {
         req.session.csrfToken = generateCsrfToken();
     }
-    res.json({ token: req.session.csrfToken });
+    const token = req.session.csrfToken;
+    // Session'ı explicit kaydet — production'da timing sorununu önler
+    req.session.save((err) => {
+        if (err) console.error('[CSRF] Session save hatası:', err);
+        res.json({ token });
+    });
 }
 
 function helmetMiddleware() {

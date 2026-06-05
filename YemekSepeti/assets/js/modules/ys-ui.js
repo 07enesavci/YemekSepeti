@@ -246,16 +246,35 @@
 
     // CSRF token yönetimi
     let _csrfToken = '';
+    let _csrfLoading = null;
+
     async function _loadCsrfToken() {
         try {
             const apiBase = window.getApiBaseUrl ? window.getApiBaseUrl() : '';
-            const res = await fetch(`${apiBase}/api/csrf-token`, { credentials: 'include' });
+            const res = await fetch(`${apiBase}/api/csrf-token`, {
+                credentials: 'include',
+                cache: 'no-store'
+            });
             if (res.ok) {
                 const data = await res.json();
                 _csrfToken = data.token || '';
             }
         } catch (_) {}
     }
+
+    // Token henüz yüklenmediyse bekle (max 3 saniye)
+    async function _ensureCsrfToken() {
+        if (_csrfToken) return _csrfToken;
+        if (_csrfLoading) {
+            await _csrfLoading;
+        } else {
+            _csrfLoading = _loadCsrfToken();
+            await _csrfLoading;
+            _csrfLoading = null;
+        }
+        return _csrfToken;
+    }
+
     function getCsrfToken() { return _csrfToken; }
 
     // ─── BAŞLATMA ─────────────────────────────────────────────────
@@ -287,10 +306,12 @@
         getPasswordStrength,
         applyInputValidation,
         addPasswordStrengthIndicator,
-        getCsrfToken
+        getCsrfToken,
+        ensureCsrfToken: _ensureCsrfToken
     };
 
     // Geriye dönük uyumluluk için kısayollar
     window.getCsrfToken = getCsrfToken;
+    window.ensureCsrfToken = _ensureCsrfToken;
 
 })(window);

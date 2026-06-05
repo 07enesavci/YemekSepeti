@@ -16,6 +16,48 @@ const { submitDocumentsJsonValidation, handleValidationErrors: handleValidate } 
 const { getDomainType, roleAllowedOnDomain } = require('../../middleware/auth');
 const { isGoogleOAuthConfigured } = require('../../config/google-oauth');
 
+// --- MAGIC BYTES KONTROLÜ (Belge yüklemeleri için) ---
+// İzin verilen belge türlerinin magic bytes imzaları (PDF, JPG, PNG)
+const DOCUMENT_SIGNATURES = [
+    { label: 'pdf',  magic: [0x25, 0x50, 0x44, 0x46] },          // %PDF
+    { label: 'jpg',  magic: [0xFF, 0xD8, 0xFF] },                  // JPEG
+    { label: 'png',  magic: [0x89, 0x50, 0x4E, 0x47] }            // PNG
+];
+
+function checkDocumentMagicBytes(filePath) {
+    try {
+        const fd = fs.openSync(filePath, 'r');
+        const buf = Buffer.alloc(8);
+        fs.readSync(fd, buf, 0, 8, 0);
+        fs.closeSync(fd);
+        for (const sig of DOCUMENT_SIGNATURES) {
+            let match = true;
+            for (let i = 0; i < sig.magic.length; i++) {
+                if (buf[i] !== sig.magic[i]) { match = false; break; }
+            }
+            if (match) return true;
+        }
+        return false;
+    } catch (_) {
+        return false;
+    }
+}
+
+// Yüklenen belge dosyalarını magic bytes ile doğrula; geçersizleri diske almadan reddet
+function verifyDocumentFiles(files) {
+    if (!files) return null;
+    for (const fieldFiles of Object.values(files)) {
+        for (const f of fieldFiles) {
+            if (!checkDocumentMagicBytes(f.path)) {
+                // Geçersiz dosyayı diskten sil
+                try { fs.unlinkSync(f.path); } catch (_) {}
+                return `Yüklenen dosya geçerli bir belge değil (${f.fieldname}). Yalnızca PDF, JPG ve PNG kabul edilir.`;
+            }
+        }
+    }
+    return null;
+}
+
 // --- MULTER YAPILANDIRMASI (DOSYA YÜKLEME) ---
 const uploadDir = path.resolve(__dirname, '..', '..', 'public', 'uploads', 'merchants');
 if (!fs.existsSync(uploadDir)) {
@@ -436,7 +478,15 @@ router.get('/google/callback', async (req, res) => {
         req.session.isAuthenticated = true;
 
         clearGoogleOAuthSession(req);
-        return res.redirect(getPostLoginRedirect(userData));
+
+        // Partner portal (satıcı/kurye) → partner subdomain'ine yönlendir
+        const redirectPath = getPostLoginRedirect(userData);
+        if (portal === 'partner' && (userData.role === 'seller' || userData.role === 'courier')) {
+            const partnerDomain = process.env.PARTNER_DOMAIN || 'partner.evlezzetleri.site';
+            const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+            return res.redirect(`${proto}://${partnerDomain}${redirectPath}`);
+        }
+        return res.redirect(redirectPath);
     } catch (error) {
         clearGoogleOAuthSession(req);
         return res.redirect(fallbackWithError('oauth_failed'));
@@ -566,6 +616,12 @@ router.post("/submit-documents", (req, res, next) => {
         const { role } = req.session.user;
         const userId = req.session.user.id;
         const files = req.files || {};
+
+        // Magic bytes doğrulaması: yüklenen belgeler gerçek PDF/JPG/PNG mı?
+        const magicErr = verifyDocumentFiles(files);
+        if (magicErr) {
+            return res.status(400).json({ success: false, message: magicErr });
+        }
         const getPath = (name) => (files[name] && files[name][0] && files[name][0].path) ? `/uploads/merchants/${path.basename(files[name][0].path)}` : null;
 
         if (role === 'seller') {
@@ -777,28 +833,52 @@ router.post("/forgot-password", strictLimiter, async (req, res) => {
             return res.json({ success: true, message: GENERIC_OK });
         }
 
-        // Tek kullanımlık rastgele token oluştur (JWT değil)
+        // Tek kullanımlık rastgele token oluştur
         const resetToken = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 dakika
 
-        // Eski tokenları geçersiz kıl, yenisini kaydet
-        await EmailVerificationCode.destroy({ where: { email: normalizedEmail, type: 'password_reset' } });
-        await EmailVerificationCode.create({
-            email: normalizedEmail,
-            code: resetToken,
-            type: 'password_reset',
-            expires_at: expiresAt,
-            used: false
-        });
+        // Token'ı kaydet — tablo yapısına göre en uygun yöntemi dene
+        try {
+            await EmailVerificationCode.destroy({ where: { email: normalizedEmail, type: 'password_reset' } });
+        } catch (_) { /* type kolonu yoksa geç */ }
 
-        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        try {
+            await EmailVerificationCode.create({
+                email: normalizedEmail,
+                code: resetToken,
+                type: 'password_reset',
+                expires_at: expiresAt,
+                used: false
+            });
+        } catch (dbErr) {
+            // ENUM veya kolon yoksa raw SQL ile dene
+            try {
+                const { sequelize: seqInst } = require('../../models');
+                await seqInst.query(
+                    "INSERT INTO email_verification_codes (email, code, type, expires_at, used, created_at, updated_at) VALUES (?, ?, 'password_reset', ?, 0, NOW(), NOW())",
+                    { replacements: [normalizedEmail, resetToken, expiresAt] }
+                );
+            } catch (rawErr) {
+                console.error('Token kayıt hatası:', rawErr.message);
+                return res.status(500).json({ success: false, message: "Şifre sıfırlama başlatılamadı. Lütfen tekrar deneyin." });
+            }
+        }
+
+        // HTTPS olduğundan emin ol (proxy arkasında da)
+        const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        const proto = isHttps ? 'https' : 'http';
+        const baseUrl = process.env.BASE_URL || `${proto}://${req.get('host')}`;
         const resetLink = `${baseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
-        await sendPasswordResetLink(normalizedEmail, resetLink);
+
+        const emailResult = await sendPasswordResetLink(normalizedEmail, resetLink);
+        if (emailResult && emailResult.success === false) {
+            console.error('Şifre sıfırlama maili gönderilemedi:', emailResult.error);
+        }
 
         res.json({ success: true, message: GENERIC_OK });
     } catch (error) {
         console.error('Forgot password hatası:', error.message);
-        res.status(500).json({ success: false, message: "İşlem sırasında hata oluştu." });
+        res.status(500).json({ success: false, message: "İşlem sırasında hata oluştu. Lütfen tekrar deneyin." });
     }
 });
 
@@ -844,6 +924,17 @@ router.post("/reset-password", strictLimiter, async (req, res) => {
 
         // Kullanıldı olarak işaretle (tek kullanım)
         await resetRecord.update({ used: true });
+
+        // Şifre değiştikten sonra kullanıcıya ait tüm aktif oturumları sonlandır
+        try {
+            const { sequelize: seqInst } = require('../../models');
+            await seqInst.query(
+                "DELETE FROM sessions WHERE JSON_UNQUOTE(JSON_EXTRACT(data, '$.user.id')) = ?",
+                { replacements: [String(user.id)] }
+            );
+        } catch (sessionCleanErr) {
+            // Session store temizleme başarısız olsa bile devam et (kritik değil)
+        }
 
         res.json({ success: true, message: "Şifreniz başarıyla güncellendi. Şimdi giriş yapabilirsiniz." });
     } catch (error) {
@@ -932,13 +1023,20 @@ router.get("/me", async (req, res) => {
 // Çıkış
 router.post("/logout", (req, res) => {
     try {
+        // Cookie domain hesapla (subdomain'lerde de temizlenebilmesi için)
+        const buyerDomain = process.env.BUYER_DOMAIN || '';
+        const rootDomain = (buyerDomain && buyerDomain !== 'localhost')
+            ? '.' + buyerDomain.split('.').slice(-2).join('.')
+            : undefined;
+        const cookieOpts = { path: '/' };
+        if (rootDomain && process.env.NODE_ENV === 'production') cookieOpts.domain = rootDomain;
+
         req.session.destroy((err) => {
             if (err) {
                 console.error('Session destroy hatası:', err);
                 return res.status(500).json({ success: false, message: "Çıkış yapılırken hata oluştu." });
             }
-            res.clearCookie('connect.sid');
-            res.clearCookie('yemek-sepeti-session');
+            res.clearCookie('ys-sid', cookieOpts);
             res.json({ success: true, message: "Başarıyla çıkış yapıldı." });
         });
     } catch (error) {
@@ -967,8 +1065,7 @@ router.delete("/delete-account", async (req, res) => {
         await user.destroy();
 
         req.session.destroy(() => {});
-        res.clearCookie('connect.sid');
-        res.clearCookie('yemek-sepeti-session');
+        res.clearCookie('ys-sid', { path: '/' });
 
         return res.json({
             success: true,

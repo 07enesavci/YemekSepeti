@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireCourierApproved } = require("../../middleware/auth");
-const { User, Order, Seller, Address, CourierTask, OrderItem } = require("../../models");
+const { User, Order, Seller, Address, CourierTask, OrderItem, Courier } = require("../../models");
 
 router.use(requireRole('courier'), requireCourierApproved);
 const { Op, Sequelize, QueryTypes } = require("sequelize");
@@ -143,8 +143,7 @@ router.get("/available", async (req, res) => {
         console.error('AVAILABLE ENDPOINT HATA:', error);
         res.status(500).json({
             success: false,
-            message: "Görevler yüklenirken bir hata oluştu.",
-            error: error.message
+            message: "Görevler yüklenirken bir hata oluştu."
         });
     }
 });
@@ -175,6 +174,20 @@ router.post("/tasks/:id/accept", async (req, res) => {
 
         if (orderRecord.status !== 'ready') {
             return res.status(400).json({ success: false, message: "Bu sipariş henüz hazır değil." });
+        }
+
+        // Aktif görev limiti: kurye aynı anda en fazla 3 sipariş alabilir
+        const activeTaskCount = await Order.count({
+            where: {
+                courier_id: courierId,
+                status: { [Op.in]: ['ready', 'on_delivery'] }
+            }
+        });
+        if (activeTaskCount >= 3) {
+            return res.status(400).json({
+                success: false,
+                message: "Aynı anda en fazla 3 aktif görev alabilirsiniz. Mevcut görevleri tamamlayın."
+            });
         }
 
         const t = await sequelize.transaction();
@@ -238,8 +251,6 @@ router.get("/tasks/active", async (req, res) => {
             where: {
                 courier_id: courierId,
                 delivery_type: { [Op.ne]: 'pickup' },
-                // 'ready' = havuzdan henüz alınmamış (kendi kurye için bekleme)
-                // 'on_delivery' = kurye yolda / restorana gidiyor
                 status: { [Op.in]: ['ready', 'on_delivery'] }
             },
             include: [
@@ -268,6 +279,8 @@ router.get("/tasks/active", async (req, res) => {
                 dropoffLng: address.longitude != null ? parseFloat(address.longitude) : null,
                 customer: buyer.fullname ? `${buyer.fullname} (${(buyer.phone || '000').toString().substring(0, 3)}***)` : 'Müşteri',
                 payout: parseFloat(task.delivery_fee) || 25.00,
+                paymentMethod: task.payment_method || 'credit_card',
+                cashPaymentMethod: task.cash_payment_method || null,
                 status: task.status,
                 estimatedTime: task.estimated_delivery_time,
                 pickedUpAt: ct.picked_up_at || null,
@@ -279,7 +292,7 @@ router.get("/tasks/active", async (req, res) => {
         res.json({ success: true, tasks: formattedTasks });
     } catch (error) {
         console.error('ACTIVE TASKS HATA:', error);
-        res.status(500).json({ success: false, message: "Sunucu hatası.", error: error.message });
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 
@@ -295,6 +308,15 @@ router.patch("/tasks/:id/location", async (req, res) => {
         if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
             return res.status(400).json({ success: false, message: "Geçerli enlem/boylam girin." });
         }
+        // Sadece aktif (on_delivery) siparişler için konum güncellenmeli
+        const activeOrder = await Order.findOne({
+            where: { id: orderId, courier_id: courierId, status: 'on_delivery' },
+            attributes: ['id']
+        });
+        if (!activeOrder) {
+            return res.status(400).json({ success: false, message: "Görev tamamlanmış veya aktif değil." });
+        }
+
         const [updated] = await sequelize.query(
             "UPDATE courier_tasks SET courier_latitude = ?, courier_longitude = ?, updated_at = NOW() WHERE order_id = ? AND courier_id = ?",
             { replacements: [lat, lng, orderId, courierId] }
@@ -362,12 +384,13 @@ router.put("/tasks/:id/pickup", async (req, res) => {
         );
 
         try {
-            const orderInfo = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number'] });
+            const orderInfo = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number', 'delivery_type'] });
             if (orderInfo && global.io) {
                 global.io.to(`buyer-${orderInfo.user_id}`).emit('order_status_updated', {
                     orderId: orderId,
                     status: 'on_delivery',
-                    orderNumber: orderInfo.order_number
+                    orderNumber: orderInfo.order_number,
+                    deliveryType: orderInfo.delivery_type
                 });
             }
         } catch(e) {}
@@ -404,10 +427,10 @@ router.put("/tasks/:id/complete", async (req, res) => {
 
         if (orderCheck && orderCheck.user_id) {
             createNotification(
-                orderCheck.user_id, 
-                'order', 
-                'Sipariş teslim edildi', 
-                `Sipariş #${orderId} teslim edilmiştir. Afiyet olsun!`, 
+                orderCheck.user_id,
+                'order',
+                'Sipariş teslim edildi',
+                `Sipariş #${orderId} teslim edilmiştir. Afiyet olsun!`,
                 orderId
             ).catch(() => {});
 
@@ -416,6 +439,7 @@ router.put("/tasks/:id/complete", async (req, res) => {
                 global.io.to(`buyer-${orderCheck.user_id}`).emit('order_status_updated', {
                     orderId: orderId,
                     status: 'delivered',
+                    deliveryType: orderCheck.delivery_type,
                     message: 'Siparişiniz teslim edildi. Afiyet olsun!'
                 });
             }
@@ -517,6 +541,11 @@ router.put("/tasks/:id/reject-assigned", async (req, res) => {
             { where: { id: taskId, courier_id: courierId } }
         );
 
+        // Diğer kuryeler için havuza geri ekle
+        if (global.io) {
+            global.io.emit('order_pool_added', { orderId: order.id });
+        }
+
         return res.json({ success: true, message: "Görev reddedildi. Sipariş tekrar havuza alındı." });
     } catch (error) {
         console.error('REJECT-ASSIGNED HATA:', error);
@@ -586,8 +615,7 @@ router.get("/tasks/history", async (req, res) => {
         console.error('HISTORY HATA:', error);
         res.status(500).json({
             success: false,
-            message: "Geçmiş görevler yüklenirken bir hata oluştu.",
-            error: error.message
+            message: "Geçmiş görevler yüklenirken bir hata oluştu."
         });
     }
 });
@@ -648,7 +676,7 @@ router.get("/tasks/:id", async (req, res) => {
         res.json({ success: true, task: detail });
     } catch (error) {
         console.error('TASK DETAIL HATA:', error);
-        res.status(500).json({ success: false, message: "Detay yüklenirken hata oluştu.", error: error.message });
+        res.status(500).json({ success: false, message: "Detay yüklenirken hata oluştu." });
     }
 });
 
@@ -851,7 +879,7 @@ router.get("/profile", async (req, res) => {
         });
     } catch (error) {
         console.error('PROFILE GET HATA:', error);
-        res.status(500).json({ success: false, message: "Sunucu hatası: " + error.message });
+        res.status(500).json({ success: false, message: "Sunucu hatası." });
     }
 });
 

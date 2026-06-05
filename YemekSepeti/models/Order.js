@@ -97,6 +97,17 @@ module.exports=(sequelize, DataTypes)=>{
         iyzico_refunded_at: {
             type: DataTypes.DATE,
             allowNull: true
+        },
+        partial_refund_amount: {
+            type: DataTypes.DECIMAL(10, 2),
+            defaultValue: 0.00,
+            allowNull: true,
+            comment: 'Admin tarafından yapılan kısmi iade toplamı'
+        },
+        cash_refund_note: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+            comment: 'Nakit ödeme iadelerinde admin notu'
         }
     }, {
         tableName: 'orders',
