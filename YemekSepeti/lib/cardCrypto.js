@@ -20,7 +20,13 @@ function deriveKeyLegacy(rawSecret) {
 }
 
 function getRawSecret() {
-    return process.env.CARD_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+    const key = process.env.CARD_ENCRYPTION_KEY;
+    if (!key) {
+        // Güvenlik: kart verisi şifreleme anahtarı JWT_SECRET'a (veya başka bir amaca ait
+        // sırra) fallback yapmaz — anahtar yeniden kullanımı riskini önler. Eksikse açıkça hata verilir.
+        throw new Error('CARD_ENCRYPTION_KEY tanımlı değil. Kart verisi şifrelenemez/çözülemez.');
+    }
+    return key;
 }
 
 function encryptText(plain) {

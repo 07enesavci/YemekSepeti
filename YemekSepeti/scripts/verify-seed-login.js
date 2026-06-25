@@ -22,7 +22,7 @@ async function verify() {
   console.log('Giriş testi (şifre: 123456)\n');
 
   for (const email of EMAILS) {
-    const user = await User.findOne({ where: { email }, include: [{ model: Seller, as: 'seller', required: false }] });
+    const user = await User.scope('withPassword').findOne({ where: { email }, include: [{ model: Seller, as: 'seller', required: false }] });
     if (!user) {
       console.log(`❌ ${email} - Kullanıcı bulunamadı`);
       continue;

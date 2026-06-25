@@ -29,7 +29,7 @@
             list.innerHTML = data.favorites.map(s => `
                 <div class="card" data-seller-id="${s.id}" style="overflow: hidden;">
                     <div style="position: relative; height: 160px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; font-weight: bold;">
-                        ${(s.name || 'Restoran').substring(0, 2)}
+                        ${escapeHtml((s.name || 'Restoran').substring(0, 2))}
                         <span class="seller-status-badge" style="display:none; position:absolute; top:8px; right:8px; padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:600; color:#fff;"></span>
                     </div>
                     <div class="card-content">

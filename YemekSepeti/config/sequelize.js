@@ -71,7 +71,17 @@ async function ensureOrderDeliveryTypeColumn() {
 
     try {
         await sequelize.query(
-            `ALTER TABLE orders ADD COLUMN delivery_type ENUM('delivery','pickup') NOT NULL DEFAULT 'delivery' AFTER address_id`
+            `ALTER TABLE orders ADD COLUMN delivery_type ENUM('delivery','pickup','cargo') NOT NULL DEFAULT 'delivery' AFTER address_id`
+        );
+    } catch (_) {}
+
+    // Kolon zaten varsa yukarıdaki ADD sessizce başarısız olur (kolon mevcut) ve eski ENUM tanımı
+    // ('cargo' içermeyen) kalır — modeldeki (models/Order.js) üç değerle senkron tutmak için her
+    // başlangıçta ENUM'u genişlet. Aksi halde delivery_type='cargo' ile sipariş oluşturma
+    // "Data truncated for column 'delivery_type'" hatasıyla 500 döner (şema sürüklenmesi düzeltmesi).
+    try {
+        await sequelize.query(
+            `ALTER TABLE orders MODIFY COLUMN delivery_type ENUM('delivery','pickup','cargo') NOT NULL DEFAULT 'delivery'`
         );
     } catch (_) {}
 }
@@ -226,6 +236,23 @@ async function ensureCourierSellerIdColumn() {
     } catch (_) {}
 }
 
+/**
+ * Satıcının kuryeyi kadrosuna eklemesi artık kurye onayına bağlı (invite/accept akışı).
+ * Eski DB'lerde bu sütunlar yoksa eklenir.
+ */
+async function ensureCourierInviteColumns() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE couriers ADD COLUMN invite_status VARCHAR(20) NOT NULL DEFAULT 'none'`
+        );
+    } catch (_) {}
+    try {
+        await sequelize.query(
+            `ALTER TABLE couriers ADD COLUMN invited_by_seller_id INT NULL DEFAULT NULL`
+        );
+    } catch (_) {}
+}
+
 async function ensureUserOptionalColumns() {
     const alters = [
         `ALTER TABLE users ADD COLUMN courier_status ENUM('online','offline') DEFAULT 'offline'`,
@@ -299,6 +326,7 @@ module.exports = {
     ensureUserOptionalColumns,
     ensureSellerOwnCouriersColumn,
     ensureCourierSellerIdColumn,
+    ensureCourierInviteColumns,
     ensureOrderIsPoolRequestedColumn,
     ensureReviewSellerReplyColumns,
     ensurePushSubscriptionsTable

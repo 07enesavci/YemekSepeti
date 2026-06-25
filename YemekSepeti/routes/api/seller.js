@@ -2,11 +2,12 @@ const express = require("express");
 const router = express.Router();
 const db = require("../../config/database");
 const { requireRole, requireSellerApproved } = require("../../middleware/auth");
-const { Seller, Meal, UserFavoriteSeller, Order, Courier, User, Coupon, CouponUsage, sequelize } = require("../../models");
+const { Seller, Meal, UserFavoriteSeller, Order, Courier, User, Coupon, CouponUsage, EmailVerificationCode, sequelize } = require("../../models");
 const { Op } = require("sequelize");
 const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 const { getCityCoordinates } = require("../../data/turkey-coordinates");
+const { sendVerificationCode } = require("../../config/email");
 
 router.use(requireRole('seller'), requireSellerApproved);
 
@@ -74,17 +75,17 @@ router.post("/menu", async (req, res) => {
         }
 
         const priceNum = parseFloat(price);
-        if (isNaN(priceNum) || priceNum < 0) {
+        if (isNaN(priceNum) || priceNum <= 0) {
             return res.status(400).json({
                 success: false,
-                message: "Geçerli bir fiyat giriniz."
+                message: "Geçerli bir fiyat giriniz (0'dan büyük olmalıdır)."
             });
         }
 
         let finalImageUrl = null;
         if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
             finalImageUrl = imageUrl.trim();
-            if (/^(javascript|data):/i.test(finalImageUrl)) {
+            if (/^(javascript|data):/i.test(finalImageUrl) || /["']/.test(finalImageUrl)) {
                 return res.status(400).json({ success: false, message: "Geçersiz resim URL'si." });
             }
             if (finalImageUrl.length > 1000) {
@@ -212,8 +213,8 @@ router.put("/menu/:id", async (req, res) => {
         }
         if (price !== undefined) {
             const priceNum = parseFloat(price);
-            if (isNaN(priceNum) || priceNum < 0) {
-                return res.status(400).json({ success: false, message: "Geçersiz fiyat. Fiyat 0 veya daha büyük bir sayı olmalıdır." });
+            if (isNaN(priceNum) || priceNum <= 0) {
+                return res.status(400).json({ success: false, message: "Geçersiz fiyat. Fiyat 0'dan büyük bir sayı olmalıdır." });
             }
             updateFields.push("price = ?");
             updateValues.push(priceNum);
@@ -222,7 +223,7 @@ router.put("/menu/:id", async (req, res) => {
             let finalImageUrl = null;
             if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
                 finalImageUrl = imageUrl.trim();
-                if (/^(javascript|data):/i.test(finalImageUrl)) {
+                if (/^(javascript|data):/i.test(finalImageUrl) || /["']/.test(finalImageUrl)) {
                     return res.status(400).json({ success: false, message: "Geçersiz resim URL'si." });
                 }
                 if (finalImageUrl.length > 1000) {
@@ -507,21 +508,24 @@ router.get("/dashboard", async (req, res) => {
 router.put("/profile", async (req, res) => {
     try {
         const userId = req.session.user.id;
+        let emailChangeRequiresVerification = false;
+        let usersTableFieldSpecified = false;
         const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled, uzakMesafeEnabled } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
         );
-        
+
         if (sellerQuery.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "Satıcı kaydı bulunamadı."
             });
         }
-        
+
         const shopId = sellerQuery[0].id;
         if (email !== undefined) {
+            usersTableFieldSpecified = true;
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email)) {
                 return res.status(400).json({
@@ -529,23 +533,48 @@ router.put("/profile", async (req, res) => {
                     message: "Geçerli bir e-posta adresi giriniz."
                 });
             }
-            const existingEmail = await db.query(
-                "SELECT id FROM users WHERE email = ? AND id != ?",
-                [email, userId]
-            );
-            
-            if (existingEmail && existingEmail.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Bu e-posta adresi zaten kullanılıyor."
-                });
+            const currentUserRow = await db.query("SELECT email FROM users WHERE id = ?", [userId]);
+            const currentEmail = (currentUserRow && currentUserRow[0]) ? currentUserRow[0].email : null;
+            const isEmailChanging = !currentEmail || currentEmail.toLowerCase() !== String(email).toLowerCase();
+            if (isEmailChanging) {
+                const existingEmail = await db.query(
+                    "SELECT id FROM users WHERE email = ? AND id != ?",
+                    [email, userId]
+                );
+
+                if (existingEmail && existingEmail.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Bu e-posta adresi zaten kullanılıyor."
+                    });
+                }
+                // Email değişikliği yeniden doğrulama gerektirir — eski email ile aynı güven seviyesinde kabul edilemez.
+                await db.execute(
+                    "UPDATE users SET email = ?, email_verified = ? WHERE id = ?",
+                    [email, false, userId]
+                );
+                emailChangeRequiresVerification = true;
+                try {
+                    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+                    const expiresAt = new Date();
+                    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+                    await EmailVerificationCode.destroy({ where: { email, type: 'email_change' } });
+                    await EmailVerificationCode.create({
+                        email,
+                        code: verificationCode,
+                        type: 'email_change',
+                        expires_at: expiresAt,
+                        used: false
+                    });
+                    await sendVerificationCode(email, verificationCode, 'email_change');
+                } catch (mailError) {}
+                if (req.session && req.session.user) {
+                    req.session.user.email = email;
+                }
             }
-            await db.execute(
-                "UPDATE users SET email = ? WHERE id = ?",
-                [email, userId]
-            );
         }
         if (fullname !== undefined) {
+            usersTableFieldSpecified = true;
             if (!fullname || typeof fullname !== 'string' || fullname.trim() === '') {
                 return res.status(400).json({
                     success: false,
@@ -564,6 +593,12 @@ router.put("/profile", async (req, res) => {
         const updateValues = [];
         
         if (shopName !== undefined) {
+            if (typeof shopName !== 'string' || /[<>"']/.test(shopName)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "İşletme adında < > \" ' karakterleri kullanılamaz."
+                });
+            }
             updateFields.push("shop_name = ?");
             updateValues.push(shopName);
         }
@@ -643,6 +678,8 @@ router.put("/profile", async (req, res) => {
                         }
                     } catch (deleteError) {}
                 }
+            } else if (typeof logoUrl !== 'string' || /^(javascript|data):/i.test(logoUrl.trim()) || /["']/.test(logoUrl)) {
+                return res.status(400).json({ success: false, message: "Geçersiz logo URL'si." });
             }
             updateFields.push("logo_url = ?");
             updateValues.push(logoUrl);
@@ -664,23 +701,27 @@ router.put("/profile", async (req, res) => {
                         }
                     } catch (deleteError) {}
                 }
+            } else if (typeof bannerUrl !== 'string' || /^(javascript|data):/i.test(bannerUrl.trim()) || /["']/.test(bannerUrl)) {
+                return res.status(400).json({ success: false, message: "Geçersiz banner URL'si." });
             }
             updateFields.push("banner_url = ?");
             updateValues.push(bannerUrl);
         }
         
-        if (updateFields.length === 0) {
+        if (updateFields.length === 0 && !usersTableFieldSpecified) {
             return res.status(400).json({
                 success: false,
                 message: "Güncellenecek alan belirtilmedi."
             });
         }
-        
-        updateValues.push(shopId);
-        await db.execute(
-            `UPDATE sellers SET ${updateFields.join(", ")} WHERE id = ?`,
-            updateValues
-        );
+
+        if (updateFields.length > 0) {
+            updateValues.push(shopId);
+            await db.execute(
+                `UPDATE sellers SET ${updateFields.join(", ")} WHERE id = ?`,
+                updateValues
+            );
+        }
 
         if (global.io && uzakMesafeEnabled !== undefined) {
             const enabled = uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1';
@@ -689,7 +730,10 @@ router.put("/profile", async (req, res) => {
 
         res.json({
             success: true,
-            message: "Profil başarıyla güncellendi."
+            message: emailChangeRequiresVerification
+                ? "Profil güncellendi. Yeni e-posta adresinizi doğrulamak için gönderilen kodu kontrol edin."
+                : "Profil başarıyla güncellendi.",
+            emailChangeRequiresVerification
         });
     } catch (error) {
         res.status(500).json({
@@ -882,7 +926,13 @@ router.post("/coupons", async (req, res) => {
         if (discountType === 'percentage' && discountNum > 100) {
             return res.status(400).json({ success: false, message: "Yüzde indirim 100'ü aşamaz." });
         }
-        
+        if (maxDiscountAmount !== undefined && maxDiscountAmount !== null && maxDiscountAmount !== '') {
+            const maxDiscountNum = parseFloat(maxDiscountAmount);
+            if (isNaN(maxDiscountNum) || maxDiscountNum < 0) {
+                return res.status(400).json({ success: false, message: "Maksimum indirim tutarı negatif olamaz." });
+            }
+        }
+
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -994,6 +1044,12 @@ router.put("/coupons/:id", async (req, res) => {
         if (discountType === 'percentage' && discountNumUpd > 100) {
             return res.status(400).json({ success: false, message: "Yüzde indirim 100'ü aşamaz." });
         }
+        if (maxDiscountAmount !== undefined && maxDiscountAmount !== null && maxDiscountAmount !== '') {
+            const maxDiscountNumUpd = parseFloat(maxDiscountAmount);
+            if (isNaN(maxDiscountNumUpd) || maxDiscountNumUpd < 0) {
+                return res.status(400).json({ success: false, message: "Maksimum indirim tutarı negatif olamaz." });
+            }
+        }
 
         const checkCouponQuery = await db.query(
             "SELECT id, valid_from FROM coupons WHERE id = ? AND created_by = ?",
@@ -1095,8 +1151,12 @@ router.post("/menu/bulk-price", async (req, res) => {
             return res.status(400).json({ success: false, message: "Yüzde -50 ile 100 arasında olmalı (örn: 10 = %%10 artış)." });
         }
         const multiplier = 1 + percent / 100;
+        if (!Number.isFinite(multiplier)) {
+            return res.status(400).json({ success: false, message: "Geçersiz çarpan." });
+        }
+        // multiplier yukarıda doğrulanan sayısal `percent`ten türetildiği için güvenli (ham kullanıcı girdisi SQL'e gömülmüyor).
         const [updatedCount] = await Meal.update(
-            { price: Sequelize.literal('price * ' + multiplier) },
+            { price: Sequelize.literal('price * ' + Number(multiplier)) },
             { where: { seller_id: seller.id, is_approved: true } }
         );
         res.json({ success: true, message: "Fiyatlar güncellendi.", percent, updatedCount });
@@ -1121,9 +1181,14 @@ router.get("/own-couriers", async (req, res) => {
         }
 
         const couriers = await Courier.findAll({
-            where: { seller_id: seller.id },
+            where: {
+                [Op.or]: [
+                    { seller_id: seller.id },
+                    { invited_by_seller_id: seller.id, invite_status: 'pending' }
+                ]
+            },
             include: [{ model: User, as: 'user', attributes: ['id', 'fullname', 'email', 'phone', 'courier_status'] }],
-            attributes: ['id', 'is_active', 'created_at']
+            attributes: ['id', 'is_active', 'created_at', 'invite_status', 'seller_id']
         });
 
         const formatted = couriers.map(c => ({
@@ -1134,6 +1199,7 @@ router.get("/own-couriers", async (req, res) => {
             phone: c.user?.phone || '',
             status: c.user?.courier_status || 'offline',
             isActive: !!c.is_active,
+            inviteStatus: c.seller_id === seller.id ? 'accepted' : (c.invite_status || 'pending'),
             addedAt: c.created_at
         }));
 
@@ -1172,13 +1238,18 @@ router.post("/own-couriers", async (req, res) => {
         }
 
         // Kurye kaydını bul
-        let courier = await Courier.findOne({ where: { user_id: courierUser.id }, attributes: ['id', 'seller_id', 'is_active'] });
+        // GÜVENLİK: seller_id artık burada DİREKT set EDİLMİYOR — satıcı bir kuryeyi rızası
+        // olmadan kadrosuna kilitleyebiliyordu. Bunun yerine bir davet (invite_status='pending')
+        // oluşturulur; kurye onaylamadan seller_id set edilmez.
+        let courier = await Courier.findOne({ where: { user_id: courierUser.id }, attributes: ['id', 'seller_id', 'is_active', 'invite_status', 'invited_by_seller_id'] });
         if (!courier) {
-            // Kurye kaydı yoksa oluştur
+            // Kurye kaydı yoksa davet olarak oluştur
             courier = await Courier.create({
                 user_id: courierUser.id,
-                seller_id: seller.id,
-                is_active: true
+                seller_id: null,
+                is_active: true,
+                invite_status: 'pending',
+                invited_by_seller_id: seller.id
             });
         } else {
             if (courier.seller_id && courier.seller_id !== seller.id) {
@@ -1188,7 +1259,7 @@ router.post("/own-couriers", async (req, res) => {
                 });
             }
             if (courier.seller_id === seller.id) {
-                // Zaten kayıtlı — idempotent başarı döndür (çifte submit koruması)
+                // Zaten kabul edilmiş — idempotent başarı döndür (çifte submit koruması)
                 return res.json({
                     success: true,
                     message: `${courierUser.fullname || courierUser.email} zaten kurye kadronuzda kayıtlı.`,
@@ -1196,25 +1267,41 @@ router.post("/own-couriers", async (req, res) => {
                     alreadyExists: true
                 });
             }
+            if (courier.invite_status === 'pending' && courier.invited_by_seller_id && courier.invited_by_seller_id !== seller.id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Bu kurye başka bir restorandan bekleyen bir davete sahip."
+                });
+            }
+            if (courier.invite_status === 'pending' && courier.invited_by_seller_id === seller.id) {
+                return res.json({
+                    success: true,
+                    message: `${courierUser.fullname || courierUser.email}'e davet zaten gönderildi, kuryenin onayı bekleniyor.`,
+                    courier: { id: courier.id, userId: courierUser.id, fullname: courierUser.fullname, email: courierUser.email },
+                    inviteStatus: 'pending'
+                });
+            }
             await Courier.update(
-                { seller_id: seller.id, is_active: true },
+                { invite_status: 'pending', invited_by_seller_id: seller.id },
                 { where: { id: courier.id } }
             );
         }
 
-        // Kuryeye bildirim gönder
+        // Kuryeye davet bildirimi gönder — seller_id, kurye kabul edene kadar set edilmiyor
+        // (kurye tarafı kabul/red endpoint'i routes/api/courier.js kapsamında, ayrı eklenmelidir).
         const { createNotification } = require("../../lib/notificationHelper");
         createNotification(
             courierUser.id,
             'info',
-            'Restorana Bağlandınız',
-            `${seller.shop_name} restoranının kurye kadrosuna eklendiniz.`,
+            'Restoran Daveti',
+            `${seller.shop_name} sizi kurye kadrosuna eklemek istiyor. Kabul etmek için kurye panelinizi kontrol edin.`,
             seller.id
         ).catch(() => {});
 
         res.json({
             success: true,
-            message: `${courierUser.fullname || courierUser.email} başarıyla kurye kadronuza eklendi.`,
+            message: `${courierUser.fullname || courierUser.email}'e davet gönderildi. Kuryenin onayı bekleniyor.`,
+            inviteStatus: 'pending',
             courier: {
                 id: courier.id,
                 userId: courierUser.id,
@@ -1238,15 +1325,21 @@ router.delete("/own-couriers/:id", async (req, res) => {
         if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
 
         const courier = await Courier.findOne({
-            where: { id: courierId, seller_id: seller.id },
+            where: {
+                id: courierId,
+                [Op.or]: [
+                    { seller_id: seller.id },
+                    { invited_by_seller_id: seller.id, invite_status: 'pending' }
+                ]
+            },
             include: [{ model: User, as: 'user', attributes: ['id', 'fullname'] }]
         });
         if (!courier) {
-            return res.status(404).json({ success: false, message: "Bu kurye kadronuzda bulunamadı." });
+            return res.status(404).json({ success: false, message: "Bu kurye kadronuzda veya bekleyen davetlerinizde bulunamadı." });
         }
 
         await Courier.update(
-            { seller_id: null },
+            { seller_id: null, invite_status: 'none', invited_by_seller_id: null },
             { where: { id: courierId } }
         );
 

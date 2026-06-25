@@ -118,6 +118,14 @@ async function applyOrderTimeout() {
 
     for (const order of expiredOrders) {
         try {
+            // Liste çekildikten sonra durum değişmiş olabilir (örn. satıcı tam bu sırada onayladı) —
+            // iade/iptal öncesi güncel durumu tekrar kontrol et (TOCTOU önlemi).
+            const freshStatus = await Order.findByPk(order.id, { attributes: ['status'] });
+            if (!freshStatus || freshStatus.status !== 'pending') {
+                console.log('⏱️ Otomatik iptal atlandı (durum değişmiş):', order.order_number);
+                continue;
+            }
+
             // iyzico iadesi (varsa)
             if (order.payment_method === 'iyzico' && order.iyzico_payment_data && !order.iyzico_refunded_at) {
                 try {
@@ -129,7 +137,15 @@ async function applyOrderTimeout() {
                 }
             }
 
-            await Order.update({ status: 'cancelled' }, { where: { id: order.id } });
+            const [cancelledCount] = await Order.update(
+                { status: 'cancelled' },
+                { where: { id: order.id, status: 'pending' } }
+            );
+            if (cancelledCount === 0) {
+                // Durum bu arada değişti (örn. satıcı onayladı) — artık pending değil, dokunma.
+                console.log('⏱️ Otomatik iptal atlandı (durum değişmiş):', order.order_number);
+                continue;
+            }
 
             if (order.courier_id) {
                 try {

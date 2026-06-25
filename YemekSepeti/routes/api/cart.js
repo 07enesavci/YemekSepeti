@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require("../../config/database");
 const { Meal, Seller, Coupon, CouponUsage } = require("../../models");
 const { Op } = require("sequelize");
+const { strictLimiter } = require("../../middleware/security");
 
 router.get("/product/:id", async (req, res) => {
     try {
@@ -43,7 +44,7 @@ router.get("/product/:id", async (req, res) => {
     }
 });
 
-router.post("/validate-coupon", async (req, res) => {
+router.post("/validate-coupon", strictLimiter, async (req, res) => {
     try {
         const { code, subtotal, sellerId } = req.body;
         

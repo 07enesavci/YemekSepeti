@@ -4,8 +4,9 @@ const db=require("../../config/database");
 const { requireRole }=require("../../middleware/auth");
 const bcrypt=require("bcryptjs");
 const { User, Address, Order, Review, Seller } = require("../../models");
-const { Op, Sequelize } = require('sequelize');
+const { Op } = require('sequelize');
 const { encryptText, decryptText } = require("../../lib/cardCrypto");
+const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
 
 router.get("/profile", requireRole('buyer'), async (req, res) => {
     try {
@@ -385,7 +386,9 @@ router.put("/password", requireRole('buyer'), async (req, res) => {
                 message: "Yeni şifre mevcut şifreden farklı olmalıdır."
             });
         }
-        const user = await User.findByPk(userId, {
+        // User modelinde password defaultScope ile dışlanır; burada şifre karşılaştırması
+        // gerektiği için withPassword scope'u açıkça kullanılır.
+        const user = await User.scope('withPassword').findByPk(userId, {
             attributes: ['id', 'password']
         });
         if (!user) {
@@ -424,15 +427,13 @@ router.get("/payment-cards", requireRole('buyer'), async (req, res) => {
         const userId = req.session.user.id;
         try {
             const query = `
-                SELECT 
+                SELECT
                     id,
                     card_name,
                     card_number,
                     card_number_encrypted,
                     card_expiry_month,
                     card_expiry_year,
-                    card_cvc,
-                    card_cvc_encrypted,
                     is_default,
                     created_at
                 FROM payment_cards
@@ -498,7 +499,8 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
         }
         const cardLastFour = cleanCardNumber.slice(-4);
         const encryptedCardNumber = encryptText(cleanCardNumber);
-        const encryptedCvc = cvc ? encryptText(String(cvc).replace(/\D/g, '').slice(0, 4)) : null;
+        // GÜVENLİK (PCI-DSS): CVC, şifreli de olsa hiçbir şekilde kalıcı olarak saklanmaz.
+        // Sadece o anki ödeme isteğinde (iyzico'ya) kullanılır, kayıtlı karta yazılmaz.
         if (isDefault) {
             try {
                 await db.execute(
@@ -512,12 +514,11 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
             }
         }
         try {
-            let maskedCvc = cvc ? '***' : null;
             let defaultFlag = isDefault ? 1 : 0;
             const result = await db.execute(
-                `INSERT INTO payment_cards (user_id, card_name, card_number, card_number_encrypted, card_expiry_month, card_expiry_year, card_cvc, card_cvc_encrypted, is_default)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [userId, cardName.trim(), cardLastFour, encryptedCardNumber, expiryMonth, expiryYear, maskedCvc, encryptedCvc, defaultFlag]
+                `INSERT INTO payment_cards (user_id, card_name, card_number, card_number_encrypted, card_expiry_month, card_expiry_year, is_default)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [userId, cardName.trim(), cardLastFour, encryptedCardNumber, expiryMonth, expiryYear, defaultFlag]
             );
             res.json({
                 success: true,
@@ -545,12 +546,11 @@ router.post("/payment-cards", requireRole('buyer'), async (req, res) => {
                         INDEX idx_is_default (is_default)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 `);
-                let maskedCvc2 = cvc ? '***' : null;
                 let defaultFlag2 = isDefault ? 1 : 0;
                 const result = await db.execute(
-                `INSERT INTO payment_cards (user_id, card_name, card_number, card_number_encrypted, card_expiry_month, card_expiry_year, card_cvc, card_cvc_encrypted, is_default)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [userId, cardName.trim(), cardLastFour, encryptedCardNumber, expiryMonth, expiryYear, maskedCvc2, encryptedCvc, defaultFlag2]
+                `INSERT INTO payment_cards (user_id, card_name, card_number, card_number_encrypted, card_expiry_month, card_expiry_year, is_default)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [userId, cardName.trim(), cardLastFour, encryptedCardNumber, expiryMonth, expiryYear, defaultFlag2]
                 );
                 res.json({
                     success: true,
@@ -796,14 +796,11 @@ router.post("/orders/:orderId/review", requireRole('buyer'), async (req, res) =>
 
         const seller = await Seller.findByPk(order.seller_id);
         if (seller) {
-            const count = await Review.count({ where: { seller_id: seller.id, is_visible: true } });
-            const avgRow = await Review.findOne({
-                where: { seller_id: seller.id, is_visible: true },
-                attributes: [[Sequelize.fn('AVG', Sequelize.col('rating')), 'avg']],
-                raw: true
-            });
-            const newAvg = avgRow && avgRow.avg != null ? parseFloat(Number(avgRow.avg).toFixed(2)) : 0;
-            await seller.update({ rating: newAvg, total_reviews: count });
+            // Puanlama hesaplaması artık tek bir merkezi yerden yapılıyor (routes/api/reviews.js ile aynı
+            // mantık) — burada elle SQL ortalama hesaplamak, ikisinin zamanla birbirinden sapması riskini
+            // taşıyordu (örn. lib/sellerRatingHelper.js pasif kullanıcıların yorumlarını hariç tutuyor, bu
+            // eski kod tutmuyordu).
+            await recalculateSellerRatings([seller.id]);
         }
 
         res.json({

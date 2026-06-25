@@ -113,6 +113,16 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             });
         }
 
+        for (const cartItem of cart) {
+            const q = Number(cartItem?.adet ?? cartItem?.quantity ?? 1);
+            if (!Number.isInteger(q) || q < 1 || q > 50) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Sepetteki ürün adetleri 1-50 arasında tam sayı olmalıdır."
+                });
+            }
+        }
+
         // Wallet ödeme yöntemi henüz desteklenmiyor
         if ((paymentMethod || '') === 'wallet') {
             return res.status(400).json({
@@ -202,14 +212,16 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     is_available: true,
                     is_approved: true
                 },
-                attributes: ['id', 'name', 'price', 'is_uzak_mesafe', 'seller_id']
+                attributes: ['id', 'name', 'price', 'is_uzak_mesafe', 'seller_id', 'stock_quantity']
             });
 
             const mealPriceMap = {};
             const mealNameMap = {};
+            const mealStockMap = {};
             meals.forEach(meal => {
                 mealPriceMap[meal.id] = parseFloat(meal.price);
                 mealNameMap[meal.id] = meal.name;
+                mealStockMap[meal.id] = meal.stock_quantity;
             });
 
             // Karışık sepet kontrolü
@@ -311,12 +323,20 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                 const mealPrice = mealPriceMap[mealId];
                 
                 if (!mealPrice) {
-                    return res.status(400).json({ 
-                        success: false, 
-                        message: `Ürün ID ${mealId} için fiyat bulunamadı.` 
+                    return res.status(400).json({
+                        success: false,
+                        message: `Ürün ID ${mealId} için fiyat bulunamadı.`
                     });
                 }
-                
+
+                const stockQty = mealStockMap[mealId];
+                if (stockQty !== -1 && stockQty != null && stockQty < quantity) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `${mealNameMap[mealId] || 'Ürün'} için yeterli stok yok (mevcut: ${stockQty}).`
+                    });
+                }
+
                 subtotal += mealPrice * quantity;
             }
             subtotal = Math.round(subtotal * 100) / 100;
@@ -444,6 +464,7 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                     }
                     
                     discountAmount = Math.min(discountAmount, parseFloat(subtotal));
+                    discountAmount = Math.max(0, discountAmount); // negatif max_discount_amount güvenlik sınırı
                     discountAmount = Math.round(discountAmount * 100) / 100;
                     
                     appliedCouponCode = coupon.code;
@@ -463,6 +484,31 @@ router.post("/", requireRole('buyer'), async (req, res) => {
             }
             
             const finalTotal = Math.round((totalAmount - discountAmount) * 100) / 100;
+
+            // İdempotency: aynı kullanıcı/satıcı için son 30 saniyede aynı tutarda oluşturulmuş bir
+            // sipariş varsa (çift tıklama / istemci retry'ı), yeniden ödeme almadan o siparişi döndür.
+            try {
+                const recentDuplicate = await Order.findOne({
+                    where: {
+                        user_id: userId,
+                        seller_id: sellerId,
+                        total_amount: finalTotal.toFixed(2),
+                        created_at: { [Op.gte]: new Date(Date.now() - 30 * 1000) }
+                    },
+                    order: [['created_at', 'DESC']],
+                    attributes: ['id', 'order_number']
+                });
+                if (recentDuplicate) {
+                    return res.json({
+                        success: true,
+                        message: "Bu sipariş zaten oluşturuldu.",
+                        order: { id: recentDuplicate.id, orderNumber: recentDuplicate.order_number }
+                    });
+                }
+            } catch (idemErr) {
+                console.error('İdempotency kontrolü hatası (yok sayıldı):', idemErr.message);
+            }
+
             let iyzicoPaymentData = null;
 
             if ((paymentMethod || "credit_card") === "iyzico") {
@@ -682,6 +728,20 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                             continue;
                         }
 
+                        // Stok düşümü atomik: WHERE'de stock_quantity >= quantity koşulu ile
+                        // eşzamanlı siparişlerin stoğu negatife düşürmesi (overselling) önlenir.
+                        // stock_quantity = -1 sınırsız stok anlamına gelir, dokunulmaz.
+                        const stockQtyForItem = mealStockMap[mealId];
+                        if (stockQtyForItem !== -1 && stockQtyForItem != null) {
+                            const [stockUpdated] = await Meal.update(
+                                { stock_quantity: sequelize.literal(`stock_quantity - ${quantity}`) },
+                                { where: { id: mealId, stock_quantity: { [Op.gte]: quantity } }, transaction }
+                            );
+                            if (stockUpdated === 0) {
+                                throw new Error(`STOCK_INSUFFICIENT:${mealName}`);
+                            }
+                        }
+
                         const itemSubtotal = (mealPrice * quantity).toFixed(2);
 
                         orderItems.push({
@@ -731,9 +791,40 @@ router.post("/", requireRole('buyer'), async (req, res) => {
 
             if (lastDbError || !order) {
                 console.error('Sipariş oluşturma DB hatası:', lastDbError?.message);
-                return res.status(500).json({
+
+                const stockMatch = /^STOCK_INSUFFICIENT:(.*)$/.exec(lastDbError?.message || '');
+
+                if (iyzicoPaymentData) {
+                    // Ödeme zaten alınmış ama sipariş DB'ye yazılamadı — müşterinin parasını
+                    // kaybetmemesi için ödemeyi otomatik iade et.
+                    try {
+                        await refundIyzicoPaymentForOrder(
+                            { id: 0, order_number: `FAILED-${userId}-${Date.now()}`, iyzico_payment_data: iyzicoPaymentData },
+                            req.ip || '127.0.0.1'
+                        );
+                        console.error('⚠️ Sipariş DB hatası sonrası otomatik iade tetiklendi (ödeme alınmıştı). user:', userId);
+                        return res.status(stockMatch ? 400 : 500).json({
+                            success: false,
+                            message: stockMatch
+                                ? `${stockMatch[1]} için stok kalmadı. Ödemeniz iade edildi, lütfen tekrar deneyin.`
+                                : "Ödemeniz alındı ancak siparişiniz kaydedilemedi. Ödemeniz otomatik olarak iade edildi. Lütfen tekrar deneyin."
+                        });
+                    } catch (refundErr) {
+                        console.error('🚨 KRİTİK: Ödeme alındı, sipariş kaydedilemedi VE otomatik iade de başarısız oldu!', {
+                            userId, sellerId, finalTotal, refundError: refundErr.message
+                        });
+                        return res.status(500).json({
+                            success: false,
+                            message: "Ödemeniz alındı ancak siparişiniz kaydedilemedi. İade işleminiz için lütfen destek ekibimizle iletişime geçin."
+                        });
+                    }
+                }
+
+                return res.status(stockMatch ? 400 : 500).json({
                     success: false,
-                    message: "Sipariş oluşturulurken bir hata oluştu. Lütfen tekrar deneyin."
+                    message: stockMatch
+                        ? `${stockMatch[1]} için stok kalmadı. Lütfen sepetinizi güncelleyin.`
+                        : "Sipariş oluşturulurken bir hata oluştu. Lütfen tekrar deneyin."
                 });
             }
 
@@ -1216,8 +1307,6 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
         // Statü geçiş matrisi — mantıksız geçişleri engelle
         // Delivery tipi: pickup ve cargo'da satıcı 'delivered' yapabilir, normal teslimat kurye akışına aittir
         const currentStatus = orderCheck.status;
-        const deliveryTypeForCheck = orderCheck.coupon_code !== undefined
-            ? null : null; // coupon_code alanından delivery_type çekilemiyor, aşağıda tekrar okunacak
         const orderForType = await Order.findByPk(orderId, { attributes: ['delivery_type'] });
         const delivType = orderForType ? orderForType.delivery_type : 'delivery';
 
@@ -1239,59 +1328,78 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                 message: `"${currentStatus}" durumundan "${status}" durumuna geçiş yapılamaz.`
             });
         }
+        let fullOrder = null;
         if (status === 'cancelled') {
-            const fullOrder = await Order.findByPk(orderId, {
-                attributes: ['id', 'courier_id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number', 'seller_id', 'coupon_code']
-            });
-            if (fullOrder && fullOrder.seller_id === shopId) {
-                if (fullOrder.courier_id) {
-                    await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId } });
-                    if (global.io) {
-                        global.io.to(`courier-${fullOrder.courier_id}`).emit('order_cancelled', {
-                            id: fullOrder.id,
-                            orderNumber: fullOrder.order_number,
-                            status: 'cancelled',
-                            message: 'Sipariş iptal edildi.'
-                        });
+            const t = await sequelize.transaction();
+            try {
+                // Satırı kilitle ve iade durumunu TEKRAR kontrol et — eşzamanlı iki iptal isteğinin
+                // ikisinin de iade tetiklemesini (çift iade) önler.
+                fullOrder = await Order.findByPk(orderId, {
+                    attributes: ['id', 'courier_id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number', 'seller_id', 'coupon_code'],
+                    transaction: t,
+                    lock: t.LOCK.UPDATE
+                });
+                if (fullOrder && fullOrder.seller_id === shopId) {
+                    if (fullOrder.courier_id) {
+                        await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId }, transaction: t });
                     }
-                }
-                if (fullOrder.payment_method === 'iyzico' && fullOrder.iyzico_payment_data && !fullOrder.iyzico_refunded_at) {
-                    try {
-                        await refundIyzicoPaymentForOrder(fullOrder, req.ip);
-                        await Order.update(
-                            { iyzico_refunded_at: new Date() },
-                            { where: { id: orderId, seller_id: shopId } }
-                        );
-                    } catch (refErr) {
-                        console.error('iyzico iade hatası (satıcı iptal):', refErr);
-                        return res.status(502).json({
-                            success: false,
-                            message: "Ödeme iadesi tamamlanamadı. Sipariş iptal edilmedi. " + (refErr.message || '')
-                        });
-                    }
-                }
-                // Kupon kurtarma — satıcı iptali sonrası kuponu geri ver
-                if (fullOrder.coupon_code) {
-                    try {
-                        const usageRow = await CouponUsage.findOne({ where: { order_id: orderId } });
-                        if (usageRow) {
-                            await CouponUsage.destroy({ where: { order_id: orderId } });
-                            await Coupon.decrement('used_count', {
-                                by: 1,
-                                where: { id: usageRow.coupon_id, used_count: { [Op.gt]: 0 } }
+                    if (fullOrder.payment_method === 'iyzico' && fullOrder.iyzico_payment_data && !fullOrder.iyzico_refunded_at) {
+                        try {
+                            await refundIyzicoPaymentForOrder(fullOrder, req.ip);
+                        } catch (refErr) {
+                            await t.rollback();
+                            console.error('iyzico iade hatası (satıcı iptal):', refErr);
+                            return res.status(502).json({
+                                success: false,
+                                message: "Ödeme iadesi tamamlanamadı. Sipariş iptal edilmedi. " + (refErr.message || '')
                             });
                         }
-                    } catch (couponErr) {
-                        console.error('Kupon kurtarma hatası (satıcı iptal):', couponErr);
+                        await Order.update(
+                            { iyzico_refunded_at: new Date() },
+                            { where: { id: orderId }, transaction: t }
+                        );
+                    }
+                    // Kupon kurtarma — satıcı iptali sonrası kuponu geri ver
+                    if (fullOrder.coupon_code) {
+                        try {
+                            const usageRow = await CouponUsage.findOne({ where: { order_id: orderId }, transaction: t });
+                            if (usageRow) {
+                                await CouponUsage.destroy({ where: { order_id: orderId }, transaction: t });
+                                await Coupon.decrement('used_count', {
+                                    by: 1,
+                                    where: { id: usageRow.coupon_id, used_count: { [Op.gt]: 0 } },
+                                    transaction: t
+                                });
+                            }
+                        } catch (couponErr) {
+                            console.error('Kupon kurtarma hatası (satıcı iptal):', couponErr);
+                        }
                     }
                 }
+                await Order.update({ status: 'cancelled' }, { where: { id: orderId, seller_id: shopId }, transaction: t });
+                await t.commit();
+
+                if (fullOrder && fullOrder.seller_id === shopId && fullOrder.courier_id && global.io) {
+                    global.io.to(`courier-${fullOrder.courier_id}`).emit('order_cancelled', {
+                        id: fullOrder.id,
+                        orderNumber: fullOrder.order_number,
+                        status: 'cancelled',
+                        message: 'Sipariş iptal edildi.'
+                    });
+                }
+            } catch (err) {
+                try { await t.rollback(); } catch (_) {}
+                console.error('Sipariş iptal hatası (satıcı):', err);
+                return res.status(500).json({ success: false, message: "Sipariş iptal edilirken bir hata oluştu." });
             }
         }
         const updateData = { status };
         if (status === 'delivered') {
             updateData.delivered_at = new Date();
         }
-        await Order.update(updateData, { where: { id: orderId, seller_id: shopId } });
+        if (status !== 'cancelled') {
+            await Order.update(updateData, { where: { id: orderId, seller_id: shopId } });
+        }
         const updatedOrder = await Order.findByPk(orderId, { attributes: ['user_id', 'order_number', 'courier_id', 'delivery_type'] });
         const isPickupOrder = updatedOrder && updatedOrder.delivery_type === 'pickup';
         
@@ -1509,11 +1617,16 @@ router.post("/seller/assign-own-courier/:id", requireRole('seller'), async (req,
             return res.status(404).json({ success: false, message: "Bu kurye kadronuzda bulunamadı." });
         }
 
-        // Siparişe kurye ata — durum 'on_delivery' olarak güncellenir (kurye yola çıkıyor)
-        await Order.update(
+        // Siparişe kurye ata — durum 'on_delivery' olarak güncellenir (kurye yola çıkıyor).
+        // WHERE'e courier_id:null eklenerek atomik hale getirildi (TOCTOU önlemi — iki eşzamanlı
+        // atama isteğinden sadece biri başarılı olur).
+        const [assignedRows] = await Order.update(
             { courier_id: courier.user.id, status: 'on_delivery' },
-            { where: { id: orderId } }
+            { where: { id: orderId, courier_id: null, status: 'ready' } }
         );
+        if (assignedRows === 0) {
+            return res.status(400).json({ success: false, message: "Bu sipariş zaten bir kuryeye atanmış." });
+        }
 
         // CourierTask oluştur ve ID'yi al (socket'e CourierTask.id gönderilmeli)
         let newTaskId = null;
@@ -1633,7 +1746,7 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
             });
         }
 
-        const order = await Order.findOne({
+        let order = await Order.findOne({
             where: {
                 id: orderId,
                 user_id: userId
@@ -1657,48 +1770,76 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
             });
         }
 
-        if (order.payment_method === 'iyzico' && order.iyzico_payment_data && !order.iyzico_refunded_at) {
-            try {
-                await refundIyzicoPaymentForOrder(order, req.ip);
-                await Order.update(
-                    { iyzico_refunded_at: new Date() },
-                    { where: { id: orderId, user_id: userId } }
-                );
-            } catch (refErr) {
-                console.error('iyzico iade hatası:', refErr);
-                return res.status(502).json({
+        const cancelTx = await sequelize.transaction();
+        try {
+            // Satırı kilitle ve durum/iade bilgisini TEKRAR kontrol et — eşzamanlı iki iptal
+            // isteğinin ikisinin de iade tetiklemesini (çift iade) önler.
+            order = await Order.findOne({
+                where: { id: orderId, user_id: userId },
+                attributes: ['id', 'status', 'courier_id', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at', 'order_number', 'coupon_code'],
+                transaction: cancelTx,
+                lock: cancelTx.LOCK.UPDATE
+            });
+            if (!order || !cancellableStatuses.includes(order.status)) {
+                await cancelTx.rollback();
+                return res.status(400).json({
                     success: false,
-                    message: "Ödeme iadesi tamamlanamadı. Sipariş iptal edilmedi. " + (refErr.message || '')
+                    message: `Bu sipariş ${getStatusText(order ? order.status : 'bilinmeyen')} durumunda olduğu için tarafınızca iptal edilemez. Lütfen destek talebi oluşturun.`
                 });
             }
-        }
 
-        await Order.update(
-            { status: 'cancelled' },
-            { where: { id: orderId, user_id: userId } }
-        );
-
-        // Kupon kurtarma — iptal edilen siparişteki kupon kullanım hakkını geri ver
-        if (order.coupon_code) {
-            try {
-                const usageRow = await CouponUsage.findOne({ where: { order_id: orderId } });
-                if (usageRow) {
-                    await CouponUsage.destroy({ where: { order_id: orderId } });
-                    await Coupon.decrement('used_count', {
-                        by: 1,
-                        where: { id: usageRow.coupon_id, used_count: { [Op.gt]: 0 } }
+            if (order.payment_method === 'iyzico' && order.iyzico_payment_data && !order.iyzico_refunded_at) {
+                try {
+                    await refundIyzicoPaymentForOrder(order, req.ip);
+                } catch (refErr) {
+                    await cancelTx.rollback();
+                    console.error('iyzico iade hatası:', refErr);
+                    return res.status(502).json({
+                        success: false,
+                        message: "Ödeme iadesi tamamlanamadı. Sipariş iptal edilmedi. " + (refErr.message || '')
                     });
                 }
-            } catch (couponErr) {
-                console.error('Kupon kurtarma hatası (alıcı iptal):', couponErr);
+                await Order.update(
+                    { iyzico_refunded_at: new Date() },
+                    { where: { id: orderId, user_id: userId }, transaction: cancelTx }
+                );
             }
+
+            await Order.update(
+                { status: 'cancelled' },
+                { where: { id: orderId, user_id: userId }, transaction: cancelTx }
+            );
+
+            // Kupon kurtarma — iptal edilen siparişteki kupon kullanım hakkını geri ver
+            if (order.coupon_code) {
+                try {
+                    const usageRow = await CouponUsage.findOne({ where: { order_id: orderId }, transaction: cancelTx });
+                    if (usageRow) {
+                        await CouponUsage.destroy({ where: { order_id: orderId }, transaction: cancelTx });
+                        await Coupon.decrement('used_count', {
+                            by: 1,
+                            where: { id: usageRow.coupon_id, used_count: { [Op.gt]: 0 } },
+                            transaction: cancelTx
+                        });
+                    }
+                } catch (couponErr) {
+                    console.error('Kupon kurtarma hatası (alıcı iptal):', couponErr);
+                }
+            }
+
+            if (order.courier_id) {
+                await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId }, transaction: cancelTx });
+            }
+
+            await cancelTx.commit();
+        } catch (err) {
+            try { await cancelTx.rollback(); } catch (_) {}
+            console.error('Sipariş iptal hatası (alıcı):', err);
+            return res.status(500).json({ success: false, message: "Sipariş iptal edilirken bir hata oluştu." });
         }
 
-        if (order.courier_id) {
-            await CourierTask.update({ status: 'cancelled' }, { where: { order_id: orderId } });
-            if (global.io) {
-                global.io.to(`courier-${order.courier_id}`).emit('order_cancelled', { id: orderId, orderNumber: order.order_number, status: 'cancelled' });
-            }
+        if (order.courier_id && global.io) {
+            global.io.to(`courier-${order.courier_id}`).emit('order_cancelled', { id: orderId, orderNumber: order.order_number, status: 'cancelled' });
         }
 
         // Socket.IO ile satıcıya iptal bildirimini gönder
@@ -1762,17 +1903,13 @@ router.post("/:id/partial-refund", requireAuth, async (req, res) => {
             return res.status(400).json({ success: false, message: "Geçerli bir iade tutarı girin." });
         }
 
-        const order = await Order.findByPk(orderId, {
-            attributes: ['id', 'status', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at',
-                        'order_number', 'total_amount', 'partial_refund_amount']
-        });
-
-        if (!order) {
+        // Nakit ödeme için sadece not kaydı alınır (fiziksel iade admin tarafından yapılır) — para
+        // hareketi yok, kilitsiz hızlı yol yeterli.
+        const cashCheck = await Order.findByPk(orderId, { attributes: ['id', 'payment_method'] });
+        if (!cashCheck) {
             return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
         }
-
-        // Nakit ödeme için sadece not kaydı alınır (fiziksel iade admin tarafından yapılır)
-        if (order.payment_method === 'cash') {
+        if (cashCheck.payment_method === 'cash') {
             if (!reason || !reason.trim()) {
                 return res.status(400).json({ success: false, message: "Nakit iade için açıklama notu zorunludur." });
             }
@@ -1789,29 +1926,50 @@ router.post("/:id/partial-refund", requireAuth, async (req, res) => {
             return res.json({ success: true, message: `Nakit iade notu kaydedildi: ${refAmount.toFixed(2)} TL` });
         }
 
-        if (order.payment_method !== 'iyzico' || !order.iyzico_payment_data) {
-            return res.status(400).json({ success: false, message: "Bu sipariş için iade yapılamaz (ödeme yöntemi uyumsuz)." });
-        }
-
-        const alreadyRefunded = parseFloat(order.partial_refund_amount || 0);
-        const totalPaid = parseFloat(order.total_amount || 0);
-        const maxRefundable = totalPaid - alreadyRefunded;
-
-        if (amount > maxRefundable) {
-            return res.status(400).json({
-                success: false,
-                message: `İade edilebilir maksimum tutar: ${maxRefundable.toFixed(2)} TL`
+        // Satırı kilitle ve kalan iade edilebilir tutarı TEKRAR kontrol et — eşzamanlı iki kısmi
+        // iade isteğinin toplam iade tutarını sınırın üzerine çıkarmasını önler.
+        const refundTx = await sequelize.transaction();
+        let order, alreadyRefunded, totalPaid, newRefundTotal;
+        try {
+            order = await Order.findByPk(orderId, {
+                attributes: ['id', 'status', 'payment_method', 'iyzico_payment_data', 'iyzico_refunded_at',
+                            'order_number', 'total_amount', 'partial_refund_amount'],
+                transaction: refundTx,
+                lock: refundTx.LOCK.UPDATE
             });
-        }
 
-        await refundIyzicoPaymentPartial(order, amount, req.ip, reason || 'Admin kısmi iade');
+            if (!order || order.payment_method !== 'iyzico' || !order.iyzico_payment_data) {
+                await refundTx.rollback();
+                return res.status(400).json({ success: false, message: "Bu sipariş için iade yapılamaz (ödeme yöntemi uyumsuz)." });
+            }
 
-        const newRefundTotal = alreadyRefunded + amount;
-        const updateData = { partial_refund_amount: newRefundTotal.toFixed(2) };
-        if (newRefundTotal >= totalPaid) {
-            updateData.iyzico_refunded_at = new Date();
+            alreadyRefunded = parseFloat(order.partial_refund_amount || 0);
+            totalPaid = parseFloat(order.total_amount || 0);
+            const maxRefundable = totalPaid - alreadyRefunded;
+
+            if (amount > maxRefundable) {
+                await refundTx.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: `İade edilebilir maksimum tutar: ${maxRefundable.toFixed(2)} TL`
+                });
+            }
+
+            await refundIyzicoPaymentPartial(order, amount, req.ip, reason || 'Admin kısmi iade');
+
+            newRefundTotal = alreadyRefunded + amount;
+            const updateData = { partial_refund_amount: newRefundTotal.toFixed(2) };
+            if (newRefundTotal >= totalPaid) {
+                updateData.iyzico_refunded_at = new Date();
+            }
+            await Order.update(updateData, { where: { id: orderId }, transaction: refundTx });
+
+            await refundTx.commit();
+        } catch (err) {
+            try { await refundTx.rollback(); } catch (_) {}
+            console.error('Kısmi iade hatası:', err?.message);
+            return res.status(500).json({ success: false, message: "İade işlemi sırasında hata oluştu. Lütfen tekrar deneyin." });
         }
-        await Order.update(updateData, { where: { id: orderId } });
 
         const { writeLog } = require('../../config/logger');
         writeLog('INFO', 'Kısmi iade yapıldı', {

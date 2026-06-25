@@ -222,28 +222,53 @@ function saticilariYukleVeListele()
     
     listeElementi.innerHTML="<p>Satıcılar yükleniyor...</p>";
     
-    saticilariGetir().then(function(saticilar) 
+    saticilariGetir().then(function(saticilar)
     {
-        var html="";
-        if(!saticilar || saticilar.length === 0) 
+        if(!saticilar || saticilar.length === 0)
         {
             listeElementi.innerHTML = "<p>Kayıtlı satıcı bulunamadı.</p>";
+            var editListBos = document.getElementById("edit-coupon-seller-list");
+            if (editListBos) editListBos.innerHTML = "<p>Kayıtlı satıcı bulunamadı.</p>";
             return;
         }
 
-        for (var i=0; i < saticilar.length; i++) 
+        // XSS önlemi: satıcı adı textContent ile ekleniyor, innerHTML'e ham veri yazılmıyor
+        function saticiCheckboxListesiOlustur(idOnEki)
         {
-            var s=saticilar[i];
-            var gorunenIsim=s.shop_name || s.name || s.fullname || "İsimsiz Satıcı"; 
-            
-            html += '<div class="form-check">';
-            html +=   '<input type="checkbox" class="seller-checkbox" id="seller-' + s.id + '" value="' + s.id + '">';
-            html +=   '<label for="seller-' + s.id + '">' + gorunenIsim + '</label>';
-            html += '</div>';
+            var belgeParcasi = document.createDocumentFragment();
+            for (var i=0; i < saticilar.length; i++)
+            {
+                var s=saticilar[i];
+                var gorunenIsim=s.shop_name || s.name || s.fullname || "İsimsiz Satıcı";
+
+                var wrapper=document.createElement('div');
+                wrapper.className='form-check';
+
+                var checkbox=document.createElement('input');
+                checkbox.type='checkbox';
+                checkbox.className='seller-checkbox';
+                checkbox.id=idOnEki + s.id;
+                checkbox.value=s.id;
+
+                var label=document.createElement('label');
+                label.setAttribute('for', idOnEki + s.id);
+                label.textContent=gorunenIsim;
+
+                wrapper.appendChild(checkbox);
+                wrapper.appendChild(label);
+                belgeParcasi.appendChild(wrapper);
+            }
+            return belgeParcasi;
         }
-        listeElementi.innerHTML = html;
+
+        listeElementi.innerHTML="";
+        listeElementi.appendChild(saticiCheckboxListesiOlustur('seller-'));
+
         var editList = document.getElementById("edit-coupon-seller-list");
-        if (editList) editList.innerHTML = html.replace(/id="seller-/g, 'id="edit-seller-').replace(/for="seller-/g, 'for="edit-seller-');
+        if (editList) {
+            editList.innerHTML="";
+            editList.appendChild(saticiCheckboxListesiOlustur('edit-seller-'));
+        }
     }).catch(hata => listeElementi.innerHTML = "<p style='color:red;'>Satıcılar yüklenemedi.</p>");
 }
 

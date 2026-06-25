@@ -22,14 +22,19 @@ function getClientIp(req) {
     return req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
 }
 
-// express-rate-limit v8+ ipKeyGenerator helper (IPv6 uyumlu)
-// validate: { ip: false } ile custom keyGenerator'ı birlikte kullanıyoruz
-// (trust proxy=1 ile req.ip doğru gelir; biz sadece X-Forwarded-For prefix'ini de kontrol ediyoruz)
+// Rate limit key: TCP bağlantısının gerçek IP'si.
+// req.ip, trust proxy ayarına göre X-Forwarded-For'dan gelir ve istemci tarafından
+// sahte header ekleyerek manipüle edilebilir (IP spoofing ile rate limit bypass).
+// req.socket.remoteAddress ise TCP katmanından gelir — istemci bunu değiştiremez.
+function socketIpKey(req) {
+    return (req.socket && req.socket.remoteAddress) || req.ip || 'unknown';
+}
 
 // Genel API rate limit (dakikada 200 istek)
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 200,
+    keyGenerator: socketIpKey,
     message: { success: false, message: 'Çok fazla istek. Lütfen biraz bekleyin.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -41,6 +46,7 @@ const apiLimiter = rateLimit({
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
+    keyGenerator: socketIpKey,
     message: { success: false, message: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -52,6 +58,7 @@ const authLimiter = rateLimit({
 const strictLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 5,
+    keyGenerator: socketIpKey,
     message: { success: false, message: 'Çok fazla deneme. Lütfen 1 dakika bekleyin.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -131,10 +138,10 @@ function csrfProtection(req, res, next) {
         } catch (_) {}
     }
 
-    // ── Katman 4: X-Requested-With AJAX header ────────────────────
-    if (req.headers['x-requested-with'] === 'XMLHttpRequest') {
-        return next(); // ✅ AJAX — cross-site bu header'ı ekleyemez
-    }
+    // ── Katman 4 kaldırıldı ───────────────────────────────────────
+    // X-Requested-With: XMLHttpRequest tarayıcı-taraflı CORS korumasına dayalıydı
+    // ancak server-to-server HTTP çağrıları bu header'ı serbestçe ekleyebilir.
+    // Katman 1 (token) + Katman 2 (session) + Katman 3 (same-origin) yeterli koruma sağlar.
 
     // ── Hiçbir kontrol geçmedi → reddet ──────────────────────────
     return res.status(403).json({

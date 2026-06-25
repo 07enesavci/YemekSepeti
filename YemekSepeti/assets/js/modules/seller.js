@@ -2280,6 +2280,17 @@ async function initializeOwnCouriersPage() {
 
     if (!listEl) return;
 
+    // XSS önlemi: kurye verisi (fullname/email/phone) hem metin hem attribute bağlamında
+    // güvenli olacak şekilde escape edilir (kurye kendi profil bilgilerini kontrol ediyor)
+    function escapeOwnCourierField(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     async function loadCouriers(silent = false) {
         if (!silent) {
             listEl.innerHTML = '<p style="text-align:center;padding:1rem;color:#666;">Yükleniyor...</p>';
@@ -2295,17 +2306,22 @@ async function initializeOwnCouriersPage() {
                 listEl.innerHTML = '<p style="text-align:center;padding:2rem;color:#999;">Henüz kadronuzda kurye yok. Aşağıdan e-posta ile kurye ekleyin.</p>';
                 return;
             }
-            listEl.innerHTML = data.couriers.map(c => `
+            listEl.innerHTML = data.couriers.map(c => {
+                const safeFullname = escapeOwnCourierField(c.fullname);
+                const safeEmail = escapeOwnCourierField(c.email);
+                const safePhone = escapeOwnCourierField(c.phone);
+                return `
                 <div class="card" style="padding:1rem;margin-bottom:0.75rem;display:flex;align-items:center;justify-content:space-between;border-radius:10px;">
                     <div>
-                        <strong>${c.fullname}</strong>
-                        <span style="color:#888;font-size:0.85rem;margin-left:6px;">${c.email}</span>
-                        ${c.phone ? `<span style="color:#888;font-size:0.85rem;margin-left:6px;">📞 ${c.phone}</span>` : ''}
+                        <strong>${safeFullname}</strong>
+                        <span style="color:#888;font-size:0.85rem;margin-left:6px;">${safeEmail}</span>
+                        ${c.phone ? `<span style="color:#888;font-size:0.85rem;margin-left:6px;">📞 ${safePhone}</span>` : ''}
                         <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:12px;font-size:0.8rem;font-weight:600;${c.status === 'online' ? 'background:#e8f5e9;color:#2e7d32;' : 'background:#fafafa;color:#999;'}">${c.status === 'online' ? '🟢 Aktif' : '⚫ Çevrimdışı'}</span>
                     </div>
-                    <button class="btn btn-danger btn-sm remove-own-courier-btn" data-courier-id="${c.id}" data-courier-name="${c.fullname}" style="white-space:nowrap;">Çıkar</button>
+                    <button class="btn btn-danger btn-sm remove-own-courier-btn" data-courier-id="${c.id}" data-courier-name="${safeFullname}" style="white-space:nowrap;">Çıkar</button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
 
             // Çıkarma butonları
             listEl.querySelectorAll('.remove-own-courier-btn').forEach(btn => {

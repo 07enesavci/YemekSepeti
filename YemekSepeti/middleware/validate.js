@@ -80,6 +80,9 @@ const createCouponValidation = [
     body('discountType').optional().isIn(['percentage', 'fixed']).withMessage('İndirim türü: percentage veya fixed.'),
     body('discountValue').optional().isFloat({ min: 0 }).withMessage('İndirim değeri 0 veya pozitif olmalı.'),
     body('amount').optional().isFloat({ min: 0 }).withMessage('Tutar 0 veya pozitif olmalı.'),
+    // Güvenlik: negatif maxDiscountAmount, checkout'ta indirimi "zam"a çevirebiliyordu — bu yüzden 0'ın altı reddedilir.
+    body('maxDiscountAmount').optional().isFloat({ min: 0 }).withMessage('Maksimum indirim tutarı 0 veya pozitif olmalı.'),
+    body('max_discount_amount').optional().isFloat({ min: 0 }).withMessage('Maksimum indirim tutarı 0 veya pozitif olmalı.'),
     body('sellerIds').optional().isArray().withMessage('sellerIds dizi olmalı.'),
     body('sellerIds.*').optional().isInt({ min: 1 }).withMessage('Geçersiz satıcı ID.'),
     body('validDays').optional().isInt({ min: 1, max: 365 }).withMessage('Geçerlilik günü 1-365 arası olmalı.').toInt(),
@@ -88,6 +91,10 @@ const createCouponValidation = [
         if (v === undefined || v === null || v === '') throw new Error('İndirim değeri veya tutar gerekli.');
         const n = parseFloat(v);
         if (isNaN(n) || n <= 0) throw new Error('Geçerli bir indirim değeri girin.');
+        // Güvenlik: yüzde indirim 100'ü aşamaz (aşarsa sipariş "bedavaya" düşebilir).
+        if (req.body.discountType === 'percentage' && n > 100) {
+            throw new Error('Yüzde indirim 100\'ü aşamaz.');
+        }
         return true;
     })
 ];

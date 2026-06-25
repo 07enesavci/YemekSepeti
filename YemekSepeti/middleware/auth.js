@@ -49,21 +49,16 @@ function getTokenFromRequest(req)
 		}
 	}
 
-	if (req.cookies) 
+	if (req.cookies)
 	{
-		if (req.cookies.token) 
+		if (req.cookies.token)
 		{
 			return req.cookies.token;
 		}
 	}
 
-	if (req.query) 
-	{
-		if (req.query.token) 
-		{
-			return req.query.token;
-		}
-	}
+	// Güvenlik: token URL query string'inden ASLA okunmaz (access log / Referer /
+	// tarayıcı geçmişi üzerinden sızıntı riski). Sadece header veya cookie kabul edilir.
 
 	return null;
 }
@@ -345,23 +340,29 @@ function requireRole(allowedRoles)
 
 function getDomainType(req) {
     const host = String((req.headers && req.headers.host) || '').split(':')[0].toLowerCase();
-    
-    let type = 'unknown';
-    if (host.startsWith('admin.')) {
-        type = 'admin';
-    } else if (host.startsWith('partner.')) {
-        type = 'partner';
-    } else {
-        const buyerDomain = String(process.env.BUYER_DOMAIN || 'evlezzetleri.site').toLowerCase();
-        const partnerDomain = String(process.env.PARTNER_DOMAIN || 'partner.evlezzetleri.site').toLowerCase();
-        const adminDomain = String(process.env.ADMIN_DOMAIN || 'admin.evlezzetleri.site').toLowerCase();
-        
-        if (host === adminDomain) type = 'admin';
-        else if (host === partnerDomain) type = 'partner';
-        else if (host === buyerDomain || host === 'localhost' || host === '127.0.0.1') type = 'buyer';
-    }
-    
-    return type;
+
+    // İzin verilen domain listesi — startsWith prefix eşleşmesi yerine exact match kullanılır.
+    // startsWith('admin.') → admin.evil.com gibi sahte host'lara tip='admin' atar; güvensiz.
+    const adminDomains = [
+        String(process.env.ADMIN_DOMAIN || 'admin.evlezzetleri.site').toLowerCase(),
+        'admin.localhost',
+        'admin.127.0.0.1'
+    ];
+    const partnerDomains = [
+        String(process.env.PARTNER_DOMAIN || 'partner.evlezzetleri.site').toLowerCase(),
+        'partner.localhost',
+        'partner.127.0.0.1'
+    ];
+    const buyerDomains = [
+        String(process.env.BUYER_DOMAIN || 'evlezzetleri.site').toLowerCase(),
+        'localhost',
+        '127.0.0.1'
+    ];
+
+    if (adminDomains.includes(host)) return 'admin';
+    if (partnerDomains.includes(host)) return 'partner';
+    if (buyerDomains.includes(host)) return 'buyer';
+    return 'unknown';
 }
 
 function roleAllowedOnDomain(role, domainType) {
@@ -427,6 +428,7 @@ function restrictPanelNavigation(req, res, next) {
             p.startsWith('/socket.io') ||
             p === '/manifest.json' ||
             p === '/sw.js' ||
+            p === '/robots.txt' ||
             p === '/favicon.ico' ||
             p === '/favicon.svg' ||
             p === '/favicon.png';

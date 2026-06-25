@@ -9,6 +9,10 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
     try {
         const { location, rating, q, min_order, userLat, userLng, uzak_mesafe } = req.query;
         const deliveryArea = req.session && req.session.deliveryArea ? req.session.deliveryArea : null;
+        // NOT: Coğrafi/metin filtreleri DB sorgusundan SONRA JS'te uygulanıyor (aşağıda), bu yüzden
+        // burada düşük bir LIMIT vermek arama sonuçlarını yanlış şekilde eksik gösterebilir. Üst
+        // limit yalnızca tablo sınırsız büyürse belleğin tükenmesini önleyen bir güvenlik tavanı —
+        // gerçek sayfalama/filtre performansı için filtrelerin SQL seviyesine taşınması ayrı bir iştir.
         const dbSellers = await Seller.findAll({
             where: { is_active: true },
             attributes: [
@@ -17,7 +21,8 @@ router.get("/", optionalLimit, handleValidationErrors, async (req, res) => {
                 'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled',
                 'delivery_radius_km', 'latitude', 'longitude', 'uzak_mesafe_enabled'
             ],
-            order: [['rating', 'DESC'], ['total_reviews', 'DESC']]
+            order: [['rating', 'DESC'], ['total_reviews', 'DESC']],
+            limit: 2000
         });
         
         // Alıcının konumunu al

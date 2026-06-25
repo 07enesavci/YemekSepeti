@@ -13,6 +13,8 @@ try {
 
     // IIS / Cloudflare proxy arkasında req.ip ve X-Forwarded-For doğru çalışsın (rate-limit 520 hatasını önler)
     app.set("trust proxy", 1);
+    // X-Powered-By başlığı tüm yanıtlardan kaldır (helmet sadece normal yanıtları kapatır; hata handler'ı atlar)
+    app.disable('x-powered-by');
 
     // Global io objesi - routes dosyalarından erişilebilir
     global.io = null;
@@ -227,8 +229,24 @@ try {
         next();
     });
 
-    app.use(express.json({ limit: '50mb' }));
-    app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+    app.use(express.json({ limit: '2mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+    // Null byte ve CRLF karakterlerini tüm string alanlardan temizle.
+    // Null byte → MySQL/driver'ı çökertiyor (500); CRLF → header injection denemeleri.
+    app.use((req, _res, next) => {
+        const sanitizeStr = (v) => (typeof v === 'string' ? v.replace(/[\x00\r\n]/g, '') : v);
+        const sanitizeObj = (obj) => {
+            if (!obj || typeof obj !== 'object') return;
+            for (const k of Object.keys(obj)) {
+                if (typeof obj[k] === 'string') obj[k] = sanitizeStr(obj[k]);
+                else if (obj[k] && typeof obj[k] === 'object') sanitizeObj(obj[k]);
+            }
+        };
+        if (req.body) sanitizeObj(req.body);
+        if (req.query) sanitizeObj(req.query);
+        next();
+    });
 
     // Konum popup'ını panel/domain bazlı global kontrol et
     app.use((req, res, next) => {
@@ -245,6 +263,17 @@ try {
     // --- PWA: manifest.json ve sw.js EN BAŞTA (session/DB'den önce; production 404 önleme) ---
     const manifestPath = path.resolve(__dirname, 'public', 'manifest.json');
     const swPath = path.resolve(__dirname, 'public', 'sw.js');
+    const robotsPath = path.resolve(__dirname, 'public', 'robots.txt');
+    app.get('/robots.txt', (req, res) => {
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.type('text/plain');
+        if (fs.existsSync(robotsPath)) {
+            res.sendFile(robotsPath);
+        } else {
+            res.send('User-agent: *\nDisallow: /admin\nDisallow: /partner\nDisallow: /api/\nAllow: /\n');
+        }
+    });
+
     app.get('/manifest.json', (req, res) => {
         res.set('Cache-Control', 'public, max-age=0');
         res.type('application/manifest+json');
@@ -391,10 +420,11 @@ try {
             const isStaticOrSocketRequest =
                 p.startsWith('/assets') ||
                 p.startsWith('/public') ||
-                p.startsWith('/uploads') ||
+                (p.startsWith('/uploads') && !p.startsWith('/uploads/merchants')) ||
                 p.startsWith('/socket.io') ||
                 p === '/manifest.json' ||
                 p === '/sw.js' ||
+                p === '/robots.txt' ||
                 p === '/favicon.ico';
             if (isStaticOrSocketRequest) return next();
 
@@ -482,10 +512,11 @@ try {
             const isStaticAsset =
                 p.startsWith('/assets') ||
                 p.startsWith('/public') ||
-                p.startsWith('/uploads') ||
+                (p.startsWith('/uploads') && !p.startsWith('/uploads/merchants')) ||
                 p.startsWith('/socket.io') ||
                 p === '/manifest.json' ||
                 p === '/sw.js' ||
+                p === '/robots.txt' ||
                 p === '/favicon.ico' ||
                 p === '/favicon.png' ||
                 p === '/favicon.svg';
@@ -553,17 +584,27 @@ try {
     if (fs.existsSync(assetsPath)) app.use('/assets', express.static(assetsPath));
 
     const publicPath = path.resolve(__dirname, 'public');
-    if (fs.existsSync(publicPath)) app.use('/public', express.static(publicPath));
+    if (fs.existsSync(publicPath)) {
+        // /public/* erişimi korunurken robots.txt, manifest.json, favicon gibi root dosyalar doğrudan erişilebilir
+        app.use('/public', express.static(publicPath));
+        app.use(express.static(publicPath, { index: false }));
+    }
 
     const uploadsPath = path.resolve(__dirname, 'public', 'uploads');
-    if (fs.existsSync(uploadsPath)) {
-        app.use('/uploads', express.static(uploadsPath));
-    } else {
-        try {
-            fs.mkdirSync(uploadsPath, { recursive: true });
-            app.use('/uploads', express.static(uploadsPath));
-        } catch (err) {}
+    if (!fs.existsSync(uploadsPath)) {
+        try { fs.mkdirSync(uploadsPath, { recursive: true }); } catch (err) {}
     }
+    // /uploads/merchants/ — satıcı/kurye kimlik belgelerini korur; yalnızca admin/super_admin/support erişebilir
+    app.use('/uploads/merchants', (req, res, next) => {
+        const isAuthed = !!(req.session && req.session.isAuthenticated && req.session.user);
+        if (!isAuthed) return res.status(401).json({ success: false, message: 'Bu belgeye erişim için giriş yapmanız gerekiyor.' });
+        const role = req.session.user.role;
+        if (!['admin', 'super_admin', 'support'].includes(role)) {
+            return res.status(403).json({ success: false, message: 'Bu belgelere erişim izniniz yok.' });
+        }
+        next();
+    });
+    app.use('/uploads', express.static(uploadsPath));
 
     // Socket.IO client library manual serve (npm paketinden)
     app.get('/socket.io/socket.io.js', (req, res) => {
@@ -834,6 +875,20 @@ try {
     });
 
     app.use((err, req, res, next) => {
+        // Body çok büyük (express.json limit aşıldı)
+        if (err.type === 'entity.too.large' || err.status === 413) {
+            if (req.path.startsWith('/api/')) {
+                return res.status(413).json({ success: false, message: 'İstek boyutu çok büyük.' });
+            }
+            return res.status(413).send('<h1>413 - İstek Çok Büyük</h1>');
+        }
+        // Bozuk JSON body (body-parser SyntaxError) — farklı body-parser sürümleri farklı property koyar
+        if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400))) {
+            if (req.path.startsWith('/api/')) {
+                return res.status(400).json({ success: false, message: 'Geçersiz JSON formatı.' });
+            }
+            return res.status(400).send('<h1>400 - Geçersiz İstek</h1>');
+        }
         writeLog('ERROR', 'Server error occurred', { message: err.message, stack: err.stack, url: req.url });
         // Hiçbir koşulda stack trace veya detaylı hata mesajı gösterilmez
         if (req.path.startsWith('/api/')) {

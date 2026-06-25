@@ -6,6 +6,15 @@ const { handleValidationErrors, createReviewValidation } = require('../../middle
 const { Review, Order, User, Seller } = require('../../models');
 const { recalculateSellerRatings } = require('../../lib/sellerRatingHelper');
 
+// Ad + soyad baş harfi: "Emirhan Ç." — tam ad yerine kısmi PII
+function maskFullname(fullname) {
+    if (!fullname) return 'Anonim';
+    const parts = fullname.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    const lastName = parts[parts.length - 1];
+    return parts.slice(0, -1).join(' ') + ' ' + lastName.charAt(0).toUpperCase() + '.';
+}
+
 // Satıcıya ait yorumları listele (herkese açık)
 router.get('/seller/:sellerId', async (req, res) => {
     try {
@@ -22,7 +31,7 @@ router.get('/seller/:sellerId', async (req, res) => {
             id: r.id,
             rating: r.rating,
             comment: r.comment,
-            userName: r.user ? r.user.fullname : 'Anonim',
+            userName: maskFullname(r.user ? r.user.fullname : null),
             createdAt: r.created_at,
             sellerReply: r.seller_reply || null,
             sellerReplyAt: r.seller_reply_at || null
@@ -58,7 +67,7 @@ router.get('/mine', requireAuth, requireRole('seller'), async (req, res) => {
             id: r.id,
             rating: r.rating,
             comment: r.comment,
-            userName: r.user ? r.user.fullname : 'Anonim',
+            userName: maskFullname(r.user ? r.user.fullname : null),
             createdAt: r.created_at,
             sellerReply: r.seller_reply || null,
             sellerReplyAt: r.seller_reply_at || null

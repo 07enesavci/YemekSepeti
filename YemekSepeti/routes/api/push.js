@@ -21,6 +21,16 @@ router.post('/subscribe', requireAuth, async (req, res) => {
         if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
             return res.status(400).json({ success: false, message: 'Geçersiz abonelik verisi.' });
         }
+        // SSRF koruması: yalnızca HTTPS Web Push servis URL'lerine izin ver
+        try {
+            const epUrl = new URL(endpoint);
+            if (epUrl.protocol !== 'https:') throw new Error('HTTPS zorunlu');
+            const host = epUrl.hostname.toLowerCase();
+            const isPrivate = host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.startsWith('10.') || host.startsWith('172.');
+            if (isPrivate) throw new Error('Özel ağ adresleri yasak');
+        } catch (urlErr) {
+            return res.status(400).json({ success: false, message: 'Geçersiz push endpoint URL\'si.' });
+        }
 
         await sequelize.query(
             `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)

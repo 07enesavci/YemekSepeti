@@ -18,7 +18,8 @@ router.get("/users", async (req, res) => {
     try
     {
         const { role, search, status: statusFilter, page = 1, limit = 100 } = req.query;
-        const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+        const safeLimit = Math.max(1, Math.min(500, parseInt(limit) || 100));
+        const offset = (Math.max(1, parseInt(page)) - 1) * safeLimit;
 
         const where = { role: { [Op.in]: ['seller', 'courier', 'user', 'buyer'] } };
         if (role && ['seller','courier','buyer','user'].includes(role)) {
@@ -45,7 +46,7 @@ router.get("/users", async (req, res) => {
             where,
             attributes: ['id', 'fullname', 'email', 'role', 'is_active', 'created_at'],
             order: [['created_at', 'DESC']],
-            limit: parseInt(limit) || 100,
+            limit: safeLimit,
             offset: offset || 0
         });
 
@@ -203,8 +204,9 @@ router.put("/users/:id/suspend", async (req, res) => {
     }
 });
 
-router.delete("/users/:id", async (req, res) => {
-    try 
+// Kullanıcı silme kalıcı/geri döndürülemez bir işlemdir — support rolü için kapsam dışı.
+router.delete("/users/:id", requireRole(['admin','super_admin']), async (req, res) => {
+    try
     {
         const userId = parseInt(req.params.id);
         
@@ -279,7 +281,8 @@ router.get("/sellers", async (req, res) => {
     try
     {
         const { status, search, page = 1, limit = 100 } = req.query;
-        const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+        const safeLimit = Math.max(1, Math.min(500, parseInt(limit) || 100));
+        const offset = (Math.max(1, parseInt(page)) - 1) * safeLimit;
         const sellerWhere = {};
         if (status === 'active') sellerWhere.is_active = true;
         else if (status === 'inactive') sellerWhere.is_active = false;
@@ -301,7 +304,7 @@ router.get("/sellers", async (req, res) => {
                 } : {})
             }],
             order: [['created_at', 'DESC']],
-            limit: parseInt(limit) || 100,
+            limit: safeLimit,
             offset: offset || 0
         });
         const formatted = sellers.map(s => ({
@@ -399,7 +402,8 @@ router.get("/coupons", async (req, res) => {
     }
 });
 
-router.post("/coupons", createCouponValidation, handleValidationErrors, async (req, res) => {
+// Kupon CRUD finansal etkilidir — support rolü için kapsam dışı (sadece admin/super_admin).
+router.post("/coupons", requireRole(['admin','super_admin']), createCouponValidation, handleValidationErrors, async (req, res) => {
     try 
     {
         const { code, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, sellerIds, validDays } = req.body;
@@ -456,7 +460,7 @@ router.post("/coupons", createCouponValidation, handleValidationErrors, async (r
     }
 });
 
-router.put("/coupons/:id", idParam, handleValidationErrors, async (req, res) => {
+router.put("/coupons/:id", requireRole(['admin','super_admin']), idParam, handleValidationErrors, async (req, res) => {
     try 
     {
         const couponId = parseInt(req.params.id, 10);
@@ -491,7 +495,7 @@ router.put("/coupons/:id", idParam, handleValidationErrors, async (req, res) => 
     }
 });
 
-router.delete("/coupons/:id", idParam, handleValidationErrors, async (req, res) => {
+router.delete("/coupons/:id", requireRole(['admin','super_admin']), idParam, handleValidationErrors, async (req, res) => {
     try 
     {
         const couponId = parseInt(req.params.id, 10);
@@ -576,7 +580,8 @@ router.post("/approve-seller/:id", requireRole(['admin','super_admin','support']
 });
 
 // 3. Satıcıyı Reddet ve Sil (POST) — Red e-postası gönderilir, sonra satıcı + kullanıcı silinir
-router.post("/reject-seller/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
+// Kalıcı silme işlemi — support rolü için kapsam dışı (yalnızca admin/super_admin).
+router.post("/reject-seller/:id", requireRole(['admin','super_admin']), async (req, res) => {
     try {
         const seller = await Seller.findByPk(req.params.id);
         if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
@@ -834,7 +839,8 @@ router.post("/approve-courier/:id", requireRole(['admin','super_admin','support'
         res.status(500).json({ success: false, message: "Onaylama işlemi sırasında hata oluştu." });
     }
 });
-router.post("/reject-courier/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
+// Kalıcı silme işlemi — support rolü için kapsam dışı (yalnızca admin/super_admin).
+router.post("/reject-courier/:id", requireRole(['admin','super_admin']), async (req, res) => {
     try {
         const courier = await Courier.findByPk(req.params.id);
         if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı." });
@@ -1112,7 +1118,8 @@ router.put("/orders/:id/status", requireRole(['admin','super_admin']), async (re
 // --- ADMİN SİPARİŞ YÖNETİMİ BİTİŞ ---
 
 // --- ADMİN RAPORLARI ---
-router.get("/reports/summary", async (req, res) => {
+// Tam ciro/finansal rapor — support rolü için kapsam dışı (sadece admin/super_admin).
+router.get("/reports/summary", requireRole(['admin','super_admin']), async (req, res) => {
     try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -1166,7 +1173,7 @@ router.get("/reports/summary", async (req, res) => {
 });
 
 // Son 7 gün sipariş ve ciro verisi — tek GROUP BY sorgusuyla (N+1 yerine 2 sorgu)
-router.get("/reports/chart", async (req, res) => {
+router.get("/reports/chart", requireRole(['admin','super_admin']), async (req, res) => {
     try {
         const { sequelize: seq } = require('../../models');
         const since = new Date();

@@ -295,6 +295,13 @@ async function loadSellerMenu(sellerId, seller) {
                     // Önbellek kırmak için zaman damgası ekle
                     const separator = itemImageUrl.includes('?') ? '&' : '?';
                     itemImageUrl = itemImageUrl + separator + '_t=' + Date.now();
+                    // XSS önlemi: URL attribute içine gömülmeden önce HTML-kıran karakterler escape edilir
+                    itemImageUrl = itemImageUrl
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#39;');
                 }
                 
                 let cartButtonHtml = '';

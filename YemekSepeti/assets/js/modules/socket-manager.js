@@ -283,14 +283,33 @@ window.__socketManager = (function () {
             cursor: pointer;
         `;
 
-        el.innerHTML = `
-            <span style="font-size:22px;line-height:1;flex-shrink:0">${cfg.icon}</span>
-            <div style="flex:1;min-width:0">
-                <strong style="display:block;margin-bottom:3px;font-size:15px">${cfg.title}</strong>
-                <small style="opacity:0.9;word-break:break-word">${subtitle}</small>
-            </div>
-            <button onclick="this.parentElement.remove()" style="background:none;border:none;color:rgba(255,255,255,0.8);font-size:18px;cursor:pointer;padding:0;flex-shrink:0;line-height:1">&times;</button>
-        `;
+        // XSS önlemi: başlık/altyazı metni innerHTML değil textContent ile yazılır
+        const iconSpan = document.createElement('span');
+        iconSpan.style.cssText = 'font-size:22px;line-height:1;flex-shrink:0';
+        iconSpan.textContent = cfg.icon;
+
+        const textWrap = document.createElement('div');
+        textWrap.style.cssText = 'flex:1;min-width:0';
+
+        const titleEl = document.createElement('strong');
+        titleEl.style.cssText = 'display:block;margin-bottom:3px;font-size:15px';
+        titleEl.textContent = cfg.title;
+
+        const subtitleEl = document.createElement('small');
+        subtitleEl.style.cssText = 'opacity:0.9;word-break:break-word';
+        subtitleEl.textContent = subtitle;
+
+        textWrap.appendChild(titleEl);
+        textWrap.appendChild(subtitleEl);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.style.cssText = 'background:none;border:none;color:rgba(255,255,255,0.8);font-size:18px;cursor:pointer;padding:0;flex-shrink:0;line-height:1';
+        closeBtn.textContent = '×';
+        closeBtn.addEventListener('click', () => el.remove());
+
+        el.appendChild(iconSpan);
+        el.appendChild(textWrap);
+        el.appendChild(closeBtn);
 
         // CSS inject (bir kez)
         if (!document.getElementById('sm-toast-styles')) {

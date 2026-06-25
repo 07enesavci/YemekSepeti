@@ -108,7 +108,13 @@ async function comparePassword(password, hashedPassword) {
 function getBaseUrl(req) {
     const configuredBaseUrl = (process.env.BASE_URL || '').trim();
     if (configuredBaseUrl) return configuredBaseUrl.replace(/\/+$/, '');
-    return `${req.protocol}://${req.get('host')}`;
+    // Güvenlik: istemcinin gönderdiği Host header'ına ASLA güvenilmez (Host Header Injection
+    // ile şifre sıfırlama linki saldırgan kontrolündeki bir domaine yönlendirilebilir).
+    // BASE_URL tanımlı değilse, sunucunun bildiği güvenilir buyer domain'i kullanılır.
+    const buyerDomain = (process.env.BUYER_DOMAIN || '').trim();
+    if (buyerDomain && !buyerDomain.includes('localhost')) return `https://${buyerDomain}`;
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    return `${isHttps ? 'https' : 'http'}://${buyerDomain || 'localhost:3000'}`;
 }
 
 function getGoogleOAuthConfig(req) {
@@ -192,7 +198,7 @@ async function buildSessionUserData(user) {
 }
 
 function generateVerificationCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return (100000 + crypto.randomInt(900000)).toString();
 }
 
 async function saveVerificationCode(email, code, type) {
@@ -239,7 +245,8 @@ router.post("/login", authLimiter, [
 ], handleValidationErrors, async (req, res) => {
     const { email, password } = req.body;
     try {
-        const user = await User.findOne({
+        // User modelinde password defaultScope ile dışlanır; login için withPassword scope'u gerekir.
+        const user = await User.scope('withPassword').findOne({
             where: { email },
             attributes: ['id', 'email', 'password', 'fullname', 'phone', 'role', 'is_active']
         });
@@ -536,6 +543,9 @@ router.post("/verify-email", async (req, res) => {
 
         if (!roleAllowedOnDomain(role, domainType)) {
             return res.status(403).json({ success: false, message: "Bu domain üzerinde bu rol ile kayıt olamazsınız." });
+        }
+        if (!password || typeof password !== 'string' || password.length < 8) {
+            return res.status(400).json({ success: false, message: "Şifre en az 8 karakter olmalıdır." });
         }
         const hashedPassword = await hashPassword(password);
         const user = await User.create({
@@ -859,15 +869,15 @@ router.post("/forgot-password", strictLimiter, async (req, res) => {
                     { replacements: [normalizedEmail, resetToken, expiresAt] }
                 );
             } catch (rawErr) {
+                // İç hata loglanır ama dışarıya sızdırılmaz — email enumeration önlenir
                 console.error('Token kayıt hatası:', rawErr.message);
-                return res.status(500).json({ success: false, message: "Şifre sıfırlama başlatılamadı. Lütfen tekrar deneyin." });
+                return res.json({ success: true, message: GENERIC_OK });
             }
         }
 
-        // HTTPS olduğundan emin ol (proxy arkasında da)
-        const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
-        const proto = isHttps ? 'https' : 'http';
-        const baseUrl = process.env.BASE_URL || `${proto}://${req.get('host')}`;
+        // Güvenlik: Host header injection ile token çalınmasını önlemek için
+        // baseUrl, kullanıcının gönderdiği Host header'ından değil getBaseUrl()'den (BASE_URL/BUYER_DOMAIN) alınır.
+        const baseUrl = getBaseUrl(req);
         const resetLink = `${baseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
         const emailResult = await sendPasswordResetLink(normalizedEmail, resetLink);

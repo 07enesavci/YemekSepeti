@@ -498,8 +498,16 @@ function displayRestaurants(sellers, append) {
         if (!isValidUrl(imageUrl)) {
             usePlaceholder = true;
             imageUrl = null;
+        } else {
+            // XSS önlemi: URL attribute içine gömülmeden önce HTML-kıran karakterler escape edilir
+            imageUrl = imageUrl
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
-        
+
         // Rating yıldızları
         const rating = parseFloat(seller.rating) || 0;
         const fullStars = Math.floor(rating);
@@ -745,7 +753,13 @@ async function loadHeroSlider() {
 
         let sliderHTML = '';
         sellersWithImages.forEach((seller, index) => {
-            const bannerUrl = seller.bannerUrl || seller.imageUrl;
+            // XSS önlemi: URL attribute içine gömülmeden önce HTML-kıran karakterler escape edilir
+            const bannerUrl = (seller.bannerUrl || seller.imageUrl || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
             const activeClass = index === 0 ? 'active' : '';
             const safeName = (seller.name || 'Restoran')
                 .replace(/&/g, '&amp;')

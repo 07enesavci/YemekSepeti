@@ -78,7 +78,17 @@ module.exports=(sequelize, DataTypes)=>{
         indexes: [
             { unique: true, fields: ['email'] },
             { fields: ['role'] }
-        ]
+        ],
+        // Güvenlik: password hash'i varsayılan olarak hiçbir sorgu sonucuna dahil edilmez.
+        // Şifreye ihtiyaç olan tek yerlerde (login, şifre değiştirme) User.scope('withPassword') kullanılmalı.
+        defaultScope: {
+            attributes: { exclude: ['password'] }
+        },
+        scopes: {
+            withPassword: {
+                attributes: {}
+            }
+        }
     });
 
     return User;

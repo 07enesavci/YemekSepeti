@@ -59,7 +59,17 @@
         const container = _getToastContainer();
         const toast = document.createElement('div');
         toast.className = `ys-toast ${type}`;
-        toast.innerHTML = `<span class="ys-toast-icon">${TOAST_ICONS[type] || 'ℹ️'}</span><span>${message}</span>`;
+
+        // XSS önlemi: ikon sabit/güvenli, mesaj metni innerHTML değil textContent ile yazılır
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'ys-toast-icon';
+        iconSpan.textContent = TOAST_ICONS[type] || 'ℹ️';
+
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = message;
+
+        toast.appendChild(iconSpan);
+        toast.appendChild(messageSpan);
         container.appendChild(toast);
 
         setTimeout(function () {

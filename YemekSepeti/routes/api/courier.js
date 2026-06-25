@@ -62,7 +62,7 @@ router.get("/available", async (req, res) => {
         const orderWhere = {
             courier_id: null,
             status: 'ready',
-            delivery_type: { [Op.ne]: 'pickup' },
+            delivery_type: { [Op.notIn]: ['pickup', 'cargo'] },
             created_at: { [Op.gte]: twoHoursAgo }
         };
         // Kendi kurye ise yalnızca bağlı olduğu satıcının siparişleri
@@ -164,8 +164,8 @@ router.post("/tasks/:id/accept", async (req, res) => {
             return res.status(404).json({ success: false, message: "Sipariş bulunamadı." });
         }
 
-        if (orderRecord.delivery_type === 'pickup') {
-            return res.status(400).json({ success: false, message: "Bu sipariş gel al siparişi olduğu için kurye görevine açılamaz." });
+        if (orderRecord.delivery_type === 'pickup' || orderRecord.delivery_type === 'cargo') {
+            return res.status(400).json({ success: false, message: "Bu sipariş gel al/kargo siparişi olduğu için kurye görevine açılamaz." });
         }
 
         if (orderRecord.courier_id !== null) {
@@ -250,7 +250,7 @@ router.get("/tasks/active", async (req, res) => {
         const tasksRaw = await Order.findAll({
             where: {
                 courier_id: courierId,
-                delivery_type: { [Op.ne]: 'pickup' },
+                delivery_type: { [Op.notIn]: ['pickup', 'cargo'] },
                 status: { [Op.in]: ['ready', 'on_delivery'] }
             },
             include: [
@@ -919,7 +919,7 @@ router.put("/location", async (req, res) => {
     }
 });
 
-router.get("/reports/shops", requireRole('courier'), async (req, res) => {
+router.get("/reports/shops", async (req, res) => {
     try {
         const userId = req.session.user.id;
         const courier = await Courier.findOne({ where: { user_id: userId }, attributes: ['id'] });
