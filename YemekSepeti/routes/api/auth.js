@@ -240,8 +240,8 @@ function handleValidationErrors(req, res, next) {
 
 // LOGIN (rate limit sadece giriş denemeleri için; /me, logout vb. sayılmaz)
 router.post("/login", authLimiter, [
-    body('email').isEmail().withMessage('Geçerli bir e-posta girin.'),
-    body('password').notEmpty().withMessage('Şifre gerekli.')
+    body('email').isString().withMessage('Geçerli bir e-posta girin.').bail().isEmail().withMessage('Geçerli bir e-posta girin.'),
+    body('password').isString().withMessage('Şifre gerekli.').bail().notEmpty().withMessage('Şifre gerekli.')
 ], handleValidationErrors, async (req, res) => {
     const { email, password } = req.body;
     try {

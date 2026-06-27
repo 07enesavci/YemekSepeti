@@ -96,7 +96,7 @@ function authenticateToken(req, res, next)
 		});
 	}
 
-	jwt.verify(token, secret, (err, payload)=>{
+	jwt.verify(token, secret, { algorithms: ['HS256'] }, (err, payload)=>{
 		if (err) 
 		{
 			return res.status(401).json({

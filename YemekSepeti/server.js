@@ -266,6 +266,8 @@ try {
     const robotsPath = path.resolve(__dirname, 'public', 'robots.txt');
     app.get('/robots.txt', (req, res) => {
         res.set('Cache-Control', 'public, max-age=86400');
+        // helmet bu handler'dan SONRA eklendiği için nosniff'i burada manuel set ediyoruz.
+        res.set('X-Content-Type-Options', 'nosniff');
         res.type('text/plain');
         if (fs.existsSync(robotsPath)) {
             res.sendFile(robotsPath);
@@ -372,12 +374,19 @@ try {
         saveUninitialized: false,
         store: sessionStore || undefined,
         cookie: {
-            secure: process.env.NODE_ENV === 'production',
+            // 'auto': trust proxy + req.secure'a göre belirlenir.
+            // Gerçek HTTPS (prod, reverse-proxy arkası) → Secure cookie;
+            // düz HTTP (yerel admin.localhost geliştirme) → Secure değil, böylece
+            // tarayıcı/oturum cookie'si gönderilir ve giriş kalıcı olur.
+            // NODE_ENV=production iken düz HTTP üzerinde Secure cookie hiç set edilmiyordu;
+            // bu yüzden admin girişi "başarılı" dönüp oturum hemen kayboluyordu.
+            secure: 'auto',
             httpOnly: true,
             sameSite: 'lax',
             maxAge: SESSION_MAX_AGE_DEFAULT,
-            // Production'da tüm subdomain'ler aynı session'ı paylaşır
-            domain: process.env.NODE_ENV === 'production' ? _rootDomain : undefined
+            // Tüm subdomain'lerin (admin./partner.) session paylaşımı için kök domain.
+            // localhost'ta _rootDomain undefined → host-only cookie (admin.localhost'a özel).
+            domain: _rootDomain
         }
     };
 

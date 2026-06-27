@@ -84,7 +84,7 @@ function csrfProtection(req, res, next) {
     // OAuth dış yönlendirmesi — muaf
     if (req.path && req.path.startsWith('/api/auth/google/')) return next();
 
-    // ── Katman 1: CSRF Token eşleşmesi ────────────────────────────
+    // ── Katman 1: CSRF Token eşleşmesi (double-submit, birincil koruma) ──
     const sessionToken = req.session && req.session.csrfToken;
     const requestToken =
         (req.headers && req.headers['x-csrf-token']) ||
@@ -95,14 +95,12 @@ function csrfProtection(req, res, next) {
         return next(); // ✅ Token eşleşti
     }
 
-    // ── Katman 2: Oturum kontrolü (en güvenilir) ──────────────────
-    // SameSite=Lax ile cross-site POST'ta session cookie gönderilmez.
-    // req.session.user varsa → kesinlikle aynı siteden geliyor.
-    if (req.session && req.session.user) {
-        return next(); // ✅ Authenticated request
-    }
-
-    // ── Katman 3: Same-Origin / Same-Site header kontrolü ─────────
+    // ── Katman 2: Origin / Referer same-site doğrulaması ──────────
+    // ÖNEMLİ: Origin/Referer VARSA ve FARKLI site ise → oturum açık olsa bile
+    // kesin CSRF kabul edilir ve reddedilir. Eskiden "req.session.user varsa serbest"
+    // mantığı vardı; bu, token taşımayan cross-origin isteklerin (örn. saldırgan
+    // sayfasından fetch + ele geçmiş/yan-kanal cookie) geçmesine yol açıyordu.
+    // Artık tek koruma SameSite=Lax değil; origin doğrulaması da zorunlu.
     const origin  = (req.headers && req.headers['origin'])  || '';
     const referer = (req.headers && req.headers['referer']) || '';
     const host    = ((req.headers && req.headers['host']) || '').split(':')[0].toLowerCase();
@@ -111,43 +109,36 @@ function csrfProtection(req, res, next) {
         const parts = h.replace(/:\d+$/, '').split('.');
         return parts.length >= 2 ? parts.slice(-2).join('.') : h;
     };
-
-    if (origin) {
+    const isSameSite = (value) => {
         try {
-            const originHostname = new URL(origin).hostname.toLowerCase();
-            // Tam eşleşme veya aynı kök domain (subdomain'ler arası)
-            if (originHostname === host ||
-                getRootDomain(originHostname) === getRootDomain(host)) {
-                return next(); // ✅ Aynı site
-            }
-        } catch (_) {}
-        // Farklı origin → gerçek CSRF riski → reddet
-        return res.status(403).json({
-            success: false,
-            message: 'Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.'
-        });
-    }
+            const hn = new URL(value).hostname.toLowerCase();
+            return hn === host || getRootDomain(hn) === getRootDomain(host);
+        } catch (_) {
+            return false; // ayrıştırılamayan origin/referer → güvenli tarafta reddet
+        }
+    };
 
-    if (referer) {
-        try {
-            const refererHostname = new URL(referer).hostname.toLowerCase();
-            if (refererHostname === host ||
-                getRootDomain(refererHostname) === getRootDomain(host)) {
-                return next(); // ✅ Aynı site (referer'dan)
-            }
-        } catch (_) {}
-    }
-
-    // ── Katman 4 kaldırıldı ───────────────────────────────────────
-    // X-Requested-With: XMLHttpRequest tarayıcı-taraflı CORS korumasına dayalıydı
-    // ancak server-to-server HTTP çağrıları bu header'ı serbestçe ekleyebilir.
-    // Katman 1 (token) + Katman 2 (session) + Katman 3 (same-origin) yeterli koruma sağlar.
-
-    // ── Hiçbir kontrol geçmedi → reddet ──────────────────────────
-    return res.status(403).json({
+    const denyCsrf = () => res.status(403).json({
         success: false,
         message: 'Güvenlik doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.'
     });
+
+    if (origin) {
+        return isSameSite(origin) ? next() : denyCsrf();   // farklı origin → reddet
+    }
+    if (referer) {
+        return isSameSite(referer) ? next() : denyCsrf();  // farklı referer → reddet
+    }
+
+    // ── Origin ve Referer YOK ─────────────────────────────────────
+    // Tarayıcı, cross-site fetch/XHR'de Origin başlığını DAİMA gönderir ve
+    // SameSite=Lax cookie'yi cross-site POST'ta zaten göndermez. Dolayısıyla
+    // başlıksız istek tarayıcı kaynaklı bir CSRF değildir (server-to-server veya
+    // same-origin gezinme). Oturum açıksa izin ver, yoksa reddet.
+    if (req.session && req.session.user) {
+        return next();
+    }
+    return denyCsrf();
 }
 
 // CSRF token endpoint'i (frontend'den alınır)
