@@ -113,10 +113,12 @@ async function loadSellerReviews(sellerId) {
             const ordData = await ordRes.json();
             if (ordData.success && ordData.orders && ordData.orders.length > 0) reviewableOrders = ordData.orders;
         } catch (e) {}
+
         let html = '<div class="card"><div class="card-content">';
         html += '<p style="margin-bottom: 1rem;"><strong>Ortalama puan:</strong> ';
         for (let i = 1; i <= 5; i++) html += (i <= averageRating ? '★' : '☆');
         html += ' ' + averageRating.toFixed(1) + '</p>';
+
         if (reviewableOrders.length > 0) {
             html += '<div class="review-form-card" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-color); border-radius: 8px;">';
             html += '<h4 style="margin: 0 0 0.75rem 0;">Değerlendir</h4>';
@@ -133,27 +135,71 @@ async function loadSellerReviews(sellerId) {
             html += '<div style="margin-bottom: 0.75rem;"><label>Yorum (isteğe bağlı)</label><textarea name="comment" class="form-input" rows="2" style="width: 100%;"></textarea></div>';
             html += '<button type="submit" class="btn btn-primary">Gönder</button></form></div>';
         }
-        html += '<h4 style="margin: 0 0 0.75rem 0;">Yorumlar</h4>';
-        if (reviews.length === 0) {
-            html += '<p style="color: #666;">Henüz yorum yok.</p>';
-        } else {
-            reviews.forEach(function(r) {
+
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">';
+        html += '<h4 style="margin:0;">Yorumlar</h4>';
+        if (reviews.length > 1) {
+            html += '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">';
+            html += '<button class="btn btn-sm btn-secondary sp-sort-btn sp-sort-active" data-sort="date-desc">📅 En Yeni</button>';
+            html += '<button class="btn btn-sm btn-secondary sp-sort-btn" data-sort="date-asc">📅 En Eski</button>';
+            html += '<button class="btn btn-sm btn-secondary sp-sort-btn" data-sort="rating-desc">⭐ Puan Yüksek</button>';
+            html += '<button class="btn btn-sm btn-secondary sp-sort-btn" data-sort="rating-asc">⭐ Puan Düşük</button>';
+            html += '</div>';
+        }
+        html += '</div>';
+        html += '<div id="sp-reviews-body"></div>';
+        html += '</div></div>';
+
+        reviewsContent.innerHTML = html;
+
+        function sortAndRender(sort) {
+            const arr = reviews.slice();
+            if (sort === 'date-desc') arr.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            else if (sort === 'date-asc') arr.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            else if (sort === 'rating-desc') arr.sort((a, b) => b.rating - a.rating || new Date(b.createdAt) - new Date(a.createdAt));
+            else if (sort === 'rating-asc') arr.sort((a, b) => a.rating - b.rating || new Date(b.createdAt) - new Date(a.createdAt));
+
+            const body = document.getElementById('sp-reviews-body');
+            if (!body) return;
+            if (arr.length === 0) { body.innerHTML = '<p style="color:#666;">Henüz yorum yok.</p>'; return; }
+            body.innerHTML = arr.map(function(r) {
                 let stars = '';
                 for (let i = 1; i <= 5; i++) stars += (i <= r.rating ? '★' : '☆');
-                html += '<div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">';
-                html += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' + stars + ' <strong>' + escapeHtml(r.userName) + '</strong> <span style="font-size: 0.85rem; color: #888;">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : '') + '</span></div>';
-                if (r.comment) html += '<p style="margin: 0; font-size: 0.95rem;">' + escapeHtml(r.comment) + '</p>';
+                let out = '<div style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">';
+                out += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">' + stars + ' <strong>' + escapeHtml(r.userName) + '</strong> <span style="font-size: 0.85rem; color: #888;">' + (r.createdAt ? new Date(r.createdAt).toLocaleDateString('tr-TR') : '') + '</span></div>';
+                if (r.comment) out += '<p style="margin: 0; font-size: 0.95rem;">' + escapeHtml(r.comment) + '</p>';
                 if (r.sellerReply) {
-                    html += '<div style="margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: var(--bg-color, #f8f9fa); border-left: 3px solid var(--primary-color, #e74c3c); border-radius: 4px;">';
-                    html += '<div style="font-size: 0.8rem; color: #666; margin-bottom: 0.25rem;"><strong>🏪 Satıcı yanıtı</strong>' + (r.sellerReplyAt ? ' · ' + new Date(r.sellerReplyAt).toLocaleDateString('tr-TR') : '') + '</div>';
-                    html += '<p style="margin: 0; font-size: 0.9rem;">' + escapeHtml(r.sellerReply) + '</p>';
-                    html += '</div>';
+                    out += '<div style="margin-top: 0.6rem; padding: 0.6rem 0.8rem; background: var(--bg-color, #f8f9fa); border-left: 3px solid var(--primary-color, #e74c3c); border-radius: 4px;">';
+                    out += '<div style="font-size: 0.8rem; color: #666; margin-bottom: 0.25rem;"><strong>🏪 Satıcı yanıtı</strong>' + (r.sellerReplyAt ? ' · ' + new Date(r.sellerReplyAt).toLocaleDateString('tr-TR') : '') + '</div>';
+                    out += '<p style="margin: 0; font-size: 0.9rem;">' + escapeHtml(r.sellerReply) + '</p>';
+                    out += '</div>';
                 }
-                html += '</div>';
-            });
+                out += '</div>';
+                return out;
+            }).join('');
         }
-        html += '</div></div>';
-        reviewsContent.innerHTML = html;
+
+        sortAndRender('date-desc');
+
+        reviewsContent.querySelectorAll('.sp-sort-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                reviewsContent.querySelectorAll('.sp-sort-btn').forEach(b => {
+                    b.classList.remove('sp-sort-active');
+                    b.style.background = '';
+                    b.style.color = '';
+                    b.style.borderColor = '';
+                });
+                btn.classList.add('sp-sort-active');
+                btn.style.background = 'var(--primary-color,#e74c3c)';
+                btn.style.color = '#fff';
+                btn.style.borderColor = 'var(--primary-color,#e74c3c)';
+                sortAndRender(btn.dataset.sort);
+            });
+        });
+        // Set initial active style
+        var firstSort = reviewsContent.querySelector('.sp-sort-btn.sp-sort-active');
+        if (firstSort) { firstSort.style.background = 'var(--primary-color,#e74c3c)'; firstSort.style.color = '#fff'; firstSort.style.borderColor = 'var(--primary-color,#e74c3c)'; }
+
         var form = document.getElementById('review-form');
         if (form) {
             form.addEventListener('submit', function(e) {

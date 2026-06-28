@@ -189,11 +189,13 @@ function helmetMiddleware() {
                     "wss:",
                     "ws:",
                     "https://unpkg.com",
+                    "https://cdn.jsdelivr.net",
                     "https://nominatim.openstreetmap.org",
                     "https://router.project-osrm.org",
                     "https://*.tile.openstreetmap.org",
                     "https://*.kaspersky-labs.com"
                 ],
+                mediaSrc: ["'self'"],
                 workerSrc: ["'self'", "blob:"],
                 frameSrc: ["'self'", "https://www.openstreetmap.org"]
             }

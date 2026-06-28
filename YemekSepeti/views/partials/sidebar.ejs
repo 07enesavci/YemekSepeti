@@ -139,10 +139,22 @@
                     </a>
                 </li>
                 <li>
+                    <a href="/admin/review-requests" class="<%= title === 'Dükkan Yorumları' ? 'active' : '' %>">
+                        <span>⭐</span> Dükkan Yorumları
+                    </a>
+                </li>
+                <li>
                     <a href="/admin/reports" class="<%= title === 'Raporlar' ? 'active' : '' %>">
                         <span>📊</span> Raporlar
                     </a>
                 </li>
+                <% if (user && (user.role === 'admin' || user.role === 'super_admin')) { %>
+                <li>
+                    <a href="/admin/settings" class="<%= title === 'Ayarlar' ? 'active' : '' %>">
+                        <span>⚙️</span> Ayarlar
+                    </a>
+                </li>
+                <% } %>
             <% } %>
         </ul>
     </nav>

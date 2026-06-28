@@ -1,0 +1,153 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css?v=20260629-mobilefix1">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+
+<div class="panel-layout">
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        <h1 class="panel-title">Dükkan Yorumları</h1>
+        <p class="panel-subtitle">Satıcıların silmek istediği yorumlar burada listelenir. Onaylarsanız yorum silinir; reddederseniz satıcı bir daha istekte bulunamaz.</p>
+
+        <div class="card">
+            <div class="card-content">
+                <div id="rr-loading" style="text-align:center;padding:2rem;color:#666;">Yükleniyor...</div>
+                <div id="rr-empty" style="display:none;text-align:center;padding:2rem;color:#666;">
+                    <p>Bekleyen silme isteği yok.</p>
+                </div>
+                <div id="rr-list" style="display:none;"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+(function() {
+    var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+
+    function escHtml(s) {
+        if (!s) return '';
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function stars(n) {
+        var out = '';
+        for (var i = 1; i <= 5; i++) out += (i <= n ? '★' : '☆');
+        return out;
+    }
+
+    function load() {
+        var loadEl = document.getElementById('rr-loading');
+        var emptyEl = document.getElementById('rr-empty');
+        var listEl = document.getElementById('rr-list');
+        loadEl.style.display = 'block';
+        emptyEl.style.display = 'none';
+        listEl.style.display = 'none';
+        listEl.innerHTML = '';
+
+        fetch(baseUrl + '/api/admin/review-deletion-requests', { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loadEl.style.display = 'none';
+                var reqs = data.requests || [];
+                if (reqs.length === 0) { emptyEl.style.display = 'block'; return; }
+                listEl.style.display = 'block';
+                listEl.innerHTML = reqs.map(function(r) {
+                    return '<div class="rr-item" data-id="' + r.id + '" style="padding:1.25rem 0;border-bottom:1px solid var(--border-color,#eee);">'
+                        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">'
+                        + '<div style="flex:1;min-width:220px;">'
+                        + '<div style="font-size:0.82rem;color:#888;margin-bottom:0.3rem;">'
+                        + '<strong>🏪 ' + escHtml(r.seller_name || 'Bilinmiyor') + '</strong>'
+                        + ' &middot; ' + escHtml(r.user_name || 'Anonim')
+                        + ' &middot; ' + (r.created_at ? new Date(r.created_at).toLocaleDateString('tr-TR') : '')
+                        + '</div>'
+                        + '<div style="color:#f5a623;margin-bottom:0.3rem;">' + stars(r.rating) + '</div>'
+                        + (r.comment ? '<p style="margin:0;font-size:0.95rem;">' + escHtml(r.comment) + '</p>' : '<p style="margin:0;color:#999;font-style:italic;">(Yorum yok)</p>')
+                        + '</div>'
+                        + '<div style="display:flex;gap:0.5rem;flex-shrink:0;align-items:flex-start;">'
+                        + '<button class="btn btn-sm btn-primary" data-action="approve" data-id="' + r.id + '">✅ Onayla (Sil)</button>'
+                        + '<button class="btn btn-sm btn-secondary" data-action="reject" data-id="' + r.id + '">❌ Reddet</button>'
+                        + '</div>'
+                        + '</div>'
+                        + '</div>';
+                }).join('');
+            })
+            .catch(function() { loadEl.textContent = 'Veriler yüklenemedi.'; });
+    }
+
+    function checkEmpty() {
+        var listEl = document.getElementById('rr-list');
+        var emptyEl = document.getElementById('rr-empty');
+        if (listEl && listEl.querySelectorAll('.rr-item').length === 0) {
+            listEl.style.display = 'none';
+            emptyEl.style.display = 'block';
+        }
+    }
+
+    async function approveDelete(id, btn) {
+        if (window.showConfirm) {
+            const confirmed = await window.showConfirm('Bu yorumu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.');
+            if (!confirmed) return;
+        } else {
+            if (!confirm('Bu yorumu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) return;
+        }
+        var item = document.querySelector('.rr-item[data-id="' + id + '"]');
+        if (btn) btn.disabled = true;
+        fetch(baseUrl + '/api/admin/reviews/' + id + '/approve-deletion', { method: 'POST', credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (item) {
+                        item.style.opacity = '0.3';
+                        item.style.transition = 'opacity 0.3s';
+                        setTimeout(function() { item.remove(); checkEmpty(); }, 350);
+                    }
+                    window.showToast ? window.showToast('Yorum silindi.', 'success') : alert('Yorum silindi.');
+                } else {
+                    if (btn) btn.disabled = false;
+                    alert(data.message || 'İşlem başarısız.');
+                }
+            })
+            .catch(function() { if (btn) btn.disabled = false; alert('İşlem başarısız.'); });
+    }
+
+    async function rejectDelete(id, btn) {
+        if (window.showConfirm) {
+            const confirmed = await window.showConfirm('Silme isteğini reddetmek istiyor musunuz? Satıcı bir daha bu yorum için istekte bulunamayacak.');
+            if (!confirmed) return;
+        } else {
+            if (!confirm('Silme isteğini reddetmek istiyor musunuz? Satıcı bir daha bu yorum için istekte bulunamayacak.')) return;
+        }
+        var item = document.querySelector('.rr-item[data-id="' + id + '"]');
+        if (btn) btn.disabled = true;
+        fetch(baseUrl + '/api/admin/reviews/' + id + '/reject-deletion', { method: 'POST', credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    if (item) {
+                        item.style.opacity = '0.3';
+                        item.style.transition = 'opacity 0.3s';
+                        setTimeout(function() { item.remove(); checkEmpty(); }, 350);
+                    }
+                    window.showToast ? window.showToast('İstek reddedildi.', 'info') : alert('Reddedildi.');
+                } else {
+                    if (btn) btn.disabled = false;
+                    alert(data.message || 'İşlem başarısız.');
+                }
+            })
+            .catch(function() { if (btn) btn.disabled = false; alert('İşlem başarısız.'); });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        load();
+        document.getElementById('rr-list').addEventListener('click', function(e) {
+            var btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            var id = parseInt(btn.dataset.id, 10);
+            if (btn.dataset.action === 'approve') approveDelete(id, btn);
+            else if (btn.dataset.action === 'reject') rejectDelete(id, btn);
+        });
+    });
+})();
+</script>

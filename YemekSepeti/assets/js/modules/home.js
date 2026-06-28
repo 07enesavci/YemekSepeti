@@ -92,7 +92,11 @@ async function loadRestaurants(append) {
             allRestaurants = allRestaurants.concat(sellers);
         } else {
             allRestaurants = sellers;
-            loadCouponSellerIds().then(function() { applyQuickFilterButtons(); });
+            if (window.__userRole === 'buyer') {
+                loadCouponSellerIds().then(function() { applyQuickFilterButtons(); });
+            } else {
+                applyQuickFilterButtons();
+            }
         }
         homePageOffset = allRestaurants.length;
         if (window.__userRole === 'buyer' && typeof window.getFavorites === 'function') {
@@ -153,7 +157,8 @@ let currentFilters = {
     cuisines: [],
     minOrderAmount: null,
     location: '',
-    quickFilter: 'all'
+    quickFilter: 'all',
+    onlyOpen: false
 };
 
 function handleHeroSearch() {
@@ -322,11 +327,24 @@ function initFilters() {
         });
     }
     
+    const onlyOpenCheckbox = document.getElementById('filter-only-open');
+    if (onlyOpenCheckbox) {
+        onlyOpenCheckbox.addEventListener('change', () => {
+            currentFilters.onlyOpen = onlyOpenCheckbox.checked;
+            filterAndDisplayRestaurants();
+        });
+    }
+    
     const clearFiltersBtn = document.getElementById('clear-filters');
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener('click', () => {
             document.querySelectorAll('.filter-rating, .filter-cuisine').forEach(cb => cb.checked = false);
-            if (minOrderSelect) minOrderSelect.value = '';
+            const onlyOpenCb = document.getElementById('filter-only-open');
+            if (onlyOpenCb) onlyOpenCb.checked = false;
+            if (minOrderSelect) {
+                minOrderSelect.value = '';
+                if (minOrderSelect.syncCustomUI) minOrderSelect.syncCustomUI();
+            }
             if (locationInput) locationInput.value = '';
             const searchInput = document.getElementById('hero-search-input');
             if (searchInput) searchInput.value = '';
@@ -337,7 +355,8 @@ function initFilters() {
                 cuisines: [],
                 minOrderAmount: null,
                 location: '',
-                quickFilter: 'all'
+                quickFilter: 'all',
+                onlyOpen: false
             };
             document.querySelectorAll('.quick-filter-btn').forEach(function(b) {
                 b.classList.toggle('active', (b.getAttribute('data-filter') || '') === 'all');
@@ -430,6 +449,11 @@ function filterAndDisplayRestaurants(append) {
             }
         }
         
+        // Sadece açık restoranlar filtresi
+        if (currentFilters.onlyOpen && restaurant.isOpen === false) {
+            return false;
+        }
+        
         return true;
     });
     
@@ -442,7 +466,7 @@ function filterAndDisplayRestaurants(append) {
     const resultsCount = document.getElementById('results-count');
     if (resultsHeader && resultsCount) {
         if (currentFilters.searchTerm || currentFilters.minRating > 0 || currentFilters.cuisines.length > 0 || 
-            currentFilters.minOrderAmount !== null || currentFilters.location || (currentFilters.quickFilter && currentFilters.quickFilter !== 'all')) {
+            currentFilters.minOrderAmount !== null || currentFilters.location || currentFilters.onlyOpen || (currentFilters.quickFilter && currentFilters.quickFilter !== 'all')) {
             resultsHeader.style.display = 'flex';
             resultsCount.textContent = filtered.length;
         } else {
@@ -695,17 +719,106 @@ async function loadPromotions() {
 function initPromotionsBanner() {
     const track = document.getElementById('promotions-track');
     if (!track) return;
-    
-    const banner = document.querySelector('.promotions-banner');
+
+    const banner = document.getElementById('promotions-banner');
     if (banner) {
         banner.addEventListener('mouseenter', () => {
             track.style.animationPlayState = 'paused';
         });
-        
+
         banner.addEventListener('mouseleave', () => {
             track.style.animationPlayState = 'running';
         });
+
+        banner.addEventListener('click', () => {
+            const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+            window.location.href = baseUrl + '/buyer/wallet#coupons-section';
+        });
     }
+
+    if (window.__userRole === 'buyer') {
+        loadBuyerCouponsIntoBanner(track);
+    } else {
+        restoreStaticBanner(track);
+    }
+}
+
+var STATIC_PROMO_ITEMS = [
+    { badge: '🔥 Özel Fırsat', text: 'Seçili restoranlarda 300TL üzerine 100TL indirim!' },
+    { badge: '💰 %10 İndirim', text: 'Tüm restoranlarda geçerli %10 indirim kazanın!' },
+    { badge: '🎁 İlk Sipariş', text: 'İlk siparişinizde %15 indirim fırsatı!' },
+    { badge: '⚡ Hızlı Teslimat', text: '150TL üzeri siparişlerde ücretsiz teslimat!' },
+    { badge: '🌟 VIP Üyelik', text: '500TL üzeri siparişlerde %20 ekstra indirim!' },
+    { badge: '🍕 Özel Menü', text: 'Seçili menülerde 2 alana 1 bedava!' }
+];
+
+function buildPromoItem(badge, text) {
+    var item = document.createElement('div');
+    item.className = 'promotion-item';
+    var b = document.createElement('span');
+    b.className = 'promo-badge';
+    b.textContent = badge;
+    var t = document.createElement('span');
+    t.className = 'promo-text';
+    t.textContent = text;
+    item.appendChild(b);
+    item.appendChild(t);
+    return item;
+}
+
+function fillTrack(track, baseItems) {
+    track.innerHTML = '';
+    // En az 8 item olacak şekilde tekrar et (boşluk kalmasın)
+    var MIN_ITEMS = 8;
+    var repeated = [];
+    while (repeated.length < MIN_ITEMS) {
+        repeated = repeated.concat(baseItems);
+    }
+    // "Gerçek" yarı
+    repeated.forEach(function(item) { track.appendChild(item.cloneNode(true)); });
+    // Sonsuz döngü için ikinci kopya (translateX(-50%) animasyonu için)
+    repeated.forEach(function(item) { track.appendChild(item.cloneNode(true)); });
+}
+
+async function loadBuyerCouponsIntoBanner(track) {
+    try {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const res = await fetch(baseUrl + '/api/buyer/coupons/active', { credentials: 'include' });
+        if (!res.ok) {
+            restoreStaticBanner(track);
+            return;
+        }
+        const data = await res.json();
+        const coupons = (data && data.coupons) ? data.coupons : [];
+
+        if (!coupons.length) {
+            restoreStaticBanner(track);
+            return;
+        }
+
+        var baseItems = coupons.map(function(c) {
+            var discountText = '';
+            if (c.discountType === 'percentage') {
+                discountText = '%' + c.discountValue + ' indirim';
+                if (c.maxDiscountAmount) discountText += ' (Maks: ' + Number(c.maxDiscountAmount).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) + ')';
+            } else {
+                discountText = Number(c.discountValue).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) + ' indirim';
+            }
+            var minOrder = c.minOrderAmount > 0 ? ' · Min: ' + Number(c.minOrderAmount).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '';
+            return buildPromoItem('🎟️ ' + (c.code || 'KUPON'), discountText + (c.description ? ' — ' + c.description : '') + minOrder);
+        });
+
+        fillTrack(track, baseItems);
+    } catch (e) {
+        restoreStaticBanner(track);
+    }
+}
+
+function restoreStaticBanner(track) {
+    var baseItems = STATIC_PROMO_ITEMS.map(function(p) {
+        return buildPromoItem(p.badge, p.text);
+    });
+    fillTrack(track, baseItems);
 }
 
 async function loadHeroSlider() {
@@ -814,6 +927,10 @@ document.addEventListener('DOMContentLoaded', () => {
         loadHeroSlider();
         
         initFilters();
+        // Custom animated select dropdown'ları başlat
+        if (typeof window.initYsSelects === 'function') {
+            window.initYsSelects(document.querySelector('.filters-sidebar'));
+        }
     }
     document.addEventListener('ys-delivery-area-updated', function (e) {
         if (!e || !e.detail) return;

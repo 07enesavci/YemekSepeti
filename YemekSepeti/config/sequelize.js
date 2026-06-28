@@ -279,6 +279,34 @@ async function ensureOrderIsPoolRequestedColumn() {
     } catch (_) {}
 }
 
+async function ensureCouponColumns() {
+    const cols = [
+        `ALTER TABLE coupons ADD COLUMN max_discount_amount DECIMAL(10,2) NULL`,
+        `ALTER TABLE coupons ADD COLUMN applicable_seller_ids JSON NULL`,
+        `ALTER TABLE coupons ADD COLUMN usage_limit INT DEFAULT -1`,
+        `ALTER TABLE coupons ADD COLUMN used_count INT DEFAULT 0`,
+        `ALTER TABLE coupons ADD COLUMN per_user_limit INT DEFAULT 1`,
+        `ALTER TABLE coupons ADD COLUMN created_by INT NULL`,
+    ];
+    for (const sql of cols) {
+        try { await sequelize.query(sql); } catch (_) {}
+    }
+}
+
+async function ensureOrderExtraColumns() {
+    const cols = [
+        `ALTER TABLE orders ADD COLUMN cargo_company VARCHAR(100) NULL`,
+        `ALTER TABLE orders ADD COLUMN cargo_tracking_number VARCHAR(100) NULL`,
+        `ALTER TABLE orders ADD COLUMN iyzico_payment_data TEXT NULL`,
+        `ALTER TABLE orders ADD COLUMN iyzico_refunded_at DATETIME NULL`,
+        `ALTER TABLE orders ADD COLUMN partial_refund_amount DECIMAL(10,2) DEFAULT 0.00`,
+        `ALTER TABLE orders ADD COLUMN cash_refund_note TEXT NULL`,
+    ];
+    for (const sql of cols) {
+        try { await sequelize.query(sql); } catch (_) {}
+    }
+}
+
 /**
  * Yorum yanıtlama (satıcı cevabı) sütunları. Eski DB'lerde yoksa eklenir.
  */
@@ -288,6 +316,18 @@ async function ensureReviewSellerReplyColumns() {
     } catch (_) {}
     try {
         await sequelize.query(`ALTER TABLE reviews ADD COLUMN seller_reply_at DATETIME NULL`);
+    } catch (_) {}
+}
+
+/**
+ * Yorum silme isteği sütunları. Satıcı admin'den yorum silme talep edebilir.
+ */
+async function ensureReviewDeletionColumns() {
+    try {
+        await sequelize.query(`ALTER TABLE reviews ADD COLUMN deletion_requested TINYINT(1) NOT NULL DEFAULT 0`);
+    } catch (_) {}
+    try {
+        await sequelize.query(`ALTER TABLE reviews ADD COLUMN deletion_rejected TINYINT(1) NOT NULL DEFAULT 0`);
     } catch (_) {}
 }
 
@@ -328,6 +368,9 @@ module.exports = {
     ensureCourierSellerIdColumn,
     ensureCourierInviteColumns,
     ensureOrderIsPoolRequestedColumn,
+    ensureCouponColumns,
+    ensureOrderExtraColumns,
     ensureReviewSellerReplyColumns,
+    ensureReviewDeletionColumns,
     ensurePushSubscriptionsTable
 };

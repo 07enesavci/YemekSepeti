@@ -79,7 +79,10 @@ try {
                 ensureSellerOwnCouriersColumn,
                 ensureCourierSellerIdColumn,
                 ensureOrderIsPoolRequestedColumn,
+                ensureOrderExtraColumns,
+                ensureCouponColumns,
                 ensureReviewSellerReplyColumns,
+                ensureReviewDeletionColumns,
                 ensurePushSubscriptionsTable
             } = require('./config/sequelize');
             const useAlterSync = process.env.SEQUELIZE_ALTER_SYNC === 'true';
@@ -99,7 +102,11 @@ try {
                     await ensureUserOptionalColumns();
                     await ensureSellerOwnCouriersColumn();
                     await ensureCourierSellerIdColumn();
+                    await ensureOrderIsPoolRequestedColumn();
+                    await ensureOrderExtraColumns();
+                    await ensureCouponColumns();
                     await ensureReviewSellerReplyColumns();
+                    await ensureReviewDeletionColumns();
                     await ensurePushSubscriptionsTable();
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
@@ -125,7 +132,10 @@ try {
                             await ensureSellerOwnCouriersColumn();
                             await ensureCourierSellerIdColumn();
                             await ensureOrderIsPoolRequestedColumn();
+                            await ensureOrderExtraColumns();
+                            await ensureCouponColumns();
                             await ensureReviewSellerReplyColumns();
+                            await ensureReviewDeletionColumns();
                             await ensurePushSubscriptionsTable();
                             console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
                         });
@@ -858,6 +868,8 @@ try {
     app.get("/admin/menu-control", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/menu-control", { title: "Menü Kontrol", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/uzak-mesafe-menu-control", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/uzak-mesafe-menu-control", { title: "Uzak Mesafe Menü Kontrol", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/reports", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/reports", { title: "Raporlar", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/review-requests", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/review-requests", { title: "Dükkan Yorumları", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/settings", requireRole(['admin','super_admin']), (req, res) => res.render("admin/settings", { title: "Ayarlar", pageCss: "admin.css", pageJs: "admin.js" }));
 
     // --- HATA YAKALAMA FONKSİYONLARI ---
     function renderError(res, error, pageName) {

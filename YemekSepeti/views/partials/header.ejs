@@ -65,6 +65,7 @@
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/earnings` : '/seller/earnings' %>" class="header-user-menu-item">💰 Kazançlar</a>
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/profile` : '/seller/profile' %>" class="header-user-menu-item">🏪 Dükkan Profili</a>
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/coupons` : '/seller/coupons' %>" class="header-user-menu-item">🎫 Kuponlar</a>
+                            <a href="/seller/reviews" class="header-user-menu-item">⭐ Yorumlar</a>
                             <button type="button" class="header-user-menu-item danger" id="header-logout-btn">🚪 Çıkış Yap</button>
                         </div>
                     </li>
@@ -162,10 +163,20 @@
                                     <span style="font-size: 1.25rem; width: 28px; text-align: center;">🎟️</span> 
                                     <span style="font-size: 0.9rem; font-weight: 500;">Kuponlar</span>
                                 </a>
+                                <a href="/admin/review-requests" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">⭐</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Dükkan Yorumları</span>
+                                </a>
                                 <a href="/admin/reports" class="header-user-menu-item" style="padding: 8px 10px;">
-                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">📊</span> 
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">📊</span>
                                     <span style="font-size: 0.9rem; font-weight: 500;">Raporlar</span>
                                 </a>
+                                <% if (user.role === 'admin' || user.role === 'super_admin') { %>
+                                <a href="/admin/settings" class="header-user-menu-item" style="padding: 8px 10px;">
+                                    <span style="font-size: 1.25rem; width: 28px; text-align: center;">⚙️</span>
+                                    <span style="font-size: 0.9rem; font-weight: 500;">Ayarlar</span>
+                                </a>
+                                <% } %>
                             </div>
                             
                             <div style="height: 1px; background: var(--border-color); margin: 0 0.5rem 0.75rem; opacity: 0.6;"></div>

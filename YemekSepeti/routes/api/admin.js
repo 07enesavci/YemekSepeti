@@ -354,9 +354,8 @@ router.get("/coupons", async (req, res) => {
             params.push(`%${search.trim()}%`, `%${search.trim()}%`);
         }
         if (conditions.length > 0) sql += " WHERE " + conditions.join(" AND ");
-        // LIMIT ve OFFSET parametrik olarak bağlanıyor
-        sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-        params.push(safeLimit, safeOffset);
+        // LIMIT/OFFSET integer olarak doğrudan gömülür (mysql2 prepared stmt uyumsuzluğu)
+        sql += ` ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
         const rows = await db.query(sql, params);
         if (!Array.isArray(rows)) {
             return res.json([]);
@@ -878,7 +877,7 @@ router.get("/all-couriers", requireRole(['admin','super_admin','support']), asyn
                 COALESCE(u.courier_status, 'offline') as courier_status,
                 u.last_latitude, u.last_longitude,
                 c.id as courier_id, c.is_active as courier_is_active,
-                c.vehicle_type, c.seller_id
+                u.vehicle_type, c.seller_id
             FROM users u
             LEFT JOIN couriers c ON c.user_id = u.id
             WHERE u.role = 'courier'
@@ -1391,5 +1390,103 @@ router.delete("/menu-items/:id", requireRole(['admin','super_admin','support']),
     }
 });
 // --- ADMİN MENÜ KONTROL BİTİŞ ---
+
+// --- YORUM SİLME İSTEKLERİ ---
+router.get("/review-deletion-requests", async (req, res) => {
+    try {
+        const [rows] = await sequelize.query(`
+            SELECT r.id, r.rating, r.comment, r.created_at, r.seller_id,
+                   u.fullname AS user_name, s.shop_name AS seller_name
+            FROM reviews r
+            LEFT JOIN users u ON r.user_id = u.id
+            LEFT JOIN sellers s ON r.seller_id = s.id
+            WHERE r.deletion_requested = 1 AND r.is_visible = 1
+            ORDER BY r.created_at DESC
+        `);
+        res.json({ success: true, requests: rows });
+    } catch (err) {
+        console.error("Admin review deletion requests error:", err);
+        res.status(500).json({ success: false, message: "Veriler alınamadı.", _debug: err.message });
+    }
+});
+
+router.post("/reviews/:id/approve-deletion", async (req, res) => {
+    try {
+        const reviewId = parseInt(req.params.id);
+        const review = await Review.findOne({ where: { id: reviewId, deletion_requested: 1, is_visible: true } });
+        if (!review) return res.status(404).json({ success: false, message: "Yorum bulunamadı veya istek aktif değil." });
+        await review.update({ is_visible: false, deletion_requested: 0 });
+        await recalculateSellerRatings([review.seller_id]);
+        res.json({ success: true, message: "Yorum silindi." });
+    } catch (err) {
+        console.error("Admin approve deletion error:", err);
+        res.status(500).json({ success: false, message: "İşlem başarısız." });
+    }
+});
+
+router.post("/reviews/:id/reject-deletion", async (req, res) => {
+    try {
+        const reviewId = parseInt(req.params.id);
+        const review = await Review.findOne({ where: { id: reviewId, deletion_requested: 1, is_visible: true } });
+        if (!review) return res.status(404).json({ success: false, message: "Yorum bulunamadı veya istek aktif değil." });
+        await review.update({ deletion_requested: 0, deletion_rejected: 1 });
+        res.json({ success: true, message: "Silme isteği reddedildi." });
+    } catch (err) {
+        console.error("Admin reject deletion error:", err);
+        res.status(500).json({ success: false, message: "İşlem başarısız." });
+    }
+});
+// --- YORUM SİLME İSTEKLERİ BİTİŞ ---
+
+// --- ADMIN AYARLARI ---
+router.post("/settings/change-password", async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword)
+            return res.status(400).json({ success: false, message: "Tüm alanlar zorunludur." });
+        if (newPassword.length < 6)
+            return res.status(400).json({ success: false, message: "Yeni şifre en az 6 karakter olmalıdır." });
+
+        const user = await User.findByPk(req.session.user.id, { attributes: ['id', 'password'] });
+        if (!user) return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+
+        const isValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isValid) return res.status(401).json({ success: false, message: "Mevcut şifre yanlış." });
+
+        const hashed = await bcrypt.hash(newPassword, 10);
+        await user.update({ password: hashed });
+
+        req.session.destroy(() => {});
+        res.json({ success: true, message: "Şifre güncellendi. Lütfen tekrar giriş yapın." });
+    } catch (err) {
+        console.error("Admin change-password error:", err);
+        res.status(500).json({ success: false, message: "Şifre değiştirilemedi." });
+    }
+});
+
+router.post("/settings/update-profile", async (req, res) => {
+    try {
+        const { fullname, email } = req.body;
+        if (!fullname || !email)
+            return res.status(400).json({ success: false, message: "Ad ve e-posta zorunludur." });
+
+        const emailTrimmed = email.trim().toLowerCase();
+        const existing = await User.findOne({ where: { email: emailTrimmed } });
+        if (existing && existing.id !== req.session.user.id)
+            return res.status(400).json({ success: false, message: "Bu e-posta başka bir hesapta kullanılıyor." });
+
+        await User.update({ fullname: fullname.trim(), email: emailTrimmed }, { where: { id: req.session.user.id } });
+
+        req.session.user.fullname = fullname.trim();
+        req.session.user.email = emailTrimmed;
+        req.session.save(() => {});
+
+        res.json({ success: true, message: "Profil güncellendi." });
+    } catch (err) {
+        console.error("Admin update-profile error:", err);
+        res.status(500).json({ success: false, message: "Profil güncellenemedi." });
+    }
+});
+// --- ADMIN AYARLARI BİTİŞ ---
 
 module.exports = router;

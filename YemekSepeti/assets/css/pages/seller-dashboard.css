@@ -51,6 +51,7 @@
     
     .panel-sidebar {
         flex-basis: auto;
+        min-height: 0;
         height: auto;
         position: relative;
         width: 100%;

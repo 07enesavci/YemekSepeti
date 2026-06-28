@@ -225,9 +225,10 @@ document.addEventListener("DOMContentLoaded", function ()
             var email=document.getElementById("email").value.trim();
             var password=document.getElementById("password").value;
             var confirm=document.getElementById("confirm-password").value;
-            var roleElement=document.querySelector("input[name='user-role']:checked");
+            var roleElement = document.querySelector("input[name='user-role']:checked") ||
+                             document.querySelector("input[name='user-role'][type='hidden']");
             var role;
-            if (roleElement) 
+            if (roleElement)
             {
                 role=roleElement.value;
             }
@@ -243,9 +244,9 @@ document.addEventListener("DOMContentLoaded", function ()
                 alert("Şifreler eşleşmiyor.");
                 return;
             }
-            if (password.length < 6) 
+            if (password.length < 8)
             {
-                alert("Şifre en az 6 karakter olmalı.");
+                alert("Şifre en az 8 karakter olmalıdır.");
                 return;
             }
 

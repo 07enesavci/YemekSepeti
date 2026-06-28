@@ -45,6 +45,14 @@ module.exports=(sequelize, DataTypes)=>{
         seller_reply_at: {
             type: DataTypes.DATE,
             allowNull: true
+        },
+        deletion_requested: {
+            type: DataTypes.TINYINT,
+            defaultValue: 0
+        },
+        deletion_rejected: {
+            type: DataTypes.TINYINT,
+            defaultValue: 0
         }
     }, {
         tableName: 'reviews',

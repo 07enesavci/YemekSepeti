@@ -101,6 +101,15 @@
         font-size: 1rem;
     }
     
+    .notifications-dropdown {
+        position: static;
+        width: 100%;
+        max-width: 100%;
+        margin-top: 0.5rem;
+        box-shadow: none;
+        border: 1px solid var(--border-color);
+    }
+    
     /* Overlay */
     .nav-overlay {
         display: none;
@@ -345,33 +354,33 @@
    9. TABLES RESPONSIVE
    ============================================ */
 @media (max-width: 768px) {
-    table {
+    table:not(.panel-table) {
         display: block;
         overflow-x: auto;
         white-space: nowrap;
         -webkit-overflow-scrolling: touch;
     }
-    
-    thead {
+
+    table:not(.panel-table) thead {
         display: none;
     }
-    
-    tbody tr {
+
+    table:not(.panel-table) tbody tr {
         display: block;
         margin-bottom: 1rem;
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius-small);
         padding: 1rem;
     }
-    
-    tbody td {
+
+    table:not(.panel-table) tbody td {
         display: flex;
         justify-content: space-between;
         padding: 0.5rem 0;
         border: none;
     }
-    
-    tbody td::before {
+
+    table:not(.panel-table) tbody td::before {
         content: attr(data-label);
         font-weight: 600;
         color: var(--secondary-color);
@@ -411,6 +420,7 @@
     
     .panel-sidebar {
         width: 100%;
+        min-height: 0;
         position: static;
         height: auto;
         margin-bottom: 2rem;
@@ -593,7 +603,7 @@ img {
         justify-content: center;
     }
     
-    input, select, textarea {
+    input:not([type="checkbox"]), select, textarea {
         min-height: 44px;
     }
 }

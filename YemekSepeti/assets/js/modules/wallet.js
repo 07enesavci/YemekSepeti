@@ -657,6 +657,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         await renderSavedCards();
     }
 
+    // Ana sayfadaki banner'dan yönlendirme varsa kuponlar bölümüne scroll yap
+    if (window.location.hash === '#coupons-section') {
+        const target = document.getElementById('coupons-section');
+        if (target) {
+            setTimeout(function() {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 400);
+        }
+    }
+
     function initWalletSocket() {
         if (!window.__socketManager) {
             setTimeout(initWalletSocket, 300);

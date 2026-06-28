@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css">
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css?v=20260629-mobilefix1">
 
 <div class="panel-layout">
     <%- include('../partials/sidebar') %>
@@ -8,6 +8,15 @@
 
         <div class="card">
             <div class="card-content">
+                <!-- Sıralama kontrolleri -->
+                <div id="reviews-sort-bar" style="display:none;margin-bottom:1rem;display:flex;gap:0.5rem;flex-wrap:nowrap;align-items:center;overflow-x:auto;padding-bottom:5px;white-space:nowrap;-webkit-overflow-scrolling: touch;">
+                    <span style="font-size:0.88rem;color:#666;margin-right:0.2rem;flex-shrink:0;">Sırala:</span>
+                    <button class="btn btn-sm btn-secondary sort-btn active-sort" data-sort="date-desc" style="flex-shrink:0;">📅 En Yeni</button>
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="date-asc" style="flex-shrink:0;">📅 En Eski</button>
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="rating-desc" style="flex-shrink:0;">⭐ Puan Yüksek</button>
+                    <button class="btn btn-sm btn-secondary sort-btn" data-sort="rating-asc" style="flex-shrink:0;">⭐ Puan Düşük</button>
+                </div>
+
                 <div id="seller-reviews-loading" style="text-align:center; padding:2rem; color:#666;">Yorumlar yükleniyor...</div>
                 <div id="seller-reviews-empty" style="display:none; text-align:center; padding:2rem; color:#666;">
                     <p>Henüz müşteri yorumu yok.</p>
@@ -18,9 +27,36 @@
     </main>
 </div>
 
+<style>
+.review-item.deletion-pending {
+    opacity: 0.55;
+}
+.review-item.deletion-pending .review-comment {
+    text-decoration: line-through;
+    color: #999;
+}
+.deletion-badge {
+    display:inline-block;
+    margin-left:0.5rem;
+    font-size:0.78rem;
+    background:#f0ad4e;
+    color:#fff;
+    border-radius:4px;
+    padding:1px 6px;
+    vertical-align:middle;
+}
+.sort-btn.active-sort {
+    background: var(--primary-color, #e74c3c);
+    color: #fff;
+    border-color: var(--primary-color, #e74c3c);
+}
+</style>
+
 <script>
 (function() {
     const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+    let allReviews = [];
+    let currentSort = 'date-desc';
 
     function escapeHtml(s) {
         if (!s) return '';
@@ -42,66 +78,146 @@
         return dt.toLocaleDateString('tr-TR') + ' ' + dt.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     }
 
+    function sortReviews(reviews, sort) {
+        const arr = reviews.slice();
+        if (sort === 'date-desc') arr.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        else if (sort === 'date-asc') arr.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        else if (sort === 'rating-desc') arr.sort((a, b) => b.rating - a.rating || new Date(b.createdAt) - new Date(a.createdAt));
+        else if (sort === 'rating-asc') arr.sort((a, b) => a.rating - b.rating || new Date(b.createdAt) - new Date(a.createdAt));
+        return arr;
+    }
+
+    function renderReviewItem(r) {
+        const isPending = r.deletionRequested;
+        const isRejected = r.deletionRejected;
+        const itemClass = isPending ? 'review-item deletion-pending' : 'review-item';
+
+        const replyHtml = r.sellerReply ? `
+            <div class="existing-reply" style="margin-top:0.6rem; padding:0.6rem 0.8rem; background:var(--bg-color, #f8f9fa); border-left:3px solid var(--primary-color, #e74c3c); border-radius:4px;">
+                <div style="font-size:0.85rem; color:#666; margin-bottom:0.3rem;">
+                    <strong>Yanıtınız</strong> · ${formatDate(r.sellerReplyAt)}
+                </div>
+                <p style="margin:0 0 0.5rem 0;">${escapeHtml(r.sellerReply)}</p>
+                <div style="display:flex; gap:0.4rem;">
+                    <button class="btn btn-sm btn-secondary" data-action="edit">Düzenle</button>
+                    <button class="btn btn-sm btn-outline-danger" data-action="delete-reply">Yanıtı Sil</button>
+                </div>
+            </div>
+        ` : `<button class="btn btn-sm btn-primary" data-action="reply">Yanıt Yaz</button>`;
+
+        let deleteBtn = '';
+        if (isPending) {
+            deleteBtn = `<button class="btn btn-sm btn-secondary" disabled style="opacity:0.6;cursor:not-allowed;">Silme İsteği Bekliyor</button>`;
+        } else if (isRejected) {
+            deleteBtn = `<button class="btn btn-sm btn-secondary" disabled style="opacity:0.5;cursor:not-allowed;" title="Admin bu silme isteğini reddetti.">Yorumu Sil</button>`;
+        } else {
+            deleteBtn = `<button class="btn btn-sm btn-outline-danger" data-action="request-delete">Yorumu Sil</button>`;
+        }
+
+        const pendingBadge = isPending ? '<span class="deletion-badge">Admine Silme İsteği İletildi</span>' : '';
+
+        return `
+            <div class="${itemClass}" data-review-id="${r.id}" style="padding:1rem 0; border-bottom:1px solid var(--border-color, #eee);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.4rem;">
+                    <div>
+                        <span style="color:#f5a623; font-size:1.1rem;">${renderStars(r.rating)}</span>
+                        <strong style="margin-left:0.5rem;">${escapeHtml(r.userName)}</strong>
+                        ${pendingBadge}
+                    </div>
+                    <span style="font-size:0.85rem; color:#888;">${formatDate(r.createdAt)}</span>
+                </div>
+                ${r.comment ? `<p class="review-comment" style="margin:0 0 0.6rem 0;">${escapeHtml(r.comment)}</p>` : '<p class="review-comment" style="margin:0 0 0.6rem 0; color:#999; font-style:italic;">(Yorum yok)</p>'}
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:flex-start;">
+                    <div class="reply-area" data-id="${r.id}" style="flex:1; min-width:200px;">
+                        ${replyHtml}
+                    </div>
+                    <div class="delete-area" style="flex-shrink:0;">
+                        ${deleteBtn}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderList() {
+        const listEl = document.getElementById('seller-reviews-list');
+        const sorted = sortReviews(allReviews, currentSort);
+        listEl.innerHTML = sorted.map(renderReviewItem).join('');
+    }
+
     async function loadReviews() {
         const loadingEl = document.getElementById('seller-reviews-loading');
         const emptyEl = document.getElementById('seller-reviews-empty');
         const listEl = document.getElementById('seller-reviews-list');
+        const sortBar = document.getElementById('reviews-sort-bar');
+        loadingEl.style.display = 'block';
+        emptyEl.style.display = 'none';
+        listEl.style.display = 'none';
+        sortBar.style.display = 'none';
         try {
             const res = await fetch(baseUrl + '/api/reviews/mine', { credentials: 'include' });
             const data = await res.json();
             loadingEl.style.display = 'none';
-            const reviews = data.reviews || [];
-            if (reviews.length === 0) {
+            allReviews = data.reviews || [];
+            if (allReviews.length === 0) {
                 emptyEl.style.display = 'block';
                 return;
             }
+            sortBar.style.display = 'flex';
             listEl.style.display = 'block';
-            listEl.innerHTML = reviews.map(r => `
-                <div class="review-item" data-review-id="${r.id}" style="padding:1rem 0; border-bottom:1px solid var(--border-color, #eee);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
-                        <div>
-                            <span style="color:#f5a623; font-size:1.1rem;">${renderStars(r.rating)}</span>
-                            <strong style="margin-left:0.5rem;">${escapeHtml(r.userName)}</strong>
-                        </div>
-                        <span style="font-size:0.85rem; color:#888;">${formatDate(r.createdAt)}</span>
-                    </div>
-                    ${r.comment ? `<p style="margin:0 0 0.6rem 0;">${escapeHtml(r.comment)}</p>` : '<p style="margin:0 0 0.6rem 0; color:#999; font-style:italic;">(Yorum yok)</p>'}
-                    <div class="reply-area" data-id="${r.id}">
-                        ${r.sellerReply ? `
-                            <div class="existing-reply" style="margin-top:0.6rem; padding:0.6rem 0.8rem; background:var(--bg-color, #f8f9fa); border-left:3px solid var(--primary-color, #e74c3c); border-radius:4px;">
-                                <div style="font-size:0.85rem; color:#666; margin-bottom:0.3rem;">
-                                    <strong>Yanıtınız</strong> · ${formatDate(r.sellerReplyAt)}
-                                </div>
-                                <p style="margin:0 0 0.5rem 0;">${escapeHtml(r.sellerReply)}</p>
-                                <div style="display:flex; gap:0.4rem;">
-                                    <button class="btn btn-sm btn-secondary" data-action="edit">Düzenle</button>
-                                    <button class="btn btn-sm btn-outline-danger" data-action="delete">Sil</button>
-                                </div>
-                            </div>
-                        ` : `
-                            <button class="btn btn-sm btn-primary" data-action="reply">Yanıt Yaz</button>
-                        `}
-                    </div>
-                </div>
-            `).join('');
-
-            listEl.addEventListener('click', handleReplyAction);
+            renderList();
         } catch (e) {
             loadingEl.textContent = 'Yorumlar yüklenemedi.';
         }
     }
 
-    function handleReplyAction(e) {
+    function handleListClick(e) {
         const btn = e.target.closest('button[data-action]');
         if (!btn) return;
-        const area = btn.closest('.reply-area');
-        const id = parseInt(area.dataset.id, 10);
         const action = btn.dataset.action;
+
+        if (action === 'request-delete') {
+            const item = btn.closest('.review-item');
+            const reviewId = parseInt(item.dataset.reviewId, 10);
+            requestDelete(reviewId, item);
+            return;
+        }
+
+        const area = btn.closest('.reply-area');
+        if (!area) return;
+        const id = parseInt(area.dataset.id, 10);
+
         if (action === 'reply' || action === 'edit') {
             const existing = action === 'edit' ? area.querySelector('.existing-reply p').textContent : '';
             showReplyForm(area, id, existing);
-        } else if (action === 'delete') {
+        } else if (action === 'delete-reply') {
             deleteReply(id);
+        }
+    }
+
+    async function requestDelete(reviewId, itemEl) {
+        const ok = window.showConfirm
+            ? await window.showConfirm('Bu yorumun silinmesi için admine istek göndermek istiyor musunuz?')
+            : confirm('Bu yorumun silinmesi için admine istek göndermek istiyor musunuz?');
+        if (!ok) return;
+
+        try {
+            const res = await fetch(baseUrl + '/api/reviews/mine/' + reviewId + '/request-deletion', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Listedeki veriyi güncelle ve yeniden render et
+                const review = allReviews.find(r => r.id === reviewId);
+                if (review) review.deletionRequested = true;
+                renderList();
+                window.showToast ? window.showToast('Silme isteği admine iletildi.', 'success') : alert('Silme isteği admine iletildi.');
+            } else {
+                alert(data.message || 'İstek gönderilemedi.');
+            }
+        } catch (e) {
+            alert('İstek gönderilemedi.');
         }
     }
 
@@ -129,18 +245,17 @@
                 body: JSON.stringify({ reply: text })
             });
             const data = await res.json();
-            if (data.success) {
-                loadReviews();
-            } else {
-                alert(data.message || 'Yanıt kaydedilemedi.');
-            }
+            if (data.success) loadReviews();
+            else alert(data.message || 'Yanıt kaydedilemedi.');
         } catch (e) {
             alert('Yanıt kaydedilemedi.');
         }
     }
 
     async function deleteReply(reviewId) {
-        const ok = window.showConfirm ? await window.showConfirm('Yanıtınızı silmek istediğinize emin misiniz?') : window.confirm('Silinsin mi?');
+        const ok = window.showConfirm
+            ? await window.showConfirm('Yanıtınızı silmek istediğinize emin misiniz?')
+            : confirm('Silinsin mi?');
         if (!ok) return;
         try {
             const res = await fetch(baseUrl + '/api/reviews/' + reviewId + '/reply', {
@@ -155,6 +270,19 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', loadReviews);
+    document.addEventListener('DOMContentLoaded', function() {
+        loadReviews();
+
+        document.getElementById('seller-reviews-list').addEventListener('click', handleListClick);
+
+        document.querySelectorAll('.sort-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active-sort'));
+                btn.classList.add('active-sort');
+                currentSort = btn.dataset.sort;
+                renderList();
+            });
+        });
+    });
 })();
 </script>

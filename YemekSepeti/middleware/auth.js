@@ -221,19 +221,14 @@ function requireRole(allowedRoles)
 	}
 	
 	return (req, res, next)=>{
-		if (!req.session) 
+		const originalUrl = req.originalUrl || req.url || '';
+		const isApiPath = originalUrl.startsWith('/api/');
+
+		if (!req.session)
 		{
-			if (req.method==='GET') 
+			if (req.method==='GET' && !isApiPath)
 			{
-				if (!req.path.startsWith('/api/')) 
-				{
-					var redirectUrl=req.originalUrl;
-					if (!redirectUrl) 
-					{
-						redirectUrl=req.url;
-					}
-					return res.redirect('/login?redirect=' + encodeURIComponent(redirectUrl));
-				}
+				return res.redirect('/login?redirect=' + encodeURIComponent(originalUrl));
 			}
 			return res.status(401).json({
 				success: false,
@@ -241,19 +236,11 @@ function requireRole(allowedRoles)
 			});
 		}
 
-		if (!req.session.isAuthenticated) 
+		if (!req.session.isAuthenticated)
 		{
-			if (req.method==='GET') 
+			if (req.method==='GET' && !isApiPath)
 			{
-				if (!req.path.startsWith('/api/')) 
-				{
-					var redirectUrl2=req.originalUrl;
-					if (!redirectUrl2) 
-					{
-						redirectUrl2=req.url;
-					}
-					return res.redirect('/login?redirect=' + encodeURIComponent(redirectUrl2));
-				}
+				return res.redirect('/login?redirect=' + encodeURIComponent(originalUrl));
 			}
 			return res.status(401).json({
 				success: false,
@@ -261,19 +248,11 @@ function requireRole(allowedRoles)
 			});
 		}
 
-		if (!req.session.user) 
+		if (!req.session.user)
 		{
-			if (req.method==='GET') 
+			if (req.method==='GET' && !isApiPath)
 			{
-				if (!req.path.startsWith('/api/')) 
-				{
-					var redirectUrl3=req.originalUrl;
-					if (!redirectUrl3) 
-					{
-						redirectUrl3=req.url;
-					}
-					return res.redirect('/login?redirect=' + encodeURIComponent(redirectUrl3));
-				}
+				return res.redirect('/login?redirect=' + encodeURIComponent(originalUrl));
 			}
 			return res.status(401).json({
 				success: false,
@@ -493,13 +472,17 @@ function blockShoppingApisOnPanelHosts(req, res, next) {
         if (dt !== 'admin' && dt !== 'partner') return next();
         const full = (req.originalUrl && String(req.originalUrl).split('?')[0]) || req.path || '';
         if (full.indexOf('/api/') !== 0) return next();
+        // /api/reviews/mine* ve /api/reviews/:id/reply satıcı panelinden çağrılır — izin ver
+        const isSellerReviewApi = full === '/api/reviews/mine' ||
+            /^\/api\/reviews\/mine\/\d+\/request-deletion$/.test(full) ||
+            /^\/api\/reviews\/\d+\/reply$/.test(full);
         if (
             full.startsWith('/api/buyer') ||
             full.startsWith('/api/cart') ||
             full === '/api/sellers' ||
             full.startsWith('/api/sellers/') ||
             full.startsWith('/api/favorites') ||
-            full.startsWith('/api/reviews')
+            (full.startsWith('/api/reviews') && !isSellerReviewApi)
         ) {
             return res.status(403).json({
                 success: false,

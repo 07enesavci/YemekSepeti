@@ -25,7 +25,9 @@
                             <input type="checkbox" id="remember-me">
                             <label for="remember-me">Beni Hatırla</label>
                         </div>
+                        <% if (typeof authType === 'undefined' || authType !== 'admin') { %>
                         <a href="/forgot-password" class="form-link">Şifremi Unuttum</a>
+                        <% } %>
                     </div>
                     
                     <button type="submit" class="btn btn-primary btn-full"> Giriş Yap</button>

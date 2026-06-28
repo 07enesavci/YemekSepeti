@@ -55,13 +55,13 @@ router.get('/mine', requireAuth, requireRole('seller'), async (req, res) => {
     try {
         const seller = await Seller.findOne({ where: { user_id: req.session.user.id }, attributes: ['id'] });
         if (!seller) return res.status(404).json({ success: false, message: 'Satıcı kaydı bulunamadı.' });
-        const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+        const limit = Math.min(parseInt(req.query.limit) || 100, 200);
         const reviews = await Review.findAll({
             where: { seller_id: seller.id, is_visible: true },
             include: [{ model: User, as: 'user', attributes: ['fullname'] }],
             order: [['created_at', 'DESC']],
             limit,
-            attributes: ['id', 'rating', 'comment', 'created_at', 'seller_reply', 'seller_reply_at']
+            attributes: ['id', 'rating', 'comment', 'created_at', 'seller_reply', 'seller_reply_at', 'deletion_requested', 'deletion_rejected']
         });
         const list = reviews.map(r => ({
             id: r.id,
@@ -70,12 +70,36 @@ router.get('/mine', requireAuth, requireRole('seller'), async (req, res) => {
             userName: maskFullname(r.user ? r.user.fullname : null),
             createdAt: r.created_at,
             sellerReply: r.seller_reply || null,
-            sellerReplyAt: r.seller_reply_at || null
+            sellerReplyAt: r.seller_reply_at || null,
+            deletionRequested: !!r.deletion_requested,
+            deletionRejected: !!r.deletion_rejected
         }));
         res.json({ success: true, reviews: list });
     } catch (err) {
         console.error('Seller own reviews error:', err);
         res.status(500).json({ success: false, message: 'Yorumlar yüklenemedi.', reviews: [] });
+    }
+});
+
+// Satıcı: yorumu silme isteği gönder (admin onaylayacak)
+router.post('/mine/:id/request-deletion', requireAuth, requireRole('seller'), async (req, res) => {
+    try {
+        const reviewId = parseInt(req.params.id);
+        if (!reviewId) return res.status(400).json({ success: false, message: 'Geçersiz yorum ID.' });
+        const seller = await Seller.findOne({ where: { user_id: req.session.user.id }, attributes: ['id'] });
+        if (!seller) return res.status(403).json({ success: false, message: 'Satıcı yetkisi yok.' });
+        const review = await Review.findOne({
+            where: { id: reviewId, seller_id: seller.id, is_visible: true },
+            attributes: ['id', 'deletion_requested', 'deletion_rejected']
+        });
+        if (!review) return res.status(404).json({ success: false, message: 'Yorum bulunamadı.' });
+        if (review.deletion_rejected) return res.status(400).json({ success: false, message: 'Bu yorum için silme isteği daha önce reddedildi.' });
+        if (review.deletion_requested) return res.status(400).json({ success: false, message: 'Bu yorum için zaten silme isteği var.' });
+        await Review.update({ deletion_requested: 1 }, { where: { id: reviewId } });
+        res.json({ success: true, message: 'Silme isteği admin\'e iletildi.' });
+    } catch (err) {
+        console.error('Review deletion request error:', err);
+        res.status(500).json({ success: false, message: 'İstek gönderilemedi.' });
     }
 });
 

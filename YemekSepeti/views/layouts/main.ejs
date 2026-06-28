@@ -15,8 +15,7 @@
         (function() {
             try {
                 const savedTheme = localStorage.getItem('ys-theme');
-                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+                const initialTheme = savedTheme || 'light';
                 document.documentElement.setAttribute('data-theme', initialTheme);
             } catch (err) {
                 document.documentElement.setAttribute('data-theme', 'light');
@@ -31,7 +30,7 @@
     <link rel="stylesheet" href="/assets/css/main.css">
     <link rel="stylesheet" href="/assets/css/layout.css?v=20260410-overlayfix">
     <link rel="stylesheet" href="/assets/css/components.css">
-    <link rel="stylesheet" href="/assets/css/responsive.css">
+    <link rel="stylesheet" href="/assets/css/responsive.css?v=20260629-mobilefix1">
     <link rel="stylesheet" href="/assets/css/pages/floating-cart.css">
     <link rel="stylesheet" href="/assets/css/pages/loading.css">
     <link rel="manifest" href="/manifest.json" id="app-manifest">
@@ -103,11 +102,13 @@
     <script src="/assets/js/modules/delivery-area-modal.js?v=20260410-panelfix1"></script>
     <% } %>
 
+    <script src="/assets/js/modules/ys-select.js"></script>
+
     <% if (typeof pageJs !== 'undefined' && (pageJs === 'courier.js' || pageJs === 'seller-profile.js')) { %>
         <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
     <% } %>
     <% if (typeof pageJs !== 'undefined' && pageJs) { %>
-        <script src="/assets/js/modules/<%= pageJs %>?v=20260510-sockfix1"></script>
+        <script src="/assets/js/modules/<%= pageJs %>?v=20260629-reviewdel1"></script>
     <% } %>
 
     <script>

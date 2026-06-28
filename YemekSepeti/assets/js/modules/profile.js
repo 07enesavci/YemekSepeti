@@ -103,16 +103,6 @@ const BUYER_API = {
         }
     }
 };
-// window.formatTL yoksa TL formatlama için yedek biçim
-const formatTL = window.formatTL || function(amount) {
-    return (amount || 0).toLocaleString('tr-TR', {
-        style: 'currency',
-        currency: 'TRY',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-};
-
 async function reverseGeocode(lat, lng) {
     try {
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=tr`);

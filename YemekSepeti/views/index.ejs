@@ -15,42 +15,10 @@
 
 <section class="container section-padding" style="background: transparent;">
     <!-- Fırsatlar/Kuponlar Banner -->
-    <div class="promotions-banner" title="İndirimli restoranları gör">
+    <div class="promotions-banner" id="promotions-banner" title="Kuponlarımı gör" style="cursor: pointer;">
         <div class="promotions-wrapper">
             <div class="promotions-track" id="promotions-track">
-                <div class="promotion-item">
-                    <span class="promo-badge">🔥 Özel Fırsat</span>
-                    <span class="promo-text">Seçili restoranlarda 300TL üzerine 100TL indirim!</span>
-                </div>
-                <div class="promotion-item">
-                    <span class="promo-badge">💰 %10 İndirim</span>
-                    <span class="promo-text">Tüm restoranlarda geçerli %10 indirim kazanın!</span>
-                </div>
-                <div class="promotion-item">
-                    <span class="promo-badge">🎁 İlk Sipariş</span>
-                    <span class="promo-text">İlk siparişinizde %15 indirim fırsatı!</span>
-                </div>
-                <div class="promotion-item">
-                    <span class="promo-badge">⚡ Hızlı Teslimat</span>
-                    <span class="promo-text">150TL üzeri siparişlerde ücretsiz teslimat!</span>
-                </div>
-                <div class="promotion-item">
-                    <span class="promo-badge">🌟 VIP Üyelik</span>
-                    <span class="promo-text">500TL üzeri siparişlerde %20 ekstra indirim!</span>
-                </div>
-                <div class="promotion-item">
-                    <span class="promo-badge">🍕 Özel Menü</span>
-                    <span class="promo-text">Seçili menülerde 2 alana 1 bedava!</span>
-                </div>
-                <!-- İlk elemanların kopyası (sonsuz döngü için) -->
-                <div class="promotion-item">
-                    <span class="promo-badge">🔥 Özel Fırsat</span>
-                    <span class="promo-text">Seçili restoranlarda 300TL üzerine 100TL indirim!</span>
-                </div>
-                <div class="promotion-item">
-                    <span class="promo-badge">💰 %10 İndirim</span>
-                    <span class="promo-text">Tüm restoranlarda geçerli %10 indirim kazanın!</span>
-                </div>
+                <!-- JS tarafından doldurulur (home.js initPromotionsBanner) -->
             </div>
         </div>
     </div>
@@ -146,6 +114,14 @@
                     <div class="form-group">
                         <label for="filter-location" class="form-label">Konum</label>
                         <input type="text" id="filter-location" class="form-input" placeholder="İlçe / Mahalle ara...">
+                    </div>
+                    
+                    <!-- Sadece Açık Restoranlar -->
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="filter-only-open">
+                            <label for="filter-only-open">🟢 Sadece Açık Restoranlar</label>
+                        </div>
                     </div>
                     
                     <!-- Filtreleri Temizle -->

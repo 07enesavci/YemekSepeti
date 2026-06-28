@@ -1,0 +1,113 @@
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css?v=20260629-mobilefix1">
+<link rel="stylesheet" href="/assets/css/pages/admin.css">
+
+<div class="panel-layout">
+    <%- include('../partials/sidebar') %>
+
+    <main class="panel-content">
+        <h1 class="panel-title">Ayarlar</h1>
+
+        <!-- Profil Güncelle -->
+        <div class="card" style="margin-bottom:1.5rem;">
+            <div class="card-content">
+                <h3 class="checkout-card-title" style="margin-bottom:1.25rem;">Profil Bilgileri</h3>
+                <form id="profile-form">
+                    <div class="form-group">
+                        <label class="form-label">Ad Soyad</label>
+                        <input type="text" id="s-fullname" class="form-input" value="<%= user.fullname %>" maxlength="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">E-posta</label>
+                        <input type="email" id="s-email" class="form-input" value="<%= user.email %>" maxlength="150" required>
+                    </div>
+                    <div id="profile-msg" style="display:none;margin-bottom:0.75rem;padding:0.6rem 0.8rem;border-radius:6px;font-size:0.9rem;"></div>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Şifre Değiştir -->
+        <div class="card">
+            <div class="card-content">
+                <h3 class="checkout-card-title" style="margin-bottom:1.25rem;">Şifre Değiştir</h3>
+                <form id="password-form">
+                    <div class="form-group">
+                        <label class="form-label">Mevcut Şifre</label>
+                        <input type="password" id="s-current-pw" class="form-input" maxlength="128" required autocomplete="current-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Yeni Şifre</label>
+                        <input type="password" id="s-new-pw" class="form-input" maxlength="128" minlength="6" required autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Yeni Şifre (Tekrar)</label>
+                        <input type="password" id="s-confirm-pw" class="form-input" maxlength="128" minlength="6" required autocomplete="new-password">
+                    </div>
+                    <div id="pw-msg" style="display:none;margin-bottom:0.75rem;padding:0.6rem 0.8rem;border-radius:6px;font-size:0.9rem;"></div>
+                    <button type="submit" class="btn btn-primary">Şifreyi Güncelle</button>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+(function() {
+    var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+
+    function showMsg(elId, text, ok) {
+        var el = document.getElementById(elId);
+        el.textContent = text;
+        el.style.display = 'block';
+        el.style.background = ok ? 'rgba(39,174,96,0.12)' : 'rgba(231,76,60,0.12)';
+        el.style.color = ok ? '#1e8449' : '#c0392b';
+        el.style.border = ok ? '1px solid rgba(39,174,96,0.3)' : '1px solid rgba(231,76,60,0.3)';
+    }
+
+    document.getElementById('profile-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var fullname = document.getElementById('s-fullname').value.trim();
+        var email = document.getElementById('s-email').value.trim();
+        if (!fullname || !email) { showMsg('profile-msg', 'Tüm alanları doldurun.', false); return; }
+
+        var btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        fetch(baseUrl + '/api/admin/settings/update-profile', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullname: fullname, email: email })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            showMsg('profile-msg', data.message || (data.success ? 'Güncellendi.' : 'Hata.'), data.success);
+        }).catch(function() { btn.disabled = false; showMsg('profile-msg', 'Bağlantı hatası.', false); });
+    });
+
+    document.getElementById('password-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var current = document.getElementById('s-current-pw').value;
+        var newPw = document.getElementById('s-new-pw').value;
+        var confirm = document.getElementById('s-confirm-pw').value;
+
+        if (!current || !newPw || !confirm) { showMsg('pw-msg', 'Tüm alanları doldurun.', false); return; }
+        if (newPw.length < 6) { showMsg('pw-msg', 'Yeni şifre en az 6 karakter olmalıdır.', false); return; }
+        if (newPw !== confirm) { showMsg('pw-msg', 'Yeni şifreler eşleşmiyor.', false); return; }
+
+        var btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        fetch(baseUrl + '/api/admin/settings/change-password', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPassword: current, newPassword: newPw })
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            btn.disabled = false;
+            showMsg('pw-msg', data.message || (data.success ? 'Şifre güncellendi.' : 'Hata.'), data.success);
+            if (data.success) {
+                document.getElementById('password-form').reset();
+                setTimeout(function() { window.location.href = '/login'; }, 1500);
+            }
+        }).catch(function() { btn.disabled = false; showMsg('pw-msg', 'Bağlantı hatası.', false); });
+    });
+})();
+</script>
