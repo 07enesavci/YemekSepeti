@@ -1,0 +1,45 @@
+<div class="card">
+    <div class="card-content">
+        <h3 class="checkout-card-title">Öneri veya Şikayet Gönder</h3>
+        <p style="color:var(--text-color-light);font-size:0.9rem;margin-top:-0.25rem;">
+            Görüş, öneri ve şikayetlerinizi bize iletin. Ekibimiz en kısa sürede değerlendirecektir.
+        </p>
+
+        <div id="feedback-message" style="display:none;margin:0.75rem 0;padding:0.85rem 1rem;border-radius:8px;text-align:center;font-weight:500;"></div>
+
+        <form id="feedback-form">
+            <div class="form-group">
+                <label class="form-label">Talep Türü *</label>
+                <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-top:0.35rem;">
+                    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                        <input type="radio" name="feedback-type" value="suggestion" checked> 💡 Öneri
+                    </label>
+                    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                        <input type="radio" name="feedback-type" value="complaint"> ⚠️ Şikayet
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="feedback-subject" class="form-label">Konu *</label>
+                <input type="text" id="feedback-subject" class="form-input" maxlength="150" placeholder="Kısa bir başlık" required>
+            </div>
+
+            <div class="form-group">
+                <label for="feedback-msg" class="form-label">Mesajınız *</label>
+                <textarea id="feedback-msg" class="form-input" rows="5" maxlength="3000" placeholder="Detayları buraya yazın (en az 10 karakter)" required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Gönder</button>
+        </form>
+    </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <div class="card-content">
+        <h3 class="checkout-card-title">Önceki Taleplerim</h3>
+        <div id="feedback-my-list">
+            <p style="color:var(--text-color-light);">Yükleniyor…</p>
+        </div>
+    </div>
+</div>

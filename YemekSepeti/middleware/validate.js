@@ -29,7 +29,10 @@ const verifyEmailValidation = [
     body('email').isEmail(),
     body('code').notEmpty().withMessage('Doğrulama kodu gerekli.'),
     body('fullname').optional().trim().isLength({ min: 2 }).withMessage('Ad en az 2 karakter olmalı.'),
-    body('password').optional().isLength({ min: 6 }).withMessage('Şifre en az 6 karakter olmalı.')
+    // Standart şifre politikası: en az 8 karakter, 1 büyük harf, 1 rakam (bkz. lib/passwordPolicy.js)
+    body('password').optional().isLength({ min: 8 }).withMessage('Şifre en az 8 karakter olmalı.')
+        .matches(/[A-Z]/).withMessage('Şifre en az bir büyük harf içermelidir.')
+        .matches(/[0-9]/).withMessage('Şifre en az bir rakam içermelidir.')
 ];
 
 // --- Cart ---

@@ -123,8 +123,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            if (newPassword.length < 6) {
-                alert('Yeni şifre en az 6 karakter olmalıdır.');
+            // Standart şifre politikası: en az 8 karakter, 1 büyük harf, 1 rakam
+            var pwCheck = window.YsUI ? window.YsUI.validatePassword(newPassword) : { ok: newPassword.length >= 8, msg: 'Yeni şifre en az 8 karakter olmalıdır.' };
+            if (!pwCheck.ok) {
+                alert(pwCheck.msg);
                 return;
             }
 

@@ -645,6 +645,405 @@ function kuponDuzenleIslemi(e)
     });
 }
 
+// ============================================================
+// ADMİN SİPARİŞ YÖNETİMİ
+// ============================================================
+var ADMIN_ORDER_STATUS = {
+    pending:     { label: 'Beklemede',      color: '#92400e', bg: '#fef3c7' },
+    confirmed:   { label: 'Onaylandı',      color: '#1e40af', bg: '#dbeafe' },
+    preparing:   { label: 'Hazırlanıyor',   color: '#3730a3', bg: '#e0e7ff' },
+    ready:       { label: 'Hazır',          color: '#065f46', bg: '#d1fae5' },
+    on_delivery: { label: 'Kuryede',        color: '#9a3412', bg: '#ffedd5' },
+    delivered:   { label: 'Teslim Edildi',  color: '#374151', bg: '#f3f4f6' },
+    cancelled:   { label: 'İptal Edildi',   color: '#991b1b', bg: '#fee2e2' }
+};
+// Sipariş akışında bir sonraki adım (müdahale kısayolu için)
+var ADMIN_ORDER_NEXT = {
+    pending: 'confirmed', confirmed: 'preparing', preparing: 'ready',
+    ready: 'on_delivery', on_delivery: 'delivered'
+};
+var adminOrderCurrentGroup = 'all';
+var adminOrderSearch = '';
+var adminOrdersCache = [];
+
+function adminOrderStatusBadge(status) {
+    var s = ADMIN_ORDER_STATUS[status] || { label: status, color: '#374151', bg: '#f3f4f6' };
+    return '<span class="admin-order-badge" style="color:' + s.color + ';background:' + s.bg + ';">' + s.label + '</span>';
+}
+
+function adminEscape(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
+
+function adminOrdersYukle() {
+    var listEl = document.getElementById('admin-orders-list');
+    if (!listEl) return;
+    if (typeof window.getAdminOrders !== 'function') {
+        listEl.innerHTML = '<p style="color:#b91c1c;">Sipariş API bulunamadı.</p>';
+        return;
+    }
+    listEl.innerHTML = '<p style="color:var(--text-color-light);">Siparişler yükleniyor…</p>';
+    var opts = { limit: 100 };
+    if (adminOrderCurrentGroup && adminOrderCurrentGroup !== 'all') opts.group = adminOrderCurrentGroup;
+    if (adminOrderSearch) opts.search = adminOrderSearch;
+    window.getAdminOrders(opts).then(function(res) {
+        if (!res || !res.success) {
+            listEl.innerHTML = '<p style="color:#b91c1c;">Siparişler yüklenemedi.</p>';
+            return;
+        }
+        adminOrdersCache = res.data || [];
+        adminOrdersCiz(adminOrdersCache);
+    });
+}
+
+function adminOrdersCiz(list) {
+    var listEl = document.getElementById('admin-orders-list');
+    if (!listEl) return;
+    if (!list || list.length === 0) {
+        listEl.innerHTML = '<p style="color:var(--text-color-light);">Bu filtrede sipariş bulunmuyor.</p>';
+        return;
+    }
+    var fmt = window.formatTL || function(n){ return (n||0) + ' ₺'; };
+    var html = '';
+    list.forEach(function(o) {
+        var buyerName = o.buyer ? adminEscape(o.buyer.fullname || o.buyer.email || 'Müşteri') : 'Müşteri';
+        var shop = o.seller ? adminEscape(o.seller.shopName || '-') : '-';
+        var courierTxt = o.courier ? ('🛵 ' + adminEscape(o.courier.fullname)) : '';
+        var dateTxt = o.createdAt ? new Date(o.createdAt).toLocaleString('tr-TR') : '';
+        html += '<div class="admin-order-card">'
+            + '<div class="admin-order-card-head">'
+            + '<div><strong>#' + adminEscape(o.orderNumber || o.id) + '</strong> &nbsp; ' + adminOrderStatusBadge(o.status) + '</div>'
+            + '<div><strong>' + fmt(o.totalAmount) + '</strong></div>'
+            + '</div>'
+            + '<div class="admin-order-meta">👤 ' + buyerName + ' &nbsp;•&nbsp; 🏪 ' + shop + (courierTxt ? ' &nbsp;•&nbsp; ' + courierTxt : '') + '</div>'
+            + '<div class="admin-order-meta">' + dateTxt + '</div>'
+            + '<div class="admin-order-actions">'
+            + '<button type="button" class="btn btn-sm btn-secondary" data-order-detail="' + o.id + '">Detay / Müdahale</button>'
+            + '</div>'
+            + '</div>';
+    });
+    listEl.innerHTML = html;
+}
+
+function adminOrderModalAc(order) {
+    var modal = document.getElementById('admin-order-modal');
+    var body = document.getElementById('admin-order-modal-body');
+    var footer = document.getElementById('admin-order-modal-footer');
+    var titleEl = document.getElementById('admin-order-modal-title');
+    if (!modal || !body || !footer) return;
+    var fmt = window.formatTL || function(n){ return (n||0) + ' ₺'; };
+
+    titleEl.textContent = 'Sipariş #' + (order.orderNumber || order.id);
+
+    var itemsHtml = '';
+    if (order.items && order.items.length) {
+        itemsHtml = '<ul style="margin:0.4rem 0 0;padding-left:1.1rem;">' + order.items.map(function(it) {
+            return '<li>' + adminEscape(it.name) + ' × ' + it.quantity + ' — ' + fmt(it.price * it.quantity) + '</li>';
+        }).join('') + '</ul>';
+    } else {
+        itemsHtml = '<span style="color:var(--text-color-light);">Kalem bilgisi yok</span>';
+    }
+
+    var addrHtml = order.address
+        ? adminEscape([order.address.title, order.address.fullAddress, [order.address.district, order.address.city].filter(Boolean).join(', ')].filter(Boolean).join(' — '))
+        : '<span style="color:var(--text-color-light);">Adres yok</span>';
+
+    body.innerHTML =
+        '<div class="admin-order-meta" style="margin-bottom:0.5rem;">Durum: ' + adminOrderStatusBadge(order.status) + '</div>'
+        + '<div class="admin-order-meta"><strong>Müşteri:</strong> ' + (order.buyer ? adminEscape(order.buyer.fullname || '-') + (order.buyer.phone ? ' (' + adminEscape(order.buyer.phone) + ')' : '') : '-') + '</div>'
+        + '<div class="admin-order-meta"><strong>Satıcı:</strong> ' + (order.seller ? adminEscape(order.seller.shopName || '-') : '-') + '</div>'
+        + '<div class="admin-order-meta"><strong>Kurye:</strong> ' + (order.courier ? adminEscape(order.courier.fullname) + (order.courier.phone ? ' (' + adminEscape(order.courier.phone) + ')' : '') : 'Atanmadı') + '</div>'
+        + '<div class="admin-order-meta"><strong>Teslimat:</strong> ' + addrHtml + '</div>'
+        + '<div class="admin-order-meta"><strong>Tutar:</strong> ' + fmt(order.totalAmount) + (order.deliveryFee ? ' (teslimat ' + fmt(order.deliveryFee) + ')' : '') + '</div>'
+        + '<div class="admin-order-meta"><strong>Ürünler:</strong> ' + itemsHtml + '</div>';
+
+    // Müdahale butonları
+    footer.innerHTML = '';
+    var isFinal = order.status === 'delivered' || order.status === 'cancelled';
+
+    if (!isFinal) {
+        var next = ADMIN_ORDER_NEXT[order.status];
+        if (next) {
+            var advBtn = document.createElement('button');
+            advBtn.type = 'button';
+            advBtn.className = 'btn btn-sm btn-primary';
+            advBtn.textContent = '→ ' + (ADMIN_ORDER_STATUS[next] ? ADMIN_ORDER_STATUS[next].label : next) + ' yap';
+            advBtn.addEventListener('click', function() { adminOrderDurumDegistir(order.id, next); });
+            footer.appendChild(advBtn);
+        }
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn btn-sm btn-danger';
+        cancelBtn.textContent = 'Siparişi İptal Et';
+        cancelBtn.style.background = '#dc2626';
+        cancelBtn.style.color = '#fff';
+        cancelBtn.addEventListener('click', async function() {
+            var ok = await window.showConfirm('Bu sipariş iptal edilecek. Ödeme iadesi ve kupon iadesi otomatik yapılacaktır. Onaylıyor musunuz?');
+            if (ok) adminOrderDurumDegistir(order.id, 'cancelled');
+        });
+        footer.appendChild(cancelBtn);
+    } else {
+        var infoEl = document.createElement('span');
+        infoEl.style.cssText = 'color:var(--text-color-light);font-size:0.85rem;align-self:center;';
+        infoEl.textContent = order.status === 'delivered' ? 'Sipariş tamamlandı.' : 'Sipariş iptal edildi.';
+        footer.appendChild(infoEl);
+    }
+
+    // Manuel durum seçimi (herhangi bir adıma müdahale)
+    var sel = document.createElement('select');
+    sel.className = 'form-input';
+    sel.style.cssText = 'flex:1 1 100%;margin-top:0.5rem;';
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Durumu elle değiştir…';
+    sel.appendChild(placeholder);
+    Object.keys(ADMIN_ORDER_STATUS).forEach(function(st) {
+        if (st === order.status) return;
+        var opt = document.createElement('option');
+        opt.value = st;
+        opt.textContent = ADMIN_ORDER_STATUS[st].label;
+        sel.appendChild(opt);
+    });
+    sel.addEventListener('change', async function() {
+        if (!sel.value) return;
+        var target = sel.value;
+        if (target === 'cancelled') {
+            var ok = await window.showConfirm('Bu sipariş iptal edilecek. Ödeme/kupon iadesi otomatik yapılacaktır. Onaylıyor musunuz?');
+            if (!ok) { sel.value = ''; return; }
+        }
+        adminOrderDurumDegistir(order.id, target);
+    });
+    footer.appendChild(sel);
+
+    modal.style.display = 'flex';
+}
+
+function adminOrderModalKapat() {
+    var modal = document.getElementById('admin-order-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function adminOrderDurumDegistir(orderId, status) {
+    if (typeof window.updateAdminOrderStatus !== 'function') return;
+    window.updateAdminOrderStatus(orderId, status).then(function(res) {
+        if (res && res.success) {
+            window.showAlert(res.message || 'Sipariş durumu güncellendi.');
+            adminOrderModalKapat();
+            adminOrdersYukle();
+        } else {
+            window.showAlert((res && res.message) || 'Durum güncellenemedi.');
+        }
+    });
+}
+
+function adminOrdersInit() {
+    var listEl = document.getElementById('admin-orders-list');
+    if (!listEl) return;
+
+    // Filtre butonları
+    var filterBar = document.getElementById('admin-order-filter-bar');
+    if (filterBar) {
+        filterBar.addEventListener('click', function(e) {
+            var btn = e.target.closest('button[data-group]');
+            if (!btn) return;
+            adminOrderCurrentGroup = btn.getAttribute('data-group') || 'all';
+            filterBar.querySelectorAll('button').forEach(function(b) { b.className = 'btn btn-sm btn-secondary'; });
+            btn.className = 'btn btn-sm btn-primary';
+            adminOrdersYukle();
+        });
+    }
+
+    // Arama (debounce)
+    var searchEl = document.getElementById('admin-order-search');
+    if (searchEl) {
+        var t = null;
+        searchEl.addEventListener('input', function() {
+            adminOrderSearch = searchEl.value.trim();
+            clearTimeout(t);
+            t = setTimeout(adminOrdersYukle, 350);
+        });
+    }
+
+    // Detay/müdahale
+    listEl.addEventListener('click', function(e) {
+        var btn = e.target.closest('button[data-order-detail]');
+        if (!btn) return;
+        var id = parseInt(btn.getAttribute('data-order-detail'), 10);
+        var order = adminOrdersCache.find(function(o) { return o.id === id; });
+        if (order) adminOrderModalAc(order);
+    });
+
+    // Modal kapatma
+    var closeBtn = document.getElementById('admin-order-modal-close');
+    if (closeBtn) closeBtn.addEventListener('click', adminOrderModalKapat);
+    var modal = document.getElementById('admin-order-modal');
+    if (modal) modal.addEventListener('click', function(e) { if (e.target === modal) adminOrderModalKapat(); });
+
+    adminOrdersYukle();
+}
+
+// ============================================================
+// ADMİN ÖNERİ / ŞİKAYET YÖNETİMİ
+// ============================================================
+var ADMIN_FB_STATUS = {
+    open:      { label: 'Açık',        color: '#92400e', bg: '#fef3c7' },
+    in_review: { label: 'İnceleniyor', color: '#1e40af', bg: '#dbeafe' },
+    resolved:  { label: 'Çözüldü',     color: '#065f46', bg: '#d1fae5' }
+};
+var ADMIN_FB_TYPE = {
+    suggestion: { label: '💡 Öneri',   color: '#065f46', bg: '#d1fae5' },
+    complaint:  { label: '⚠️ Şikayet', color: '#991b1b', bg: '#fee2e2' }
+};
+var ADMIN_FB_ROLE = { buyer: '👤 Alıcı', seller: '🏪 Satıcı', courier: '🛵 Kurye' };
+
+var adminFbType = 'all', adminFbRole = 'all', adminFbStatus = 'all', adminFbSearch = '';
+var adminFbCache = [];
+var adminFbSelectedId = null;
+
+function adminFbChip(map, key) {
+    var s = map[key] || { label: key, color: '#374151', bg: '#f3f4f6' };
+    return '<span class="admin-fb-chip" style="color:' + s.color + ';background:' + s.bg + ';">' + s.label + '</span>';
+}
+
+function adminFeedbackYukle() {
+    var listEl = document.getElementById('admin-fb-list');
+    if (!listEl || typeof window.getAdminFeedback !== 'function') return;
+    listEl.innerHTML = '<p class="admin-fb-empty">Talepler yükleniyor…</p>';
+    var opts = {};
+    if (adminFbType !== 'all') opts.type = adminFbType;
+    if (adminFbRole !== 'all') opts.role = adminFbRole;
+    if (adminFbStatus !== 'all') opts.status = adminFbStatus;
+    if (adminFbSearch) opts.search = adminFbSearch;
+    window.getAdminFeedback(opts).then(function(res) {
+        if (!res || !res.success) {
+            listEl.innerHTML = '<p style="color:#b91c1c;">Talepler yüklenemedi.</p>';
+            return;
+        }
+        adminFbCache = res.data || [];
+        var badge = document.getElementById('feedback-open-badge');
+        if (badge) {
+            if (res.openCount && res.openCount > 0) {
+                badge.textContent = res.openCount + ' açık';
+                badge.style.cssText = 'display:inline-block;padding:0.15rem 0.6rem;border-radius:999px;font-size:0.8rem;font-weight:600;color:#92400e;background:#fef3c7;';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        adminFeedbackCiz(adminFbCache);
+    });
+}
+
+function adminFeedbackCiz(list) {
+    var listEl = document.getElementById('admin-fb-list');
+    if (!listEl) return;
+    if (!list || list.length === 0) {
+        listEl.innerHTML = '<p class="admin-fb-empty">Bu filtrede talep bulunmuyor.</p>';
+        return;
+    }
+    var html = '';
+    list.forEach(function(f) {
+        var who = f.user ? adminEscape(f.user.fullname || f.user.email || '-') : '-';
+        var dateTxt = f.createdAt ? new Date(f.createdAt).toLocaleString('tr-TR') : '';
+        var msgShort = adminEscape((f.message || '').slice(0, 120)) + ((f.message || '').length > 120 ? '…' : '');
+        html += '<div class="admin-fb-card" data-fb-id="' + f.id + '">'
+            + '<div class="admin-fb-card-head">'
+            + '<div>' + adminFbChip(ADMIN_FB_TYPE, f.type) + ' &nbsp; <strong>' + adminEscape(f.subject) + '</strong></div>'
+            + '<div>' + adminFbChip(ADMIN_FB_STATUS, f.status) + '</div>'
+            + '</div>'
+            + '<div class="admin-fb-meta">' + msgShort + '</div>'
+            + '<div class="admin-fb-meta">' + (ADMIN_FB_ROLE[f.role] || f.role) + ' • ' + who + ' • ' + dateTxt + '</div>'
+            + '</div>';
+    });
+    listEl.innerHTML = html;
+}
+
+function adminFbModalAc(fb) {
+    var modal = document.getElementById('admin-fb-modal');
+    var body = document.getElementById('admin-fb-modal-body');
+    var titleEl = document.getElementById('admin-fb-modal-title');
+    var noteEl = document.getElementById('admin-fb-note');
+    if (!modal || !body) return;
+    adminFbSelectedId = fb.id;
+    titleEl.textContent = 'Talep #' + fb.id;
+    var who = fb.user ? adminEscape(fb.user.fullname || '-') + (fb.user.email ? ' (' + adminEscape(fb.user.email) + ')' : '') : '-';
+    body.innerHTML =
+        '<div class="admin-fb-meta">' + adminFbChip(ADMIN_FB_TYPE, fb.type) + ' &nbsp; ' + adminFbChip(ADMIN_FB_STATUS, fb.status) + '</div>'
+        + '<div class="admin-fb-meta" style="margin-top:0.5rem;"><strong>Gönderen:</strong> ' + (ADMIN_FB_ROLE[fb.role] || fb.role) + ' — ' + who + '</div>'
+        + '<div class="admin-fb-meta"><strong>Konu:</strong> ' + adminEscape(fb.subject) + '</div>'
+        + '<div class="admin-fb-meta"><strong>Mesaj:</strong><br>' + adminEscape(fb.message).replace(/\n/g, '<br>') + '</div>';
+    if (noteEl) noteEl.value = fb.adminNote || '';
+    modal.style.display = 'flex';
+}
+
+function adminFbModalKapat() {
+    var modal = document.getElementById('admin-fb-modal');
+    if (modal) modal.style.display = 'none';
+    adminFbSelectedId = null;
+}
+
+function adminFeedbackGuncelle(payload) {
+    if (!adminFbSelectedId || typeof window.updateAdminFeedback !== 'function') return;
+    window.updateAdminFeedback(adminFbSelectedId, payload).then(function(res) {
+        if (res && res.success) {
+            window.showAlert(res.message || 'Talep güncellendi.');
+            adminFbModalKapat();
+            adminFeedbackYukle();
+        } else {
+            window.showAlert((res && res.message) || 'Güncellenemedi.');
+        }
+    });
+}
+
+function adminFeedbackInit() {
+    var listEl = document.getElementById('admin-fb-list');
+    if (!listEl) return;
+
+    var typeSel = document.getElementById('admin-fb-type');
+    if (typeSel) typeSel.addEventListener('change', function() { adminFbType = typeSel.value || 'all'; adminFeedbackYukle(); });
+    var roleSel = document.getElementById('admin-fb-role');
+    if (roleSel) roleSel.addEventListener('change', function() { adminFbRole = roleSel.value || 'all'; adminFeedbackYukle(); });
+    var statusSel = document.getElementById('admin-fb-status');
+    if (statusSel) statusSel.addEventListener('change', function() { adminFbStatus = statusSel.value || 'all'; adminFeedbackYukle(); });
+
+    var searchEl = document.getElementById('admin-fb-search');
+    if (searchEl) {
+        var t = null;
+        searchEl.addEventListener('input', function() {
+            adminFbSearch = searchEl.value.trim();
+            clearTimeout(t);
+            t = setTimeout(adminFeedbackYukle, 350);
+        });
+    }
+
+    listEl.addEventListener('click', function(e) {
+        var card = e.target.closest('.admin-fb-card');
+        if (!card) return;
+        var id = parseInt(card.getAttribute('data-fb-id'), 10);
+        var fb = adminFbCache.find(function(f) { return f.id === id; });
+        if (fb) adminFbModalAc(fb);
+    });
+
+    var closeBtn = document.getElementById('admin-fb-modal-close');
+    if (closeBtn) closeBtn.addEventListener('click', adminFbModalKapat);
+    var modal = document.getElementById('admin-fb-modal');
+    if (modal) modal.addEventListener('click', function(e) { if (e.target === modal) adminFbModalKapat(); });
+
+    var reviewBtn = document.getElementById('admin-fb-mark-review');
+    if (reviewBtn) reviewBtn.addEventListener('click', function() {
+        var note = document.getElementById('admin-fb-note');
+        adminFeedbackGuncelle({ status: 'in_review', adminNote: note ? note.value.trim() : undefined });
+    });
+    var resolveBtn = document.getElementById('admin-fb-mark-resolved');
+    if (resolveBtn) resolveBtn.addEventListener('click', function() {
+        var note = document.getElementById('admin-fb-note');
+        adminFeedbackGuncelle({ status: 'resolved', adminNote: note ? note.value.trim() : undefined });
+    });
+
+    adminFeedbackYukle();
+}
+
 document.addEventListener("DOMContentLoaded", function()
 {
     var kullaniciListesiSayfasi=document.getElementById("user-list");
@@ -745,6 +1144,9 @@ document.addEventListener("DOMContentLoaded", function()
         }
     }
     
+    adminOrdersInit();
+    adminFeedbackInit();
+
     initAdminSocket();
 });
 
@@ -757,6 +1159,21 @@ function initAdminSocket() {
     window.__socketManager.on('admin_users_updated', () => {
         const kullaniciListesiSayfasi=document.getElementById("user-list");
         if(kullaniciListesiSayfasi) kullanicilariYukleVeListele();
+    });
+
+    window.__socketManager.on('admin_orders_updated', () => {
+        const orderListesi=document.getElementById("admin-orders-list");
+        if(orderListesi) adminOrdersYukle();
+    });
+
+    window.__socketManager.on('feedback_created', () => {
+        const fbListesi=document.getElementById("admin-fb-list");
+        if(fbListesi) adminFeedbackYukle();
+    });
+
+    window.__socketManager.on('feedback_updated', () => {
+        const fbListesi=document.getElementById("admin-fb-list");
+        if(fbListesi) adminFeedbackYukle();
     });
 
     window.__socketManager.on('admin_coupons_updated', () => {

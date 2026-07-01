@@ -154,7 +154,6 @@ let sellerIdsWithCoupons = new Set();
 let currentFilters = {
     searchTerm: '',
     minRating: 0,
-    cuisines: [],
     minOrderAmount: null,
     location: '',
     quickFilter: 'all',
@@ -283,7 +282,7 @@ function applyQuickFilterFromUrl() {
         var params = new URLSearchParams(window.location.search || '');
         var qf = (params.get('quickFilter') || '').trim();
         if (!qf) return;
-        var allowed = ['all', 'discount', 'new', 'top_rated', 'deals', 'uzak_mesafe'];
+        var allowed = ['all', 'new', 'top_rated', 'deals', 'uzak_mesafe'];
         if (allowed.indexOf(qf) === -1) return;
         currentFilters.quickFilter = qf;
     } catch (e) {}
@@ -295,14 +294,6 @@ function initFilters() {
             const checkedRatings = Array.from(document.querySelectorAll('.filter-rating:checked'))
                 .map(cb => parseFloat(cb.value));
             currentFilters.minRating = checkedRatings.length > 0 ? Math.min(...checkedRatings) : 0;
-            filterAndDisplayRestaurants();
-        });
-    });
-    
-    document.querySelectorAll('.filter-cuisine').forEach(checkbox => {
-        checkbox.addEventListener('change', () => {
-            currentFilters.cuisines = Array.from(document.querySelectorAll('.filter-cuisine:checked'))
-                .map(cb => cb.value);
             filterAndDisplayRestaurants();
         });
     });
@@ -338,7 +329,7 @@ function initFilters() {
     const clearFiltersBtn = document.getElementById('clear-filters');
     if (clearFiltersBtn) {
         clearFiltersBtn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-rating, .filter-cuisine').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.filter-rating').forEach(cb => cb.checked = false);
             const onlyOpenCb = document.getElementById('filter-only-open');
             if (onlyOpenCb) onlyOpenCb.checked = false;
             if (minOrderSelect) {
@@ -352,7 +343,6 @@ function initFilters() {
             currentFilters = {
                 searchTerm: '',
                 minRating: 0,
-                cuisines: [],
                 minOrderAmount: null,
                 location: '',
                 quickFilter: 'all',
@@ -374,9 +364,7 @@ function filterAndDisplayRestaurants(append) {
 
     let list = allRestaurants.slice();
     var q = currentFilters.quickFilter || 'all';
-    if (q === 'discount' && sellerIdsWithCoupons.size > 0) {
-        list = list.filter(function(r) { return sellerIdsWithCoupons.has(parseInt(r.id, 10)); });
-    } else if (q === 'new') {
+    if (q === 'new') {
         list.sort(function(a, b) {
             var da = (a.created_at || a.createdAt) ? new Date(a.created_at || a.createdAt).getTime() : 0;
             var db = (b.created_at || b.createdAt) ? new Date(b.created_at || b.createdAt).getTime() : 0;
@@ -392,8 +380,9 @@ function filterAndDisplayRestaurants(append) {
             return cb - ca;
         });
     } else if (q === 'deals') {
+        // Fırsatlar: yalnızca kuponu olan satıcılar. Kupon yoksa liste boş kalır
+        // ve kullanıcıya "sonuç yok" gösterilir (eskiden hepsini gösteriyordu, yanıltıcıydı).
         list = list.filter(function(r) { return sellerIdsWithCoupons.has(parseInt(r.id, 10)); });
-        if (list.length === 0) list = allRestaurants.slice();
     } else if (q === 'uzak_mesafe') {
         list = list.filter(function(r) { return !!r.uzakMesafeEnabled; });
     }
@@ -411,26 +400,6 @@ function filterAndDisplayRestaurants(append) {
         if (currentFilters.minRating > 0) {
             const rating = parseFloat(restaurant.rating) || 0;
             if (rating < currentFilters.minRating) {
-                return false;
-            }
-        }
-        
-        if (currentFilters.cuisines.length > 0) {
-            const desc = (restaurant.description || '').toLowerCase();
-            const name = (restaurant.name || '').toLowerCase();
-            const matchesCuisine = currentFilters.cuisines.some(cuisine => {
-                const cuisineKeywords = {
-                    'turkish': ['türk', 'turk', 'kebap', 'döner', 'lahmacun', 'pide', 'mantı', 'çorba', 'ev yemekleri'],
-                    'italian': ['italyan', 'italian', 'pizza', 'pasta', 'makarna'],
-                    'asian': ['asya', 'asian', 'sushi', 'çin', 'japon', 'thai'],
-                    'vegan': ['vegan', 'bitkisel'],
-                    'fastfood': ['fast food', 'burger', 'hamburger', 'köfte'],
-                    'seafood': ['balık', 'fish', 'deniz', 'seafood', 'sushi']
-                };
-                const keywords = cuisineKeywords[cuisine] || [];
-                return keywords.some(keyword => desc.includes(keyword) || name.includes(keyword));
-            });
-            if (!matchesCuisine) {
                 return false;
             }
         }
@@ -465,7 +434,7 @@ function filterAndDisplayRestaurants(append) {
     const resultsHeader = document.getElementById('results-header');
     const resultsCount = document.getElementById('results-count');
     if (resultsHeader && resultsCount) {
-        if (currentFilters.searchTerm || currentFilters.minRating > 0 || currentFilters.cuisines.length > 0 || 
+        if (currentFilters.searchTerm || currentFilters.minRating > 0 ||
             currentFilters.minOrderAmount !== null || currentFilters.location || currentFilters.onlyOpen || (currentFilters.quickFilter && currentFilters.quickFilter !== 'all')) {
             resultsHeader.style.display = 'flex';
             resultsCount.textContent = filtered.length;

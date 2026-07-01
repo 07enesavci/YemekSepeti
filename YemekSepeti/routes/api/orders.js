@@ -883,6 +883,9 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                                 totalAmount: newOrder.total_amount,
                                 message: 'Siparişiniz alındı.'
                             });
+
+                            // Admin sipariş sayfası canlı güncellensin
+                            global.io.to('admin').emit('admin_orders_updated', { reason: 'new_order' });
                         } else {
                             console.error('   ❌ Sipariş DB\'den yeniden çekilirken hata');
                         }
@@ -1462,6 +1465,8 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                     deliveryType: updatedOrder.delivery_type,
                     message: notificationMessage
                 });
+                // Admin sipariş sayfası canlı güncellensin
+                global.io.to('admin').emit('admin_orders_updated', { reason: 'status', orderId: orderId, status: status });
             }
         }
         // Socket.IO ile iptal bildirimini gönder
@@ -1668,6 +1673,8 @@ router.post("/seller/assign-own-courier/:id", requireRole('seller'), async (req,
                 status: 'on_delivery',
                 deliveryType: order.delivery_type
             });
+            // Admin sipariş sayfası canlı güncellensin
+            global.io.to('admin').emit('admin_orders_updated', { reason: 'status', orderId: orderId, status: 'on_delivery' });
         }
 
         res.json({
@@ -1725,6 +1732,8 @@ router.post("/seller/cargo-ship/:id", requireRole('seller'), async (req, res) =>
                     message: 'Siparişiniz kargoya verildi. Takip numarası: ' + (cargoTrackingNumber || 'Belirtilmedi')
                 });
             }
+            // Admin sipariş sayfası canlı güncellensin
+            global.io.to('admin').emit('admin_orders_updated', { reason: 'status', orderId: orderId, status: 'on_delivery' });
         }
 
         res.json({ success: true, message: "Sipariş kargoya verildi." });
@@ -1868,6 +1877,8 @@ router.put("/:id/cancel", requireRole('buyer'), async (req, res) => {
             } catch (socketError) {
                 console.error('Socket.IO emit hatası:', socketError);
             }
+            // Admin sipariş sayfası canlı güncellensin
+            global.io.to('admin').emit('admin_orders_updated', { reason: 'cancelled', orderId: orderId });
         }
 
         res.json({

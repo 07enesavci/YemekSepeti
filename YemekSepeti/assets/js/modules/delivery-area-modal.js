@@ -46,17 +46,14 @@
                 typeof o.ilce !== 'string' ||
                 !o.ilce.trim() ||
                 typeof o.mahalle !== 'string' ||
-                !o.mahalle.trim() ||
-                typeof o.cadde !== 'string' ||
-                !o.cadde.trim()
+                !o.mahalle.trim()
             ) {
                 return null;
             }
             const out = {
                 il: o.il.trim(),
                 ilce: o.ilce.trim(),
-                mahalle: o.mahalle.trim(),
-                cadde: o.cadde.trim()
+                mahalle: o.mahalle.trim()
             };
             if (o.lat != null && o.lng != null && !Number.isNaN(Number(o.lat)) && !Number.isNaN(Number(o.lng))) {
                 out.lat = Number(o.lat);
@@ -94,7 +91,7 @@
         if (d) {
             const short = `${d.ilce}, ${d.il}`;
             textEl.textContent = short.length > 36 ? short.slice(0, 34) + '…' : short;
-            if (chip) chip.setAttribute('title', `${d.mahalle}, ${d.cadde} — ${d.ilce}, ${d.il}`);
+            if (chip) chip.setAttribute('title', `${d.mahalle} — ${d.ilce}, ${d.il}`);
         } else {
             textEl.textContent = 'Konum seçin';
             if (chip) chip.removeAttribute('title');
@@ -192,9 +189,8 @@
         const selIl = document.getElementById('delivery-il');
         const selIlce = document.getElementById('delivery-ilce');
         const inpMah = document.getElementById('delivery-mahalle');
-        const inpCad = document.getElementById('delivery-cadde');
         const errFill = document.getElementById('delivery-area-error');
-        if (!selIl || !selIlce || !inpMah || !inpCad) return;
+        if (!selIl || !selIlce || !inpMah) return;
         try {
             await loadCities(selIl);
             if (stored) {
@@ -202,14 +198,12 @@
                 await loadDistricts(stored.il, selIlce);
                 selIlce.value = stored.ilce;
                 inpMah.value = stored.mahalle;
-                inpCad.value = stored.cadde;
                 if (stored.lat != null && stored.lng != null) {
                     pendingLat = stored.lat;
                     pendingLng = stored.lng;
                 }
             } else {
                 inpMah.value = '';
-                inpCad.value = '';
             }
             if (errFill) {
                 errFill.hidden = true;
@@ -341,7 +335,6 @@
                         const lngNum = addr.longitude != null && addr.longitude !== '' ? Number(addr.longitude) : null;
                         pendingLat = latNum != null && !Number.isNaN(latNum) ? latNum : null;
                         pendingLng = lngNum != null && !Number.isNaN(lngNum) ? lngNum : null;
-                        const cadde = (addr.fullDetail || addr.detail || '').trim();
                         const ilce = (addr.district || 'Merkez').trim();
                         const il = (addr.city || '').trim();
                         applyPayload(
@@ -350,7 +343,6 @@
                                 il,
                                 ilce,
                                 mahalle: (addr.title || 'Adres').trim(),
-                                cadde: cadde.slice(0, 120) || ilce.slice(0, 120),
                                 source: 'saved'
                             },
                             errEl
@@ -376,7 +368,6 @@
         const selIl = document.getElementById('delivery-il');
         const selIlce = document.getElementById('delivery-ilce');
         const inpMah = document.getElementById('delivery-mahalle');
-        const inpCad = document.getElementById('delivery-cadde');
         const errEl = document.getElementById('delivery-area-error');
         const gpsBtn = document.getElementById('delivery-use-gps-btn');
         const newBtn = document.getElementById('delivery-buyer-new-btn');
@@ -529,12 +520,8 @@
                     selIlceEl.value = has ? wanted : (opts[1] && opts[1].value) || '';
 
                     const inpMah = document.getElementById('delivery-mahalle');
-                    const inpCad = document.getElementById('delivery-cadde');
                     if (inpMah && typeof j.mahalle === 'string') {
                         inpMah.value = j.mahalle.trim();
-                    }
-                    if (inpCad && typeof j.cadde === 'string') {
-                        inpCad.value = j.cadde.trim();
                     }
                 });
             }
@@ -592,15 +579,14 @@
                 const il = selIl.value.trim();
                 const ilce = selIlce.value.trim();
                 const mahalle = inpMah.value.trim();
-                const cadde = inpCad.value.trim();
-                if (!il || !ilce || !mahalle || !cadde) {
+                if (!il || !ilce || !mahalle) {
                     if (errEl) {
                         errEl.textContent = 'Tüm alanları doldurun.';
                         errEl.hidden = false;
                     }
                     return;
                 }
-                await applyPayload(overlay, { il, ilce, mahalle, cadde, source: 'manual' }, errEl);
+                await applyPayload(overlay, { il, ilce, mahalle, source: 'manual' }, errEl);
             });
         }
     }

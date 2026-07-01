@@ -140,7 +140,7 @@ async function forgotPassword(email)
 {
     try
     {
-        const csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
+        const csrfToken = window.ensureCsrfToken ? await window.ensureCsrfToken() : (window.getCsrfToken ? window.getCsrfToken() : '');
         const response=await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
@@ -281,29 +281,53 @@ async function verify2FA(email, code)
     }
 }
 
-async function resetPassword(token, password) 
+async function resetPassword(token, password, email)
 {
-    try 
+    try
     {
+        const csrfToken = window.ensureCsrfToken ? await window.ensureCsrfToken() : (window.getCsrfToken ? window.getCsrfToken() : '');
         const response=await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, password })
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            credentials: 'include',
+            body: JSON.stringify({ token, password, email })
         });
-        
-        if (!response.ok) 
+
+        if (!response.ok)
         {
             const errorData=await response.json().catch(() => ({ message: 'Sunucu hatası' }));
             return { success: false, message: errorData.message || 'Şifre sıfırlama başarısız' };
         }
-        
+
         return await response.json();
-    } 
-    catch (error) 
+    }
+    catch (error)
     {
         return { success: false, message: 'Sunucuya bağlanılamadı.' };
     }
 }
+
+// Şifre sıfırlama token'ını sayfa açılışında doğrula (süresi dolmuş/kullanılmış linki anında yakalar)
+async function validateResetToken(token, email)
+{
+    try
+    {
+        const csrfToken = window.ensureCsrfToken ? await window.ensureCsrfToken() : (window.getCsrfToken ? window.getCsrfToken() : '');
+        const response=await fetch(`${API_BASE_URL}/api/auth/reset-password/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            credentials: 'include',
+            body: JSON.stringify({ token, email })
+        });
+        if (!response.ok) return { success: false, valid: false };
+        return await response.json();
+    }
+    catch (error)
+    {
+        return { success: false, valid: false };
+    }
+}
+window.validateResetToken=validateResetToken;
 
 // Search functions
 async function searchSellers(filters = {}) 
@@ -829,6 +853,141 @@ async function adminDeleteCoupon(couponId)
         return { success: false };
     }
 }
+
+// --- ADMİN SİPARİŞ YÖNETİMİ ---
+async function getAdminOrders(opts)
+{
+    try
+    {
+        opts = opts || {};
+        const params = new URLSearchParams();
+        if (opts.group) params.append('group', opts.group);
+        if (opts.status) params.append('status', opts.status);
+        if (opts.search) params.append('search', opts.search);
+        if (opts.page) params.append('page', opts.page);
+        if (opts.limit) params.append('limit', opts.limit);
+        const qs = params.toString();
+        const response=await fetch(`${API_BASE_URL}/api/admin/orders${qs ? '?' + qs : ''}`, {
+            credentials: 'include',
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) return { success: false, data: [] };
+        return await response.json();
+    }
+    catch (error)
+    {
+        return { success: false, data: [] };
+    }
+}
+
+async function updateAdminOrderStatus(orderId, status)
+{
+    try
+    {
+        const response=await fetch(`${API_BASE_URL}/api/admin/orders/${orderId}/status`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            credentials: 'include',
+            body: JSON.stringify({ status })
+        });
+        const data=await response.json().catch(() => ({}));
+        if (!response.ok) return { success: false, message: data.message || 'Durum güncellenemedi.' };
+        return { success: true, message: data.message || 'Sipariş durumu güncellendi.' };
+    }
+    catch (error)
+    {
+        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+    }
+}
+window.getAdminOrders=getAdminOrders;
+window.updateAdminOrderStatus=updateAdminOrderStatus;
+
+// --- ÖNERİ / ŞİKAYET (kullanıcı) ---
+async function submitFeedback(payload)
+{
+    try
+    {
+        const response=await fetch(`${API_BASE_URL}/api/feedback`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        const data=await response.json().catch(() => ({}));
+        if (!response.ok) return { success: false, message: data.message || 'Gönderilemedi.' };
+        return { success: true, message: data.message || 'Talebiniz alındı.' };
+    }
+    catch (error)
+    {
+        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+    }
+}
+
+async function getMyFeedback()
+{
+    try
+    {
+        const response=await fetch(`${API_BASE_URL}/api/feedback/mine`, {
+            credentials: 'include',
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) return { success: false, data: [] };
+        return await response.json();
+    }
+    catch (error)
+    {
+        return { success: false, data: [] };
+    }
+}
+window.submitFeedback=submitFeedback;
+window.getMyFeedback=getMyFeedback;
+
+// --- ÖNERİ / ŞİKAYET (admin) ---
+async function getAdminFeedback(opts)
+{
+    try
+    {
+        opts = opts || {};
+        const params = new URLSearchParams();
+        if (opts.role) params.append('role', opts.role);
+        if (opts.type) params.append('type', opts.type);
+        if (opts.status) params.append('status', opts.status);
+        if (opts.search) params.append('search', opts.search);
+        const qs = params.toString();
+        const response=await fetch(`${API_BASE_URL}/api/admin/feedback${qs ? '?' + qs : ''}`, {
+            credentials: 'include',
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) return { success: false, data: [] };
+        return await response.json();
+    }
+    catch (error)
+    {
+        return { success: false, data: [] };
+    }
+}
+
+async function updateAdminFeedback(id, payload)
+{
+    try
+    {
+        const response=await fetch(`${API_BASE_URL}/api/admin/feedback/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            credentials: 'include',
+            body: JSON.stringify(payload || {})
+        });
+        const data=await response.json().catch(() => ({}));
+        if (!response.ok) return { success: false, message: data.message || 'Güncellenemedi.' };
+        return { success: true, message: data.message || 'Güncellendi.' };
+    }
+    catch (error)
+    {
+        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+    }
+}
+window.getAdminFeedback=getAdminFeedback;
+window.updateAdminFeedback=updateAdminFeedback;
 
 // Export to window
 window.loginUser=loginUser;

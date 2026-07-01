@@ -528,6 +528,7 @@ try {
             const isLoginPage = p === '/login';
             const isRegisterPage = p === '/register';
             const isAuthApi = p.startsWith('/api/auth/');
+            const isPasswordResetPage = p === '/forgot-password' || p === '/reset-password';
             const isStaticAsset =
                 p.startsWith('/assets') ||
                 p.startsWith('/public') ||
@@ -541,7 +542,7 @@ try {
                 p === '/favicon.svg';
 
             if (isLoginPage || isStaticAsset) return next();
-            if (domainType === 'partner' && (isRegisterPage || isAuthApi)) return next();
+            if (domainType === 'partner' && (isRegisterPage || isAuthApi || isPasswordResetPage)) return next();
             if (domainType === 'admin' && isAuthApi) {
                 // Admin domainde kayıt endpointleri kapalı; sadece login/logout/me izinli.
                 const allowedAdminAuthPaths = new Set(['/api/auth/login', '/api/auth/logout', '/api/auth/me']);
@@ -572,7 +573,8 @@ try {
     const routeFiles = [
         "/api/sellers", "/api/seller", "/api/orders",
         "/api/admin", "/api/cart", "/api/courier", "/api/buyer", "/api/upload",
-        "/api/notifications", "/api/favorites", "/api/reviews", "/api/push"
+        "/api/notifications", "/api/favorites", "/api/reviews", "/api/push",
+        "/api/feedback"
     ];
 
     routeFiles.forEach(route => {
@@ -748,6 +750,7 @@ try {
     app.get("/buyer/security", requireRole('buyer'), (req, res) => res.render("buyer/security", { title: "Güvenlik", pageCss: "profile.css", pageJs: "security.js", user: req.session.user || null }));
     app.get("/buyer/wallet", requireRole('buyer'), (req, res) => res.render("buyer/wallet", { title: "Cüzdan & Kuponlar", pageCss: "profile.css", pageJs: "wallet.js", user: req.session.user || null }));
     app.get("/buyer/favorites", requireRole('buyer'), (req, res) => res.render("buyer/favorites", { title: "Favori Restoranlar", pageCss: "profile.css", pageJs: "favorites.js", user: req.session.user || null }));
+    app.get("/buyer/feedback", requireRole('buyer'), (req, res) => res.render("buyer/feedback", { title: "Öneri & Şikayet", pageCss: "profile.css", pageJs: "feedback.js", user: req.session.user || null }));
     app.get("/buyer/seller-profile/:id", (req, res) => res.render("buyer/seller-profile", { title: "Satıcı Profili", pageCss: "seller-profile.css", pageJs: "seller-profile.js", sellerId: req.params.id }));
     app.get("/buyer/:id/profile", requireRole('buyer'), (req, res) => res.render("buyer/profile", { title: "Profilim", pageCss: "profile.css", pageJs: "profile.js", user: req.session.user || null, buyerId: req.params.id }));
 
@@ -780,6 +783,7 @@ try {
     app.get("/seller/own-couriers", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
     app.get("/seller/reviews", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/reviews", { title: "Müşteri Yorumları", pageCss: "seller-dashboard.css", pageJs: "seller.js" }));
     app.get("/seller/:id/reviews", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/reviews", { title: "Müşteri Yorumları", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/feedback", requireRole('seller'), requireSellerApproved, (req, res) => res.render("seller/feedback", { title: "Öneri & Şikayet", pageCss: "seller-dashboard.css", pageJs: "feedback.js" }));
 
     // URL :id parametresi session'daki seller ID ile eşleşmeli (IDOR önlemi)
     function requireSelfSeller(req, res, next) {
@@ -800,6 +804,7 @@ try {
     app.get("/seller/:id/coupons", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/coupons", { title: "Kupon Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/uzak-mesafe", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/uzak-mesafe", { title: "Uzak Mesafe Kargo Menüsü", pageCss: "seller-menu.css", pageJs: "seller.js", sellerId: req.params.id }));
     app.get("/seller/:id/own-couriers", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/own-couriers", { title: "Kurye Yönetimi", pageCss: "seller-dashboard.css", pageJs: "seller.js", sellerId: req.params.id }));
+    app.get("/seller/:id/feedback", requireRole('seller'), requireSellerApproved, requireSelfSeller, (req, res) => res.render("seller/feedback", { title: "Öneri & Şikayet", pageCss: "seller-dashboard.css", pageJs: "feedback.js", sellerId: req.params.id }));
 
     // --- KURYE (COURIER) ROUTE'LARI ---
     app.get("/courier/pending-approval", requireRole('courier'), async (req, res) => {
@@ -830,6 +835,7 @@ try {
     app.get("/courier/:id/history", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/history", { title: "Teslimat Geçmişi", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/profile", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/profile", { title: "Kurye Profili", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
     app.get("/courier/:id/reports", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/reports", { title: "Raporlar", pageCss: "courier.css", pageJs: "courier.js", courierId: req.params.id }));
+    app.get("/courier/:id/feedback", requireRole('courier'), requireCourierApproved, requireSelfCourier, (req, res) => res.render("courier/feedback", { title: "Öneri & Şikayet", pageCss: "courier.css", pageJs: "feedback.js", courierId: req.params.id }));
 
     // ID'siz kurye URL'leri için otomatik yönlendirme (F5 / manuel URL ihtiyacını azaltır)
     app.get("/courier/dashboard", requireRole('courier'), requireCourierApproved, (req, res) => {
@@ -860,6 +866,8 @@ try {
 
     // --- ADMIN ROUTE'LARI ---
     app.get("/admin/users", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/user-management", { title: "Kullanıcı Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/orders", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/orders", { title: "Sipariş Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
+    app.get("/admin/feedback", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/feedback", { title: "Öneri & Şikayet", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/coupons", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/coupons", { title: "Kupon Yönetimi", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/sellers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/sellers", { title: "Satıcı Onayları", pageCss: "admin.css", pageJs: "admin.js" }));
     app.get("/admin/all-sellers", requireRole(['admin','super_admin','support']), (req, res) => res.render("admin/all-sellers", { title: "Tüm Satıcılar", pageCss: "admin.css", pageJs: "admin.js" }));
@@ -986,7 +994,7 @@ try {
                 socket.join(buyerRoom);
                 console.log(`   Room'a katildi: ${buyerRoom}`);
             }
-            if (userRole === 'admin' || userRole === 'super_admin') {
+            if (userRole === 'admin' || userRole === 'super_admin' || userRole === 'support') {
                 socket.join('admin');
                 console.log(`   Room'a katildi: admin`);
             }

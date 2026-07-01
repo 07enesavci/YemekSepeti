@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function ()
             if (!raw) return false;
             var o = JSON.parse(raw);
             return !!(o && o.il && String(o.il).trim() && o.ilce && String(o.ilce).trim() &&
-                o.mahalle && String(o.mahalle).trim() && o.cadde && String(o.cadde).trim());
+                o.mahalle && String(o.mahalle).trim());
         } catch (e) {
             return false;
         }
@@ -239,14 +239,16 @@ document.addEventListener("DOMContentLoaded", function ()
                 alert("Tüm alanları doldurun ve şartları kabul edin.");
                 return;
             }
-            if (password !== confirm) 
+            if (password !== confirm)
             {
                 alert("Şifreler eşleşmiyor.");
                 return;
             }
-            if (password.length < 8)
+            // Standart şifre politikası: en az 8 karakter, 1 büyük harf, 1 rakam
+            var pwCheck = window.YsUI ? window.YsUI.validatePassword(password) : { ok: password.length >= 8, msg: "Şifre en az 8 karakter olmalıdır." };
+            if (!pwCheck.ok)
             {
-                alert("Şifre en az 8 karakter olmalıdır.");
+                alert(pwCheck.msg);
                 return;
             }
 
@@ -736,8 +738,72 @@ document.addEventListener("DOMContentLoaded", function ()
 
     // --- ŞİFRE SIFIRLAMA FORMU (reset-password) ---
     var resetForm=document.getElementById("reset-password-form");
-    if (resetForm) 
+    if (resetForm)
     {
+        var resetMessageDiv = document.getElementById("reset-password-message");
+        var resetSubmitBtn = resetForm.querySelector("button[type=submit]");
+        var resetCountdownTimer = null;
+
+        function showResetMessage(text, isError) {
+            if (!resetMessageDiv) return;
+            resetMessageDiv.style.display = "block";
+            resetMessageDiv.style.backgroundColor = isError ? "#FEE2E2" : "#D1FAE5";
+            resetMessageDiv.style.color = isError ? "#DC2626" : "#059669";
+            resetMessageDiv.textContent = text;
+        }
+
+        // Linkin süresi dolduğunda / geçersizse formu kilitle ve yeni istek yönlendirmesi göster
+        function lockResetForm(message) {
+            if (resetCountdownTimer) { clearInterval(resetCountdownTimer); resetCountdownTimer = null; }
+            resetForm.style.display = "none";
+            showResetMessage(message || "Bu şifre sıfırlama bağlantısının süresi doldu. Lütfen yeni bir bağlantı isteyin.", true);
+            var footer = document.querySelector(".auth-footer-link");
+            if (footer && !document.getElementById("reset-request-new")) {
+                var p = document.createElement("p");
+                p.innerHTML = '<a id="reset-request-new" href="/forgot-password">Yeni sıfırlama bağlantısı iste</a>';
+                footer.appendChild(p);
+            }
+        }
+
+        // Kalan süreyi butonda göster; sıfırlanınca formu kilitle
+        function startResetCountdown(remainingSeconds) {
+            if (!resetSubmitBtn) return;
+            var baseLabel = "Şifremi Sıfırla";
+            var remaining = remainingSeconds;
+            function render() {
+                if (remaining <= 0) {
+                    lockResetForm();
+                    return;
+                }
+                var m = Math.floor(remaining / 60);
+                var s = remaining % 60;
+                resetSubmitBtn.textContent = baseLabel + " (" + m + ":" + (s < 10 ? "0" : "") + s + ")";
+                remaining--;
+            }
+            render();
+            resetCountdownTimer = setInterval(render, 1000);
+        }
+
+        // Sayfa açılışında token'ı doğrula — süresi dolmuş/kullanılmış linke tıklayan biri formu hiç görmesin
+        (async function validateOnLoad() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var token = urlParams.get("token");
+            var email = urlParams.get("email");
+            if (!token || !email) {
+                lockResetForm("Geçersiz sıfırlama bağlantısı. Lütfen yeni bir bağlantı isteyin.");
+                return;
+            }
+            if (!window.validateResetToken) return; // api.js yüklenmediyse submit anında yine kontrol edilir
+            var result = await window.validateResetToken(token, email);
+            if (!result || !result.valid) {
+                lockResetForm();
+                return;
+            }
+            if (typeof result.remainingSeconds === "number" && result.remainingSeconds > 0) {
+                startResetCountdown(result.remainingSeconds);
+            }
+        })();
+
         resetForm.addEventListener("submit", async function (e) {
             e.preventDefault();
 
@@ -762,18 +828,25 @@ document.addEventListener("DOMContentLoaded", function ()
                 return;
             }
 
-            if (password.length < 6) 
+            // Backend kuralıyla aynı: en az 8 karakter, en az bir büyük harf ve bir rakam
+            var passwordError = "";
+            if (password.length < 8) {
+                passwordError = "Şifre en az 8 karakter olmalıdır.";
+            } else if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+                passwordError = "Şifre en az bir büyük harf ve bir rakam içermelidir.";
+            }
+            if (passwordError)
             {
-                if (messageDiv) 
+                if (messageDiv)
                 {
                     messageDiv.style.display = "block";
                     messageDiv.style.backgroundColor = "#FEE2E2";
                     messageDiv.style.color = "#DC2626";
-                    messageDiv.textContent = "Şifre en az 6 karakter olmalıdır.";
-                } 
-                else 
+                    messageDiv.textContent = passwordError;
+                }
+                else
                 {
-                    alert("Şifre en az 6 karakter olmalıdır.");
+                    alert(passwordError);
                 }
                 return;
             }
@@ -794,11 +867,12 @@ document.addEventListener("DOMContentLoaded", function ()
                 return;
             }
 
-            // URL'den token'ı al
+            // URL'den token ve email'i al (reset linki: /reset-password?token=...&email=...)
             var urlParams = new URLSearchParams(window.location.search);
             var token = urlParams.get("token");
+            var email = urlParams.get("email");
 
-            if (!token) 
+            if (!token || !email)
             {
                 if (messageDiv) 
                 {
@@ -814,20 +888,23 @@ document.addEventListener("DOMContentLoaded", function ()
                 return;
             }
 
+            // Gönderim sırasında geri sayım butonu ezmesin
+            if (resetCountdownTimer) { clearInterval(resetCountdownTimer); resetCountdownTimer = null; }
+
             var btn=this.querySelector("button[type=submit]");
-            var oldText=btn.textContent;
+            var oldText="Şifremi Sıfırla";
             btn.disabled=true;
             btn.textContent="Şifre sıfırlanıyor...";
 
-            if (messageDiv) 
+            if (messageDiv)
             {
                 messageDiv.style.display = "none";
                 messageDiv.textContent = "";
             }
 
-            try 
+            try
             {
-                var result=await window.resetPassword(token, password);
+                var result=await window.resetPassword(token, password, email);
                 
                 if (messageDiv) 
                 {
@@ -839,11 +916,15 @@ document.addEventListener("DOMContentLoaded", function ()
                         messageDiv.style.color="#059669";
                         messageDiv.textContent=result.message || "Şifreniz başarıyla güncellendi!";
                         
-                        // Formu gizle, 3 saniye sonra giriş sayfasına yönlendir
+                        // Formu gizle, 3 saniye sonra rolüne uygun giriş sayfasına yönlendir
                         resetForm.style.display = "none";
                         setTimeout(function() {
-                            var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                            window.location.href = baseUrl + "/login";
+                            if (result.redirectUrl) {
+                                window.location.href = result.redirectUrl;
+                            } else {
+                                var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                                window.location.href = baseUrl + "/login";
+                            }
                         }, 3000);
                     } 
                     else 
@@ -855,12 +936,16 @@ document.addEventListener("DOMContentLoaded", function ()
                 } 
                 else 
                 {
-                    if (result && result.success) 
+                    if (result && result.success)
                     {
                         alert(result.message || "Şifreniz güncellendi!");
-                        var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
-                        window.location.href = baseUrl + "/login";
-                    } 
+                        if (result.redirectUrl) {
+                            window.location.href = result.redirectUrl;
+                        } else {
+                            var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+                            window.location.href = baseUrl + "/login";
+                        }
+                    }
                     else 
                     {
                         alert(result && result.message ? result.message : "Şifre sıfırlama başarısız.");

@@ -3,12 +3,13 @@ const router=express.Router();
 const db=require("../../config/database");
 const bcrypt=require("bcryptjs");
 const { requireAuth, requireRole }=require("../../middleware/auth");
-const { User, Seller, Courier, Order, Meal, Review, Address, Coupon, CouponUsage, CourierTask }=require("../../models");
+const { User, Seller, Courier, Order, OrderItem, Meal, Review, Address, Coupon, CouponUsage, CourierTask, Feedback }=require("../../models");
 const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
 const { Op, Sequelize }=require("sequelize");
 const { sequelize }=require("../../models");
 const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
 const { createCouponValidation, idParam, handleValidationErrors }=require("../../middleware/validate");
+const { validatePassword }=require("../../lib/passwordPolicy");
 
 router.use((req,res,next)=>{ requireAuth(req,res,next); });
 
@@ -994,13 +995,28 @@ router.get("/courier-stats/:id", requireRole(['admin','super_admin','support']),
 // --- TÜM KURYELER BİTİŞ ---
 
 // --- ADMİN SİPARİŞ YÖNETİMİ ---
+// Gruplu durum filtreleri — admin panelindeki "Beklemede / Hazır / Kuryede" sekmeleri.
+// Sipariş yaşam döngüsü: pending → confirmed → preparing → ready → on_delivery → delivered
+const ORDER_STATUS_GROUPS = {
+    beklemede: ['pending', 'confirmed', 'preparing'], // henüz hazırlanıyor / bekliyor
+    hazir: ['ready'],                                  // hazır, alınmayı bekliyor
+    kuryede: ['on_delivery'],                          // kuryede / yolda
+    teslim: ['delivered'],                             // teslim edildi
+    iptal: ['cancelled']                               // iptal edildi
+};
+
 router.get("/orders", requireRole(['admin','super_admin','support']), async (req, res) => {
     try {
-        const { status, search, page = 1, limit = 50 } = req.query;
+        const { status, group, search, page = 1, limit = 50 } = req.query;
         const offset = (parseInt(page) - 1) * parseInt(limit);
 
         const where = {};
-        if (status && status !== 'all') where.status = status;
+        // Öncelik gruplu filtrede (beklemede/hazir/kuryede/teslim/iptal); yoksa tekil status
+        if (group && ORDER_STATUS_GROUPS[group]) {
+            where.status = { [Op.in]: ORDER_STATUS_GROUPS[group] };
+        } else if (status && status !== 'all') {
+            where.status = status;
+        }
         if (search && search.trim()) {
             where[Op.or] = [
                 { order_number: { [Op.like]: `%${search}%` } }
@@ -1011,9 +1027,13 @@ router.get("/orders", requireRole(['admin','super_admin','support']), async (req
             where,
             include: [
                 { model: User, as: 'buyer', attributes: ['fullname', 'email', 'phone'], required: false },
-                { model: Seller, as: 'seller', attributes: ['shop_name'], required: false }
+                { model: Seller, as: 'seller', attributes: ['shop_name'], required: false },
+                { model: User, as: 'courier', attributes: ['fullname', 'phone'], required: false },
+                { model: Address, as: 'address', attributes: ['title', 'full_address', 'district', 'city'], required: false },
+                { model: OrderItem, as: 'items', attributes: ['meal_name', 'quantity', 'meal_price'], required: false }
             ],
             order: [['created_at', 'DESC']],
+            distinct: true,
             limit: parseInt(limit) || 50,
             offset: offset || 0
         });
@@ -1025,11 +1045,26 @@ router.get("/orders", requireRole(['admin','super_admin','support']), async (req
                 orderNumber: o.order_number,
                 status: o.status,
                 totalAmount: parseFloat(o.total_amount) || 0,
+                deliveryFee: parseFloat(o.delivery_fee) || 0,
                 paymentMethod: o.payment_method,
                 deliveryType: o.delivery_type,
                 createdAt: o.created_at,
+                deliveredAt: o.delivered_at,
+                courierId: o.courier_id,
                 buyer: o.buyer ? { fullname: o.buyer.fullname, email: o.buyer.email, phone: o.buyer.phone } : null,
-                seller: o.seller ? { shopName: o.seller.shop_name } : null
+                seller: o.seller ? { shopName: o.seller.shop_name } : null,
+                courier: o.courier ? { fullname: o.courier.fullname, phone: o.courier.phone } : null,
+                address: o.address ? {
+                    title: o.address.title,
+                    fullAddress: o.address.full_address,
+                    district: o.address.district,
+                    city: o.address.city
+                } : null,
+                items: Array.isArray(o.items) ? o.items.map(it => ({
+                    name: it.meal_name,
+                    quantity: it.quantity,
+                    price: parseFloat(it.meal_price) || 0
+                })) : []
             })),
             total: result.count,
             page: parseInt(page),
@@ -1103,9 +1138,24 @@ router.put("/orders/:id/status", requireRole(['admin','super_admin']), async (re
         });
 
         if (global.io) {
+            // Alıcıya bildir
             global.io.to(`buyer-${order.user_id}`).emit('order_status_updated', {
                 orderId, status, message: `Siparişinizin durumu güncellendi.`
             });
+            // Satıcıya bildir (panelinin güncellenmesi için seller_id → user_id)
+            try {
+                const sellerRow = order.seller_id ? await Seller.findByPk(order.seller_id, { attributes: ['user_id'] }) : null;
+                if (sellerRow && sellerRow.user_id) {
+                    const evt = status === 'cancelled' ? 'order_cancelled' : 'order_status_updated';
+                    global.io.to(`seller-${sellerRow.user_id}`).emit(evt, {
+                        id: order.id, orderId, orderNumber: order.order_number, status
+                    });
+                }
+            } catch (sellerNotifyErr) {
+                console.error('Admin → satıcı bildirim hatası:', sellerNotifyErr.message);
+            }
+            // Diğer admin panelleri de canlı güncellensin
+            global.io.to('admin').emit('admin_orders_updated', { reason: 'admin_status', orderId, status });
         }
 
         res.json({ success: true, message: "Sipariş durumu güncellendi." });
@@ -1115,6 +1165,120 @@ router.put("/orders/:id/status", requireRole(['admin','super_admin']), async (re
     }
 });
 // --- ADMİN SİPARİŞ YÖNETİMİ BİTİŞ ---
+
+// --- ADMİN ÖNERİ / ŞİKAYET YÖNETİMİ ---
+const FEEDBACK_VALID_STATUS = ['open', 'in_review', 'resolved'];
+
+// Tüm öneri/şikayetleri listele (rol/tür/durum filtreleri + arama)
+router.get("/feedback", requireRole(['admin','super_admin','support']), async (req, res) => {
+    try {
+        const { role, type, status, search, page = 1, limit = 100 } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
+
+        const where = {};
+        if (role && role !== 'all') where.role = role;
+        if (type && type !== 'all') where.type = type;
+        if (status && status !== 'all') where.status = status;
+        if (search && search.trim()) {
+            where[Op.or] = [
+                { subject: { [Op.like]: `%${search.trim()}%` } },
+                { message: { [Op.like]: `%${search.trim()}%` } }
+            ];
+        }
+
+        const result = await Feedback.findAndCountAll({
+            where,
+            include: [{ model: User, as: 'user', attributes: ['fullname', 'email'], required: false }],
+            order: [['created_at', 'DESC']],
+            limit: parseInt(limit) || 100,
+            offset: offset || 0
+        });
+
+        // Özet sayaçlar (üstte rozet göstermek için)
+        const openCount = await Feedback.count({ where: { status: 'open' } });
+
+        res.json({
+            success: true,
+            openCount,
+            data: result.rows.map(f => ({
+                id: f.id,
+                role: f.role,
+                type: f.type,
+                subject: f.subject,
+                message: f.message,
+                status: f.status,
+                adminNote: f.admin_note,
+                createdAt: f.created_at,
+                user: f.user ? { fullname: f.user.fullname, email: f.user.email } : null
+            })),
+            total: result.count,
+            page: parseInt(page),
+            totalPages: Math.ceil(result.count / (parseInt(limit) || 100))
+        });
+    } catch (err) {
+        console.error("Admin feedback list error:", err);
+        res.status(500).json({ success: false, message: "Talepler yüklenemedi." });
+    }
+});
+
+// Talebi güncelle: durum değiştir ve/veya yanıt ekle
+router.put("/feedback/:id", requireRole(['admin','super_admin','support']), async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { status, adminNote } = req.body;
+
+        const feedback = await Feedback.findByPk(id);
+        if (!feedback) return res.status(404).json({ success: false, message: "Talep bulunamadı." });
+
+        const updateData = {};
+        if (status !== undefined) {
+            if (!FEEDBACK_VALID_STATUS.includes(status)) {
+                return res.status(400).json({ success: false, message: "Geçersiz durum." });
+            }
+            updateData.status = status;
+        }
+        if (adminNote !== undefined) {
+            updateData.admin_note = typeof adminNote === 'string' ? adminNote.trim().slice(0, 3000) : null;
+        }
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ success: false, message: "Güncellenecek veri yok." });
+        }
+
+        await feedback.update(updateData);
+
+        // Kullanıcıya bildirim gönder (yanıt eklendiğinde veya çözüldüğünde)
+        try {
+            const { createNotification } = require('../../lib/notificationHelper');
+            const typeLabel = feedback.type === 'complaint' ? 'Şikayetiniz' : 'Öneriniz';
+            if (updateData.admin_note) {
+                await createNotification(feedback.user_id, 'feedback',
+                    `${typeLabel} yanıtlandı`,
+                    `"${feedback.subject}" başlıklı talebinize yanıt verildi.`, feedback.id);
+            } else if (updateData.status === 'resolved') {
+                await createNotification(feedback.user_id, 'feedback',
+                    `${typeLabel} çözüldü`,
+                    `"${feedback.subject}" başlıklı talebiniz çözüldü olarak işaretlendi.`, feedback.id);
+            }
+        } catch (notifyErr) {
+            console.error('Feedback bildirim hatası:', notifyErr.message);
+        }
+
+        const { writeLog } = require('../../config/logger');
+        writeLog('INFO', 'Admin öneri/şikayet güncelledi', { feedbackId: id, status: updateData.status, adminId: req.session?.user?.id });
+
+        // Canlı güncelleme: kullanıcının "Taleplerim" sayfası + diğer adminlerin listesi otomatik yenilensin
+        if (global.io) {
+            global.io.to(`user-${feedback.user_id}`).emit('feedback_updated', { id: feedback.id, status: feedback.status });
+            global.io.to('admin').emit('feedback_updated', { id: feedback.id, status: feedback.status });
+        }
+
+        res.json({ success: true, message: "Talep güncellendi." });
+    } catch (err) {
+        console.error("Admin feedback update error:", err);
+        res.status(500).json({ success: false, message: "Talep güncellenemedi." });
+    }
+});
+// --- ADMİN ÖNERİ / ŞİKAYET YÖNETİMİ BİTİŞ ---
 
 // --- ADMİN RAPORLARI ---
 // Tam ciro/finansal rapor — support rolü için kapsam dışı (sadece admin/super_admin).
@@ -1444,8 +1608,9 @@ router.post("/settings/change-password", async (req, res) => {
         const { currentPassword, newPassword } = req.body;
         if (!currentPassword || !newPassword)
             return res.status(400).json({ success: false, message: "Tüm alanlar zorunludur." });
-        if (newPassword.length < 6)
-            return res.status(400).json({ success: false, message: "Yeni şifre en az 6 karakter olmalıdır." });
+        const pwCheck = validatePassword(newPassword);
+        if (!pwCheck.ok)
+            return res.status(400).json({ success: false, message: pwCheck.message });
 
         const user = await User.findByPk(req.session.user.id, { attributes: ['id', 'password'] });
         if (!user) return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });

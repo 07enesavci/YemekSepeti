@@ -37,11 +37,11 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Yeni Şifre</label>
-                        <input type="password" id="s-new-pw" class="form-input" maxlength="128" minlength="6" required autocomplete="new-password">
+                        <input type="password" id="s-new-pw" class="form-input" maxlength="128" minlength="8" required autocomplete="new-password">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Yeni Şifre (Tekrar)</label>
-                        <input type="password" id="s-confirm-pw" class="form-input" maxlength="128" minlength="6" required autocomplete="new-password">
+                        <input type="password" id="s-confirm-pw" class="form-input" maxlength="128" minlength="8" required autocomplete="new-password">
                     </div>
                     <div id="pw-msg" style="display:none;margin-bottom:0.75rem;padding:0.6rem 0.8rem;border-radius:6px;font-size:0.9rem;"></div>
                     <button type="submit" class="btn btn-primary">Şifreyi Güncelle</button>
@@ -90,7 +90,8 @@
         var confirm = document.getElementById('s-confirm-pw').value;
 
         if (!current || !newPw || !confirm) { showMsg('pw-msg', 'Tüm alanları doldurun.', false); return; }
-        if (newPw.length < 6) { showMsg('pw-msg', 'Yeni şifre en az 6 karakter olmalıdır.', false); return; }
+        if (newPw.length < 8) { showMsg('pw-msg', 'Yeni şifre en az 8 karakter olmalıdır.', false); return; }
+        if (!/[A-Z]/.test(newPw) || !/[0-9]/.test(newPw)) { showMsg('pw-msg', 'Yeni şifre en az bir büyük harf ve bir rakam içermelidir.', false); return; }
         if (newPw !== confirm) { showMsg('pw-msg', 'Yeni şifreler eşleşmiyor.', false); return; }
 
         var btn = this.querySelector('button[type="submit"]');

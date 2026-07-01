@@ -147,7 +147,8 @@ async function sendVerificationCode(email, code, type = 'registration') {
     return await sendEmail(email, `${typeName} - Doğrulama Kodu`, html);
 }
 
-async function sendPasswordResetLink(email, resetLink) {
+async function sendPasswordResetLink(email, resetLink, ttlMinutes = 15) {
+    const ttlText = `${ttlMinutes} dakika`;
     const html = `
         <!DOCTYPE html>
         <html>
@@ -249,7 +250,7 @@ async function sendPasswordResetLink(email, resetLink) {
                     </div>
                     
                     <p style="margin-top: 25px; font-size: 14px; color: #6b7280;">
-                        <strong>Not:</strong> Bu bağlantı güvenlik amacıyla 1 saat boyunca geçerlidir.
+                        <strong>Not:</strong> Bu bağlantı güvenlik amacıyla yalnızca <strong>${ttlText}</strong> boyunca geçerlidir ve tek kullanımlıktır. Süresi dolduktan sonra çalışmaz; bu sayede e-postanıza sonradan erişen biri hesabınıza giremez.
                         <br><br>
                         Eğer şifre sıfırlama talebinde bulunmadıysanız, bu e-postayı güvenle göz ardı edebilirsiniz. Hesabınız güvendedir.
                     </p>

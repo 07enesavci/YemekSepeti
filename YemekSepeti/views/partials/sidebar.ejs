@@ -63,6 +63,11 @@
                         <span>⭐</span> Yorumlar
                     </a>
                 </li>
+                <li>
+                    <a href="/seller/feedback" class="<%= title === 'Öneri & Şikayet' ? 'active' : '' %>" id="sidebar-feedback-link">
+                        <span>✉️</span> Öneri & Şikayet
+                    </a>
+                </li>
                 <li id="sidebar-own-couriers-li" style="display: none;">
                     <a href="/seller/own-couriers" class="<%= title === 'Kurye Yönetimi' ? 'active' : '' %>" id="sidebar-own-couriers-link">
                         <span>🏍️</span> Kurye Yönetimi
@@ -96,11 +101,21 @@
                         <span>📈</span> Raporlar
                     </a>
                 </li>
+                <li>
+                    <a href="/courier/<%= courierId %>/feedback" class="<%= title === 'Öneri & Şikayet' ? 'active' : '' %>">
+                        <span>✉️</span> Öneri & Şikayet
+                    </a>
+                </li>
 
             <% } else if (user && (user.role === 'admin' || user.role === 'super_admin' || user.role === 'support')) { %>
                 <li>
                     <a href="/admin/users" class="<%= title === 'Kullanıcı Yönetimi' ? 'active' : '' %>">
                         <span>👥</span> Kullanıcı Yönetimi
+                    </a>
+                </li>
+                <li>
+                    <a href="/admin/orders" class="<%= title === 'Sipariş Yönetimi' ? 'active' : '' %>">
+                        <span>🧾</span> Siparişler
                     </a>
                 </li>
                 <li>
@@ -141,6 +156,11 @@
                 <li>
                     <a href="/admin/review-requests" class="<%= title === 'Dükkan Yorumları' ? 'active' : '' %>">
                         <span>⭐</span> Dükkan Yorumları
+                    </a>
+                </li>
+                <li>
+                    <a href="/admin/feedback" class="<%= title === 'Öneri & Şikayet' ? 'active' : '' %>">
+                        <span>✉️</span> Öneri & Şikayet
                     </a>
                 </li>
                 <li>

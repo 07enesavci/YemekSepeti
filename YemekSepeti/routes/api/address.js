@@ -167,17 +167,18 @@ router.get('/districts/:city', (req, res) => {
     }
 });
 
-// POST /api/address/delivery-context — Teslimat il/ilçe/mahalle/cadde (oturuma yazar; sipariş doğruluğu için)
+// POST /api/address/delivery-context — Teslimat il/ilçe/mahalle (oturuma yazar; sipariş doğruluğu için)
 router.post('/delivery-context', (req, res) => {
     try {
         const il = typeof req.body.il === 'string' ? req.body.il.trim() : '';
         const ilce = typeof req.body.ilce === 'string' ? req.body.ilce.trim() : '';
         const mahalle = typeof req.body.mahalle === 'string' ? req.body.mahalle.trim() : '';
+        // cadde artık istenmiyor; eski istemcilerden gelirse tolere edilir (opsiyonel)
         const cadde = typeof req.body.cadde === 'string' ? req.body.cadde.trim() : '';
-        if (!il || !ilce || !mahalle || !cadde) {
+        if (!il || !ilce || !mahalle) {
             return res.status(400).json({
                 success: false,
-                message: 'İl, ilçe, mahalle ve cadde alanları zorunludur.'
+                message: 'İl, ilçe ve mahalle alanları zorunludur.'
             });
         }
         let lat = req.body.lat != null && req.body.lat !== '' ? parseFloat(req.body.lat) : null;

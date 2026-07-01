@@ -10,6 +10,8 @@ const db = require("../../config/database");
 const { User, EmailVerificationCode, Seller, Courier, Address } = require("../../models");
 const { Op } = require("sequelize");
 const { sendVerificationCode, sendPasswordResetLink } = require("../../config/email");
+const { validatePassword } = require('../../lib/passwordPolicy');
+const { writeLog } = require('../../config/logger');
 const { body, validationResult } = require('express-validator');
 const { authLimiter, strictLimiter } = require('../../middleware/security');
 const { submitDocumentsJsonValidation, handleValidationErrors: handleValidate } = require('../../middleware/validate');
@@ -115,6 +117,27 @@ function getBaseUrl(req) {
     if (buyerDomain && !buyerDomain.includes('localhost')) return `https://${buyerDomain}`;
     const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
     return `${isHttps ? 'https' : 'http'}://${buyerDomain || 'localhost:3000'}`;
+}
+
+// Rolüne göre doğru giriş sayfası URL'i (satıcı/kurye → partner, admin → admin, alıcı → buyer).
+// Mevcut isteğin protokol ve portunu korur (dev: :3000, prod: standart port).
+function loginUrlForRole(req, role) {
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    const proto = isHttps ? 'https' : 'http';
+    const hostHeader = String((req.headers && req.headers.host) || '');
+    const portMatch = hostHeader.match(/:(\d+)$/);
+    const port = portMatch ? portMatch[0] : ''; // ':3000' veya ''
+    const clean = (d) => String(d || '').replace(/^https?:\/\//, '').replace(/\/+$/, '').replace(/:\d+$/, '');
+
+    let domain;
+    if (role === 'admin' || role === 'super_admin' || role === 'support') {
+        domain = clean(process.env.ADMIN_DOMAIN || 'admin.localhost');
+    } else if (role === 'seller' || role === 'courier') {
+        domain = clean(process.env.PARTNER_DOMAIN || 'partner.localhost');
+    } else {
+        domain = clean(process.env.BUYER_DOMAIN || 'localhost');
+    }
+    return `${proto}://${domain}${port}/login`;
 }
 
 function getGoogleOAuthConfig(req) {
@@ -544,8 +567,9 @@ router.post("/verify-email", async (req, res) => {
         if (!roleAllowedOnDomain(role, domainType)) {
             return res.status(403).json({ success: false, message: "Bu domain üzerinde bu rol ile kayıt olamazsınız." });
         }
-        if (!password || typeof password !== 'string' || password.length < 8) {
-            return res.status(400).json({ success: false, message: "Şifre en az 8 karakter olmalıdır." });
+        const pwCheck = validatePassword(password);
+        if (!pwCheck.ok) {
+            return res.status(400).json({ success: false, message: pwCheck.message });
         }
         const hashedPassword = await hashPassword(password);
         const user = await User.create({
@@ -826,7 +850,11 @@ router.post("/submit-documents-json", submitDocumentsJsonValidation, handleValid
     }
 });
 
-// Şifre Sıfırlama - Link Gönder (DB tabanlı tek kullanımlık token, 15 dakika)
+// Şifre sıfırlama linkinin geçerlilik süresi (dakika). Kısa tutulur ki e-postaya
+// sonradan erişen biri hesabı ele geçiremesin. Tek kaynak — hem DB expiry hem e-posta metni bunu kullanır.
+const PASSWORD_RESET_TTL_MINUTES = 15;
+
+// Şifre Sıfırlama - Link Gönder (DB tabanlı tek kullanımlık token, süreli)
 // Rate limit: strictLimiter (dakikada 5 deneme)
 router.post("/forgot-password", strictLimiter, async (req, res) => {
     const { email } = req.body;
@@ -845,7 +873,7 @@ router.post("/forgot-password", strictLimiter, async (req, res) => {
 
         // Tek kullanımlık rastgele token oluştur
         const resetToken = crypto.randomBytes(32).toString('hex');
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 dakika
+        const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MINUTES * 60 * 1000);
 
         // Token'ı kaydet — tablo yapısına göre en uygun yöntemi dene
         try {
@@ -880,15 +908,46 @@ router.post("/forgot-password", strictLimiter, async (req, res) => {
         const baseUrl = getBaseUrl(req);
         const resetLink = `${baseUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(normalizedEmail)}`;
 
-        const emailResult = await sendPasswordResetLink(normalizedEmail, resetLink);
+        const emailResult = await sendPasswordResetLink(normalizedEmail, resetLink, PASSWORD_RESET_TTL_MINUTES);
         if (emailResult && emailResult.success === false) {
-            console.error('Şifre sıfırlama maili gönderilemedi:', emailResult.error);
+            writeLog('ERROR', 'Şifre sıfırlama maili gönderilemedi', { email: normalizedEmail, error: emailResult.error });
         }
 
         res.json({ success: true, message: GENERIC_OK });
     } catch (error) {
         console.error('Forgot password hatası:', error.message);
         res.status(500).json({ success: false, message: "İşlem sırasında hata oluştu. Lütfen tekrar deneyin." });
+    }
+});
+
+// Şifre Sıfırlama - Token Doğrula (sayfa açılışında; süresi dolmuş/kullanılmış linki anında yakalar)
+// Rate limit: strictLimiter (dakikada 5 deneme)
+router.post("/reset-password/validate", strictLimiter, async (req, res) => {
+    try {
+        const { token, email } = req.body;
+        if (!token || !email) {
+            return res.json({ success: true, valid: false });
+        }
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const resetRecord = await EmailVerificationCode.findOne({
+            where: {
+                email: normalizedEmail,
+                code: token,
+                type: 'password_reset',
+                used: false,
+                expires_at: { [Op.gt]: new Date() }
+            },
+            attributes: ['expires_at']
+        });
+        if (!resetRecord) {
+            // Geçersiz / süresi dolmuş / kullanılmış — token'ın neden geçersiz olduğunu sızdırma
+            return res.json({ success: true, valid: false });
+        }
+        const remainingSeconds = Math.max(0, Math.floor((new Date(resetRecord.expires_at).getTime() - Date.now()) / 1000));
+        return res.json({ success: true, valid: true, remainingSeconds });
+    } catch (error) {
+        console.error('Reset token doğrulama hatası:', error.message);
+        return res.json({ success: true, valid: false });
     }
 });
 
@@ -900,11 +959,9 @@ router.post("/reset-password", strictLimiter, async (req, res) => {
         if (!token || !email || !password) {
             return res.status(400).json({ success: false, message: "Gerekli bilgiler eksik." });
         }
-        if (password.length < 8) {
-            return res.status(400).json({ success: false, message: "Şifre en az 8 karakter olmalıdır." });
-        }
-        if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
-            return res.status(400).json({ success: false, message: "Şifre en az bir büyük harf ve bir rakam içermelidir." });
+        const pwCheck = validatePassword(password);
+        if (!pwCheck.ok) {
+            return res.status(400).json({ success: false, message: pwCheck.message });
         }
 
         const normalizedEmail = String(email).trim().toLowerCase();
@@ -946,7 +1003,12 @@ router.post("/reset-password", strictLimiter, async (req, res) => {
             // Session store temizleme başarısız olsa bile devam et (kritik değil)
         }
 
-        res.json({ success: true, message: "Şifreniz başarıyla güncellendi. Şimdi giriş yapabilirsiniz." });
+        // Rolüne göre doğru giriş sayfasına yönlendir (satıcı/kurye → partner paneli, admin → admin paneli)
+        res.json({
+            success: true,
+            message: "Şifreniz başarıyla güncellendi. Şimdi giriş yapabilirsiniz.",
+            redirectUrl: loginUrlForRole(req, user.role)
+        });
     } catch (error) {
         console.error('Reset password hatası:', error.message);
         res.status(500).json({ success: false, message: "Şifre sıfırlama sırasında hata oluştu." });

@@ -1,0 +1,28 @@
+<link rel="stylesheet" href="/assets/css/pages/auth.css">
+<link rel="stylesheet" href="/assets/css/pages/checkout.css">
+
+<div class="container section-padding">
+    <h1 class="section-title">Öneri & Şikayet</h1>
+
+    <div class="profile-layout">
+
+        <aside class="profile-sidebar">
+            <nav class="profile-nav">
+                <ul>
+                    <li><a href="/buyer/profile">Profil Bilgileri</a></li>
+                    <li><a href="/buyer/addresses">Adreslerim</a></li>
+                    <li><a href="/buyer/wallet">Cüzdan & Kuponlar</a></li>
+                    <li><a href="/buyer/orders">Siparişlerim</a></li>
+                    <li><a href="/buyer/favorites">Favori Restoranlar</a></li>
+                    <li><a href="/buyer/feedback" class="active">Öneri & Şikayet</a></li>
+                    <li><a href="/buyer/security">Güvenlik</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="profile-content">
+            <%- include('../partials/feedback-form') %>
+        </div>
+
+    </div>
+</div>

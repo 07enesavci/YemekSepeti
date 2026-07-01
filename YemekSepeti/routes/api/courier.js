@@ -228,6 +228,8 @@ router.post("/tasks/:id/accept", async (req, res) => {
                         message: 'Kurye atandı, teslim almak için restorana gidiyor.'
                     });
                 }
+                // Admin sipariş sayfası canlı güncellensin
+                global.io.to('admin').emit('admin_orders_updated', { reason: 'courier_assigned', orderId: orderId });
             }
         } catch (err) {
             await t.rollback();
@@ -392,6 +394,8 @@ router.put("/tasks/:id/pickup", async (req, res) => {
                     orderNumber: orderInfo.order_number,
                     deliveryType: orderInfo.delivery_type
                 });
+                // Admin sipariş sayfası canlı güncellensin
+                global.io.to('admin').emit('admin_orders_updated', { reason: 'picked_up', orderId: orderId });
             }
         } catch(e) {}
 
@@ -442,6 +446,8 @@ router.put("/tasks/:id/complete", async (req, res) => {
                     deliveryType: orderCheck.delivery_type,
                     message: 'Siparişiniz teslim edildi. Afiyet olsun!'
                 });
+                // Admin sipariş sayfası canlı güncellensin
+                global.io.to('admin').emit('admin_orders_updated', { reason: 'delivered', orderId: orderId });
             }
         }
 

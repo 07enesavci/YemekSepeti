@@ -10,7 +10,9 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false
         },
         code: {
-            type: DataTypes.STRING(10),
+            // Kayıt/2FA kodları 6 hane; şifre sıfırlama token'ı 64 karakter (crypto.randomBytes(32).hex).
+            // Bu yüzden 255 karakter — dar tutulursa reset token sığmaz ve mail hiç gönderilmez.
+            type: DataTypes.STRING(255),
             allowNull: false
         },
         type: {

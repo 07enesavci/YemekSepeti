@@ -7,6 +7,7 @@ const { User, Address, Order, Review, Seller } = require("../../models");
 const { Op } = require('sequelize');
 const { encryptText, decryptText } = require("../../lib/cardCrypto");
 const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
+const { validatePassword } = require("../../lib/passwordPolicy");
 
 router.get("/profile", requireRole('buyer'), async (req, res) => {
     try {
@@ -374,10 +375,11 @@ router.put("/password", requireRole('buyer'), async (req, res) => {
                 message: "Mevcut şifre ve yeni şifre gereklidir."
             });
         }
-        if (newPassword.length < 8) {
+        const pwCheck = validatePassword(newPassword);
+        if (!pwCheck.ok) {
             return res.status(400).json({
                 success: false,
-                message: "Yeni şifre en az 8 karakter olmalıdır."
+                message: pwCheck.message
             });
         }
         if (currentPassword === newPassword) {
