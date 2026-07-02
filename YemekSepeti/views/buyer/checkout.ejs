@@ -60,7 +60,7 @@
                     </div>
                 </div>
 
-                <form id="new-card-form" class="checkout-new-card-form" style="display: none; margin-top: 1.5rem;">
+                <form id="new-card-form" class="checkout-new-card-form" style="display: none; margin-top: 1.5rem;" autocomplete="off">
                     <div class="cc-anim-wrapper">
                         <section class="cc-anim-card" id="checkout-cc-card">
                             <div class="cc-anim-highlight hl-hidden" id="checkout-cc-highlight"></div>
@@ -101,20 +101,20 @@
                     </div>
                     <div class="form-group">
                         <label for="card-name" class="form-label">Kart Üzerindeki İsim</label>
-                        <input type="text" id="card-name" class="form-input" autocomplete="cc-name">
+                        <input type="text" id="card-name" class="form-input" autocomplete="off">
                     </div>
                     <div class="form-group">
                         <label for="card-number" class="form-label">Kart Numarası</label>
-                        <input type="text" id="card-number" class="form-input" placeholder="0000 0000 0000 0000" inputmode="numeric" autocomplete="cc-number">
+                        <input type="text" id="card-number" class="form-input" placeholder="0000 0000 0000 0000" inputmode="numeric" autocomplete="off">
                     </div>
                     <div class="form-row"> 
                         <div class="form-group">
                             <label for="card-expiry" class="form-label">Son Kul. Tarihi</label>
-                            <input type="text" id="card-expiry" class="form-input" placeholder="AA/YY" autocomplete="cc-exp">
+                            <input type="text" id="card-expiry" class="form-input" placeholder="AA/YY" autocomplete="off">
                         </div>
                         <div class="form-group">
                             <label for="card-cvc" class="form-label">CVV</label>
-                            <input type="text" id="card-cvc" class="form-input" placeholder="123" maxlength="3" autocomplete="cc-csc">
+                            <input type="text" id="card-cvc" class="form-input" placeholder="123" maxlength="3" autocomplete="off">
                         </div>
                     </div>
                     <div class="checkout-card-info-notice" style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(39, 174, 96, 0.08); border: 1px solid rgba(39, 174, 96, 0.2); border-radius: 8px; font-size: 0.85rem; color: #27ae60; margin-top: 0.5rem;">

@@ -58,18 +58,18 @@
                         <form id="change-password-form">
                             <div class="form-group">
                                 <label for="current-password" class="form-label">Mevcut Şifre</label>
-                                <input type="password" id="current-password" class="form-input" required>
+                                <input type="password" id="current-password" class="form-input" required autocomplete="current-password">
                             </div>
                             <div class="form-group">
                                 <label for="new-password" class="form-label">Yeni Şifre</label>
-                                <input type="password" id="new-password" class="form-input" required>
+                                <input type="password" id="new-password" class="form-input" required autocomplete="new-password">
                                 <small style="color: #666; font-size: 0.85rem; margin-top: 0.25rem; display: block;">
                                     Şifreniz en az 8 karakter olmalı ve en az bir büyük harf ile bir rakam içermelidir.
                                 </small>
                             </div>
                             <div class="form-group">
                                 <label for="confirm-password" class="form-label">Yeni Şifre Tekrar</label>
-                                <input type="password" id="confirm-password" class="form-input" required>
+                                <input type="password" id="confirm-password" class="form-input" required autocomplete="new-password">
                             </div>
                             <button type="submit" class="btn btn-primary" id="change-password-btn">Şifreyi Değiştir</button>
                         </form>

@@ -47,6 +47,13 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.BOOLEAN,
             defaultValue: false,
             allowNull: false
+        },
+        /** Kargo desi/ağırlığı — by_weight ücret modunda kullanılır */
+        cargo_weight_desi: {
+            type: DataTypes.DECIMAL(10, 2),
+            defaultValue: 0.00,
+            allowNull: false,
+            comment: 'Ürünün kargo desi/ağırlığı (by_weight modu)'
         }
     }, {
         tableName: 'meals',

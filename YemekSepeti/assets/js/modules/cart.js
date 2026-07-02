@@ -11,8 +11,38 @@ SepetKalemi.prototype.aratoplam = function(){
 
 //Durum
 var sepet = [];
-var cachedDeliveryFee = null; 
-var cachedSellerId = null; 
+var cachedDeliveryFee = null;
+var cachedSellerId = null;
+var cachedCargoInfo = null; // { mode, fee, threshold } — kargo satıcısına özel
+
+// Kargo ücreti hesabı — lib/cargoPricing.js ile aynı mantığın istemci aynası
+function hesaplaKargoUcreti(cargoInfo, araToplam) {
+    if (!cargoInfo) return 0;
+    var fee = Math.max(0, parseFloat(cargoInfo.fee) || 0);
+    var threshold = Math.max(0, parseFloat(cargoInfo.threshold) || 0);
+    var sub = Math.max(0, parseFloat(araToplam) || 0);
+    var mode = cargoInfo.mode || 'free';
+    if (mode === 'free') return 0;
+    if (threshold > 0 && sub >= threshold) return 0;
+    return Math.round(fee * 100) / 100;
+}
+
+// Kargo satıcısının ücret ayarlarını getir (cache'li)
+async function getirKargoBilgisi(sellerId) {
+    if (!sellerId) return null;
+    if (cachedCargoInfo && cachedSellerId === sellerId) return cachedCargoInfo;
+    try {
+        var baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        var r = await fetch(`${baseUrl}/api/sellers/${sellerId}`);
+        if (r.ok) {
+            var s = await r.json();
+            cachedCargoInfo = { mode: s.cargoPricingMode, fee: s.cargoFee, threshold: s.cargoFreeThreshold };
+            cachedSellerId = sellerId;
+            return cachedCargoInfo;
+        }
+    } catch (e) {}
+    return null;
+}
 var appliedCoupon = null; 
 var APPLIED_COUPON_STORAGE_KEY = 'evLezzetleriAppliedCoupon';
 
@@ -38,6 +68,15 @@ function syncAppliedCouponState(nextCoupon) {
     }
 }
 
+// Uygulanan kupondan vazgeç — checkout dahil her sayfadan çağrılabilir
+window.clearAppliedCoupon = function() {
+    syncAppliedCouponState(null);
+    // Kart sayfasındaysak kupon formunu da sıfırla
+    var couponInput = document.getElementById('coupon');
+    if (couponInput) { couponInput.value = ''; couponInput.disabled = false; }
+    try { if (typeof loadAvailableCoupons === 'function') loadAvailableCoupons(); } catch (e) {}
+};
+
 function getValidAppliedCouponForCurrentCart() {
     if (!appliedCoupon) {
         return null;
@@ -61,6 +100,29 @@ function isPanelPath(pathname)
 function tl(x)
 {
    	return Number(x || 0).toLocaleString('tr-TR', {style:'currency', currency:'TRY'});
+}
+
+// Ürünün stok miktarı (-1 = sınırsız). Hem camelCase hem snake_case destekler.
+function urunStok(urun) {
+    if (!urun) return -1;
+    var s = (urun.stockQuantity != null) ? Number(urun.stockQuantity)
+          : (urun.stock_quantity != null ? Number(urun.stock_quantity) : -1);
+    return isNaN(s) ? -1 : s;
+}
+
+// Sepette hedeflenen toplam adet stok sınırını aşıyor mu? true = eklenebilir
+function stokYeterli(urun, hedefToplamAdet) {
+    var s = urunStok(urun);
+    if (s === -1) return true; // sınırsız
+    return hedefToplamAdet <= s;
+}
+
+// Kullanıcıya gösterilecek stok uyarısı
+function stokUyariMesaji(urun) {
+    var s = urunStok(urun);
+    var ad = (urun && (urun.name || urun.ad)) || 'Ürün';
+    if (s <= 0) return '⚠️ "' + ad + '" şu an stokta yok.';
+    return '⚠️ "' + ad + '" için yeterli stok yok. En fazla ' + s + ' adet ekleyebilirsiniz.';
 }
 
 function sepetIndex(id)
@@ -99,6 +161,8 @@ async function urunBul(id)
    			gorsel: yemek.gorsel || yemek.imageUrl,
    			ad: yemek.ad || yemek.name,
             is_uzak_mesafe: !!yemek.is_uzak_mesafe,
+            cargoWeightDesi: parseFloat(yemek.cargoWeightDesi != null ? yemek.cargoWeightDesi : yemek.cargo_weight_desi) || 0,
+            stockQuantity: (yemek.stockQuantity != null ? parseInt(yemek.stockQuantity) : (yemek.stock_quantity != null ? parseInt(yemek.stock_quantity) : -1)),
             sellerId: yemek.sellerId || yemek.seller_id
    		};
    		
@@ -172,7 +236,14 @@ async function sepeteEkle(id, adet)
     }
 
    	var i = sepetIndex(id);
-   	
+
+   	// Stok kontrolü — sepete eklerken en baştan uyar
+   	var mevcutAdet = (i > -1) ? sepet[i].adet : 0;
+   	if (!stokYeterli(urun, mevcutAdet + adet)) {
+   	    alert(stokUyariMesaji(urun));
+   	    return;
+   	}
+
    	if(i > -1)
 	{
 		sepet[i].adet += adet;
@@ -262,6 +333,14 @@ async function addToCart(mealId, sellerId, quantity) {
     
     try {
         var i = sepetIndex(mealId);
+
+        // Stok kontrolü — sepete eklerken en baştan uyar
+        var mevcutAdet = (i > -1) ? sepet[i].adet : 0;
+        if (!stokYeterli(urunInfo, mevcutAdet + quantity)) {
+            alert(stokUyariMesaji(urunInfo));
+            return;
+        }
+
         if (i > -1) {
             sepet[i].adet += quantity;  // quantity parametresini kullan (sabit 1 değil)
             sepetiKaydet();
@@ -330,7 +409,9 @@ async function addToCart(mealId, sellerId, quantity) {
             id: meal.id,
             name: meal.name,
             ad: meal.name,
-            is_uzak_mesafe: !!meal.is_uzak_mesafe,
+            is_uzak_mesafe: !!(meal.is_uzak_mesafe != null ? meal.is_uzak_mesafe : meal.isUzakMesafe),
+            cargoWeightDesi: parseFloat(meal.cargoWeightDesi != null ? meal.cargoWeightDesi : meal.cargo_weight_desi) || 0,
+            stockQuantity: (meal.stockQuantity != null ? parseInt(meal.stockQuantity) : (meal.stock_quantity != null ? parseInt(meal.stock_quantity) : -1)),
             price: parseFloat(meal.price) || 0,
             fiyat: parseFloat(meal.price) || 0,
             description: meal.description || '',
@@ -407,10 +488,15 @@ function adetArtirAzalt(id, delta)
 	{
  	 	if (delta === -1 && sepet[i].adet === 1)
 		{
- 	 	 	sepettenSil(id); 
- 	 	 	return; 
+ 	 	 	sepettenSil(id);
+ 	 	 	return;
  	 	}
  	 	var yeniAdet = sepet[i].adet + delta;
+ 	 	// Adet artırırken stok kontrolü
+ 	 	if (delta > 0 && !stokYeterli(sepet[i].urun, yeniAdet)) {
+ 	 	    alert(stokUyariMesaji(sepet[i].urun));
+ 	 	    return;
+ 	 	}
  	 	sepet[i].adet = Math.max(1, yeniAdet);
  	 	sepetiKaydet();
  	 	sepetiYenile();
@@ -457,7 +543,13 @@ async function _sepetiYenileImpl()
    	    var sellerId = firstItem.urun?.sellerId || firstItem.urun?.seller_id || null;
    	    
         if (isCargo) {
-            teslimatUcreti = 0.00;
+            // Checkout'ta sunucu teklifi (mesafe/bölge dahil) varsa onu kullan
+            if (window.__cargoQuote && typeof window.__cargoQuote.fee === 'number') {
+                teslimatUcreti = window.__cargoQuote.fee;
+            } else {
+                var cargoInfo = await getirKargoBilgisi(sellerId);
+                teslimatUcreti = hesaplaKargoUcreti(cargoInfo, ara);
+            }
         } else if (cachedDeliveryFee && cachedSellerId === sellerId) {
    	        teslimatUcreti = cachedDeliveryFee;
    	    } else if (sellerId) {
@@ -475,7 +567,7 @@ async function _sepetiYenileImpl()
    	        }
    	    }
    	}
-   	
+
    	// Kupon indirimi varsa çıkar
    	var kuponIndirimi = 0;
     var validCoupon = getValidAppliedCouponForCurrentCart();
@@ -718,7 +810,12 @@ window.getSepetTotals = async function(){
    	    var sellerId = firstItem.urun?.sellerId || firstItem.urun?.seller_id || null;
    	    
         if (isCargo) {
-            teslimatUcreti = 0.00;
+            if (window.__cargoQuote && typeof window.__cargoQuote.fee === 'number') {
+                teslimatUcreti = window.__cargoQuote.fee;
+            } else {
+                var cargoInfoT = await getirKargoBilgisi(sellerId);
+                teslimatUcreti = hesaplaKargoUcreti(cargoInfoT, ara);
+            }
         } else if (cachedDeliveryFee && cachedSellerId === sellerId) {
    	        teslimatUcreti = cachedDeliveryFee;
    	    } else if (sellerId) {
@@ -735,9 +832,9 @@ window.getSepetTotals = async function(){
    	        }
    	    }
    	}
-   	
-   	// Yuvarlama
-   	if (window.forcePickupDeliveryFee) {
+
+   	// Kargoda ücret satıcı ayarına göre hesaplandı — gel al (forcePickup) dışında sıfırlama
+   	if (window.forcePickupDeliveryFee && !isCargo) {
         teslimatUcreti = 0.00;
    	} else {
    	    teslimatUcreti = Math.round(teslimatUcreti * 100) / 100;

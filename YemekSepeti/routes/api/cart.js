@@ -15,16 +15,16 @@ router.get("/product/:id", async (req, res) => {
                 as: 'seller',
                 attributes: ['id', 'shop_name']
             }],
-            attributes: ['id', 'name', 'description', 'price', 'image_url', 'category', 'is_uzak_mesafe']
+            attributes: ['id', 'name', 'description', 'price', 'image_url', 'category', 'is_uzak_mesafe', 'stock_quantity']
         });
-        
+
         if (!meal) {
-            return res.status(404).json({ 
-                success: false, 
-                message: "Ürün bulunamadı." 
+            return res.status(404).json({
+                success: false,
+                message: "Ürün bulunamadı."
             });
         }
-        
+
         res.json({
             id: meal.id,
             name: meal.name,
@@ -37,7 +37,8 @@ router.get("/product/:id", async (req, res) => {
             fiyat: parseFloat(meal.price),
             gorsel: meal.image_url,
             ad: meal.name,
-            is_uzak_mesafe: !!meal.is_uzak_mesafe
+            is_uzak_mesafe: !!meal.is_uzak_mesafe,
+            stockQuantity: (meal.stock_quantity != null ? parseInt(meal.stock_quantity) : -1)
         });
     } catch (error) {
         res.status(500).json({ success: false, message: "Sunucu hatası." });

@@ -689,6 +689,84 @@ const NEW_ADDRESS_FORM_CHECKOUT = `
     </div>
 `;
 
+// Kargo teklifi (uygunluk + ücret) durumu — cart.js getSepetTotals bunu okur
+window.__cargoQuote = null;
+
+function ensureCargoQuoteBanner() {
+    let b = document.getElementById('cargo-quote-banner');
+    if (b) return b;
+    b = document.createElement('div');
+    b.id = 'cargo-quote-banner';
+    b.style.cssText = 'display:none;margin:0.75rem 0;padding:0.6rem 0.9rem;border-radius:8px;font-size:0.9rem;font-weight:600;';
+    const anchor = document.getElementById('delivery-type-cargo-row') || document.getElementById('address-card');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor.nextSibling);
+    else document.body.appendChild(b);
+    return b;
+}
+
+/** Seçili adrese göre kargo uygunluğu + ücretini sunucudan alır, özet ve uyarıyı günceller */
+async function updateCargoQuote() {
+    const sepet = window.getSepet ? window.getSepet() : [];
+    const hasUzakMesafe = sepet.some(it => it.urun?.isUzakMesafe || it.urun?.is_uzak_mesafe || it.isUzakMesafe);
+    const cargoSelected = document.querySelector('input[name="deliveryType"]:checked')?.value === 'cargo';
+    const banner = ensureCargoQuoteBanner();
+
+    if (!hasUzakMesafe || !cargoSelected) {
+        window.__cargoQuote = null;
+        if (banner) banner.style.display = 'none';
+        return;
+    }
+
+    const first = sepet[0];
+    const sid = first?.urun?.sellerId || first?.urun?.seller_id || first?.sellerId;
+    const adresRadio = document.querySelector('input[name="address"]:checked');
+    const addressId = adresRadio && adresRadio.value !== 'new' ? adresRadio.value : null;
+    let ara = 0;
+    let toplamDesi = 0;
+    sepet.forEach(s => {
+        if (typeof s.aratoplam === 'function') ara += s.aratoplam();
+        const w = parseFloat(s.urun?.cargoWeightDesi) || 0;
+        const adet = s.adet || 1;
+        toplamDesi += w * adet;
+    });
+    ara = Math.round(ara * 100) / 100;
+    toplamDesi = Math.round(toplamDesi * 100) / 100;
+
+    try {
+        const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
+        const url = `${baseUrl}/api/orders/cargo-quote?sellerId=${sid}&subtotal=${ara}&totalDesi=${toplamDesi}${addressId ? `&addressId=${addressId}` : ''}`;
+        const r = await fetch(url, { credentials: 'include' });
+        const data = await r.json();
+        window.__cargoQuote = (data && data.success)
+            ? { eligible: data.eligible, fee: data.fee, message: data.message, distanceKm: data.distanceKm }
+            : null;
+    } catch (e) {
+        window.__cargoQuote = null;
+    }
+
+    if (banner) {
+        if (window.__cargoQuote && !window.__cargoQuote.eligible) {
+            banner.style.display = 'block';
+            banner.style.background = 'rgba(220,38,38,0.08)';
+            banner.style.color = '#dc2626';
+            banner.textContent = '⚠️ ' + (window.__cargoQuote.message || 'Bu adrese kargo gönderilemiyor.');
+        } else if (window.__cargoQuote) {
+            banner.style.display = 'block';
+            banner.style.background = 'rgba(16,185,129,0.08)';
+            banner.style.color = '#059669';
+            const km = window.__cargoQuote.distanceKm != null ? ` (~${window.__cargoQuote.distanceKm} km)` : '';
+            banner.textContent = window.__cargoQuote.fee > 0
+                ? `📦 Kargo ücreti: ${tl(window.__cargoQuote.fee)}${km}`
+                : `📦 Ücretsiz kargo${km}`;
+        } else {
+            banner.style.display = 'none';
+        }
+    }
+
+    await cizOdemeSayfasi();
+}
+window.updateCargoQuote = updateCargoQuote;
+
 /** Satıcı veritabanındaki pickupEnabled/uzakMesafeEnabled değerlerine göre teslimat seçeneklerini günceller */
 async function applySellerPickupToCheckout() {
     try {
@@ -722,9 +800,9 @@ async function applySellerPickupToCheckout() {
             if (normalDeliveryRow) normalDeliveryRow.style.display = 'none';
             if (deliveryRadio) { deliveryRadio.disabled = true; deliveryRadio.checked = false; }
             if (pickupMsg) pickupMsg.style.display = 'none';
-            window.forcePickupDeliveryFee = true; // cargo = free delivery
+            window.forcePickupDeliveryFee = false; // kargo ücreti satıcı ayarına göre hesaplanır
             if (deliveryCard) deliveryCard.style.display = 'block'; // still need address
-            await cizOdemeSayfasi();
+            await updateCargoQuote();
         } else {
             if (cargoRow) cargoRow.style.display = 'none';
             if (cargoRadio) { cargoRadio.disabled = true; cargoRadio.checked = false; }
@@ -776,7 +854,17 @@ async function cizOdemeSayfasi()
 
             if (couponDiscountRow) {
                 var couponCode = (window.appliedCoupon && window.appliedCoupon.code) ? window.appliedCoupon.code : '';
-                couponDiscountRow.innerHTML = '<span>Kupon İndirimi' + (couponCode ? ' (' + couponCode + ')' : '') + '</span><span style="color: #27AE60;">-' + tl(tutarlar.kuponIndirimi) + '</span>';
+                couponDiscountRow.innerHTML = '<span>Kupon İndirimi' + (couponCode ? ' (' + couponCode + ')' : '')
+                    + ' <a href="#" id="checkout-coupon-remove" style="color:#E74C3C;font-size:0.8rem;margin-left:4px;">Vazgeç</a></span>'
+                    + '<span style="color: #27AE60;">-' + tl(tutarlar.kuponIndirimi) + '</span>';
+                var removeLink = document.getElementById('checkout-coupon-remove');
+                if (removeLink) {
+                    removeLink.addEventListener('click', async function(e) {
+                        e.preventDefault();
+                        if (typeof window.clearAppliedCoupon === 'function') window.clearAppliedCoupon();
+                        await cizOdemeSayfasi();
+                    });
+                }
             }
         } else if (couponDiscountRow) {
             couponDiscountRow.remove();
@@ -842,7 +930,9 @@ document.addEventListener('DOMContentLoaded', async function(){
                 } else if (type === 'cargo') {
                     if (deliveryCard) deliveryCard.style.display = 'block';
                     if (pickupMessage) pickupMessage.style.display = 'none';
-                    window.forcePickupDeliveryFee = true; // cargo has no delivery fee
+                    window.forcePickupDeliveryFee = false; // kargo ücreti satıcı ayarına göre
+                    await updateCargoQuote();
+                    return;
                 } else {
                     if (deliveryCard) deliveryCard.style.display = 'block';
                     if (pickupMessage) pickupMessage.style.display = 'none';
@@ -851,7 +941,15 @@ document.addEventListener('DOMContentLoaded', async function(){
                 await cizOdemeSayfasi();
             });
         });
-        
+
+        // Adres değişince kargo teklifini (mesafe/uygunluk/ücret) yeniden hesapla
+        document.addEventListener('change', (e) => {
+            if (e.target && e.target.name === 'address') {
+                const cargoSelected = document.querySelector('input[name="deliveryType"]:checked')?.value === 'cargo';
+                if (cargoSelected) updateCargoQuote();
+            }
+        });
+
         const addressCard = document.getElementById('address-card');
         if (addressCard && !document.getElementById('new-address-form-checkout')) {
             addressCard.insertAdjacentHTML('afterend', NEW_ADDRESS_FORM_CHECKOUT);
@@ -986,6 +1084,14 @@ document.addEventListener('DOMContentLoaded', async function(){
                         {
                                 alert("Lütfen bir adres seçin.");
                                 return;
+                        }
+                        var isCargoDelivery = document.querySelector('input[name="deliveryType"]:checked')?.value === 'cargo';
+                        if (isCargoDelivery) {
+                                await updateCargoQuote();
+                                if (window.__cargoQuote && !window.__cargoQuote.eligible) {
+                                        alert(window.__cargoQuote.message || 'Seçtiğiniz adrese kargo gönderilemiyor. Lütfen farklı bir adres seçin.');
+                                        return;
+                                }
                         }
                         if (!kartRadio)
                         {

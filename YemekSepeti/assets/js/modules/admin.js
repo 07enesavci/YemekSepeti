@@ -756,7 +756,16 @@ function adminOrderModalAc(order) {
         + '<div class="admin-order-meta"><strong>Satıcı:</strong> ' + (order.seller ? adminEscape(order.seller.shopName || '-') : '-') + '</div>'
         + '<div class="admin-order-meta"><strong>Kurye:</strong> ' + (order.courier ? adminEscape(order.courier.fullname) + (order.courier.phone ? ' (' + adminEscape(order.courier.phone) + ')' : '') : 'Atanmadı') + '</div>'
         + '<div class="admin-order-meta"><strong>Teslimat:</strong> ' + addrHtml + '</div>'
-        + '<div class="admin-order-meta"><strong>Tutar:</strong> ' + fmt(order.totalAmount) + (order.deliveryFee ? ' (teslimat ' + fmt(order.deliveryFee) + ')' : '') + '</div>'
+        + '<div class="admin-order-meta"><strong>Tutar:</strong> ' + fmt(order.totalAmount) + (order.deliveryFee ? ' (' + (order.deliveryType === 'cargo' ? 'kargo' : 'teslimat') + ' ' + fmt(order.deliveryFee) + ')' : '') + '</div>'
+        + (order.deliveryType === 'cargo'
+            ? '<div class="admin-order-meta"><strong>Kargo:</strong> ' + (order.cargoCompany ? adminEscape(order.cargoCompany) : 'Firma girilmedi')
+                + (order.cargoTrackingNumber
+                    ? ' — Takip: ' + (order.cargoTrackingUrl
+                        ? '<a href="' + adminEscape(order.cargoTrackingUrl) + '" target="_blank" rel="noopener noreferrer">' + adminEscape(order.cargoTrackingNumber) + '</a>'
+                        : adminEscape(order.cargoTrackingNumber))
+                    : '')
+                + '</div>'
+            : '')
         + '<div class="admin-order-meta"><strong>Ürünler:</strong> ' + itemsHtml + '</div>';
 
     // Müdahale butonları

@@ -58,7 +58,7 @@
                     <form id="verify-2fa-form">
                         <div class="form-group">
                             <label for="2fa-code" class="form-label">Doğrulama Kodu</label>
-                            <input type="text" id="2fa-code" class="form-input" placeholder="123456" maxlength="6" required>
+                            <input type="text" id="2fa-code" class="form-input" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required>
                         </div>
                         <button type="submit" class="btn btn-primary btn-full">Doğrula</button>
                         <button type="button" id="resend-2fa-code" class="btn btn-secondary btn-full" style="margin-top: 10px;">Kodu Tekrar Gönder</button>

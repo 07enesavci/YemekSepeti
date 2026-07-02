@@ -84,6 +84,15 @@
 </div>
 
 <script>
+// Kargo takip no'sunu (varsa) tıklanabilir link olarak render eder
+function renderKargoTakip(o) {
+    if (!o || !o.cargoTrackingNumber) return '';
+    if (o.cargoTrackingUrl) {
+        return ' — Takip: <a href="' + o.cargoTrackingUrl + '" target="_blank" rel="noopener noreferrer" style="color:#8e44ad;font-weight:700;">' + o.cargoTrackingNumber + '</a>';
+    }
+    return ' — Takip: <strong>' + o.cargoTrackingNumber + '</strong>';
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     // EJS'den gelen orderId'yi kullan
     const orderId = "<%= typeof orderId !== 'undefined' ? orderId : '' %>" || null;
@@ -179,7 +188,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 const cargoDiv = document.createElement('div');
                 cargoDiv.id = 'cargo-tracking-info';
                 cargoDiv.innerHTML = order.cargoCompany
-                    ? `<div class="info-item"><div class="info-label"><span class="info-icon">📦</span><span>Kargo Firması</span></div><div class="info-value">${order.cargoCompany}${order.cargoTrackingNumber ? ' — Takip: <strong>' + order.cargoTrackingNumber + '</strong>' : ''}</div></div>`
+                    ? `<div class="info-item"><div class="info-label"><span class="info-icon">📦</span><span>Kargo Firması</span></div><div class="info-value">${order.cargoCompany}${renderKargoTakip(order)}</div></div>`
                     : `<div class="info-item" style="background:rgba(142,68,173,0.08);border-radius:8px;padding:0.75rem;"><div class="info-label"><span class="info-icon">📦</span><span style="color:#8e44ad;font-weight:600;">Uzak Mesafe Kargo</span></div><div class="info-value" style="color:#666;">Satıcı kargo bilgilerini güncelleyecek.</div></div>`;
                 const stepsEl = document.getElementById('order-status-steps');
                 if (stepsEl) orderInfoEl.insertBefore(cargoDiv, stepsEl);
@@ -244,6 +253,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                     else if (status === 'ready') idx = 2;
                     else if (status === 'on_delivery') idx = 3;
                     else if (status === 'delivered') idx = 4;
+                } else if (isPickup) {
+                    // Gel Al: 'ready' → "Teslim alınabilir" adımına ilerle
+                    if (status === 'confirmed' || status === 'preparing') idx = 1;
+                    else if (status === 'ready' || status === 'on_delivery') idx = 2;
+                    else if (status === 'delivered') idx = 3;
                 } else {
                     if (status === 'confirmed' || status === 'preparing' || status === 'ready') idx = 1;
                     else if (status === 'on_delivery') idx = 2;
@@ -315,7 +329,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     if (isCargoOrder && o.cargoCompany) {
                         var cargoInfo = document.getElementById('cargo-tracking-info');
                         if (cargoInfo) {
-                            cargoInfo.innerHTML = `<div class="info-item"><div class="info-label"><span class="info-icon">📦</span><span>Kargo Firması</span></div><div class="info-value">${o.cargoCompany}${o.cargoTrackingNumber ? ' — Takip: <strong>' + o.cargoTrackingNumber + '</strong>' : ''}</div></div>`;
+                            cargoInfo.innerHTML = `<div class="info-item"><div class="info-label"><span class="info-icon">📦</span><span>Kargo Firması</span></div><div class="info-value">${o.cargoCompany}${renderKargoTakip(o)}</div></div>`;
                         }
                     }
  
@@ -328,6 +342,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                             else if (st === 'ready') idx = 2;
                             else if (st === 'on_delivery') idx = 3;
                             else if (st === 'delivered') idx = 4;
+                        } else if (isPickupOrder) {
+                            // Gel Al: 'ready' → "Teslim alınabilir" adımına ilerle
+                            if (st === 'confirmed' || st === 'preparing') idx = 1;
+                            else if (st === 'ready' || st === 'on_delivery') idx = 2;
+                            else if (st === 'delivered') idx = 3;
                         } else {
                             if (st === 'confirmed' || st === 'preparing' || st === 'ready') idx = 1;
                             else if (st === 'on_delivery') idx = 2;
@@ -409,6 +428,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                                     else if (st === 'ready') idx = 2;
                                     else if (st === 'on_delivery') idx = 3;
                                     else if (st === 'delivered') idx = 4;
+                                } else if (isPickup) {
+                                    // Gel Al: 'ready' → "Teslim alınabilir" adımına ilerle
+                                    if (st === 'confirmed' || st === 'preparing') idx = 1;
+                                    else if (st === 'ready' || st === 'on_delivery') idx = 2;
+                                    else if (st === 'delivered') idx = 3;
                                 } else {
                                     if (st === 'confirmed' || st === 'preparing' || st === 'ready') idx = 1;
                                     else if (st === 'on_delivery') idx = 2;

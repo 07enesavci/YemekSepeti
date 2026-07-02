@@ -171,7 +171,8 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
                 'id', 'shop_name', 'location', 'rating', 'logo_url',
                 'banner_url', 'description', 'delivery_fee',
                 'min_order_amount', 'total_reviews', 'is_active', 'is_open', 'pickup_enabled',
-                'delivery_radius_km', 'latitude', 'longitude', 'uzak_mesafe_enabled'
+                'delivery_radius_km', 'latitude', 'longitude', 'uzak_mesafe_enabled',
+                'cargo_pricing_mode', 'cargo_fee', 'cargo_free_threshold'
             ]
         });
 
@@ -205,7 +206,10 @@ router.get("/:id", idParam, handleValidationErrors, async (req, res) => {
             totalReviews: parseInt(seller.total_reviews) || 0,
             isOpen: seller.is_open !== false && seller.is_open !== 0,
             pickupEnabled: seller.pickup_enabled !== false && seller.pickup_enabled !== 0,
-            uzakMesafeEnabled: !!seller.uzak_mesafe_enabled
+            uzakMesafeEnabled: !!seller.uzak_mesafe_enabled,
+            cargoPricingMode: seller.cargo_pricing_mode || 'free',
+            cargoFee: parseFloat(seller.cargo_fee) || 0,
+            cargoFreeThreshold: parseFloat(seller.cargo_free_threshold) || 0
         });
     } catch (error) {
         res.status(500).json({
@@ -223,7 +227,7 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
         const isUzakMesafeMode = req.query.mode === 'uzak_mesafe';
         const meals = await Meal.findAll({
             where: { seller_id: sellerId, is_approved: true, is_uzak_mesafe: isUzakMesafeMode },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_uzak_mesafe'],
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_uzak_mesafe', 'cargo_weight_desi', 'stock_quantity'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
 
@@ -240,7 +244,9 @@ router.get("/:id/menu", idParam, handleValidationErrors, async (req, res) => {
                 price: parseFloat(meal.price) || 0,
                 imageUrl: mealImageUrl,
                 isAvailable: !!meal.is_available,
-                isUzakMesafe: !!meal.is_uzak_mesafe
+                isUzakMesafe: !!meal.is_uzak_mesafe,
+                cargoWeightDesi: parseFloat(meal.cargo_weight_desi) || 0,
+                stockQuantity: (meal.stock_quantity != null ? parseInt(meal.stock_quantity) : -1)
             };
         });
 

@@ -26,17 +26,17 @@ router.get("/menu", async (req, res) => {
         }
         const meals = await Meal.findAll({
             where: { seller_id: seller.id },
-            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved', 'is_uzak_mesafe'],
+            attributes: ['id', 'category', 'name', 'description', 'price', 'image_url', 'is_available', 'is_approved', 'is_uzak_mesafe', 'cargo_weight_desi', 'stock_quantity'],
             order: [['category', 'ASC'], ['name', 'ASC']]
         });
-        
+
         const menu = meals.map(meal => {
             let mealImageUrl = meal.image_url;
-            if (!mealImageUrl || mealImageUrl.trim() === '' || 
+            if (!mealImageUrl || mealImageUrl.trim() === '' ||
                 mealImageUrl.includes('placeholder')) {
                 mealImageUrl = null;
             }
-            
+
             return {
                 id: meal.id,
                 category: meal.category,
@@ -46,7 +46,9 @@ router.get("/menu", async (req, res) => {
                 imageUrl: mealImageUrl,
                 isAvailable: meal.is_available,
                 isApproved: meal.is_approved,
-                isUzakMesafe: !!meal.is_uzak_mesafe
+                isUzakMesafe: !!meal.is_uzak_mesafe,
+                cargoWeightDesi: parseFloat(meal.cargo_weight_desi) || 0,
+                stockQuantity: (meal.stock_quantity != null ? parseInt(meal.stock_quantity) : -1)
             };
         });
         
@@ -66,7 +68,7 @@ router.post("/menu", async (req, res) => {
             });
         }
 
-        const { category, name, description, price, imageUrl, isAvailable = true, isUzakMesafe = false } = req.body;
+        const { category, name, description, price, imageUrl, isAvailable = true, isUzakMesafe = false, cargoWeightDesi, stockQuantity } = req.body;
         if (!category || !name || price === undefined || price === null || price === '') {
             return res.status(400).json({
                 success: false,
@@ -98,6 +100,15 @@ router.post("/menu", async (req, res) => {
 
         const isAvailableBool = isAvailable === true || isAvailable === 'true' || String(isAvailable).toLowerCase() === 'true';
         const isUzakMesafeBool = isUzakMesafe === true || isUzakMesafe === 'true' || isUzakMesafe === 1;
+        let cargoWeightNum = parseFloat(cargoWeightDesi);
+        if (isNaN(cargoWeightNum) || cargoWeightNum < 0) cargoWeightNum = 0;
+        cargoWeightNum = Math.round(cargoWeightNum * 100) / 100;
+        // Stok: -1 = sınırsız (varsayılan). Geçersiz/boş → -1
+        let stockNum = -1;
+        if (stockQuantity !== undefined && stockQuantity !== null && stockQuantity !== '') {
+            stockNum = parseInt(stockQuantity);
+            if (isNaN(stockNum) || stockNum < 0) stockNum = -1;
+        }
 
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
@@ -113,9 +124,9 @@ router.post("/menu", async (req, res) => {
 
         const shopId = sellerQuery[0].id;
         const result = await db.execute(
-            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, is_uzak_mesafe, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, false, ?, NOW(), NOW())`,
-            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool, isUzakMesafeBool]
+            `INSERT INTO meals (seller_id, category, name, description, price, image_url, is_available, is_approved, is_uzak_mesafe, cargo_weight_desi, stock_quantity, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, false, ?, ?, ?, NOW(), NOW())`,
+            [shopId, String(category).trim(), String(name).trim(), description ? String(description).trim() : null, priceNum, finalImageUrl, isAvailableBool, isUzakMesafeBool, cargoWeightNum, stockNum]
         );
 
         const insertId = (result && result.insertId != null) ? Number(result.insertId) : 0;
@@ -154,6 +165,8 @@ router.post("/menu", async (req, res) => {
                 imageUrl: finalImageUrl,
                 isAvailable: isAvailableBool,
                 isUzakMesafe: isUzakMesafeBool,
+                cargoWeightDesi: cargoWeightNum,
+                stockQuantity: stockNum,
                 isApproved: false
             }
         });
@@ -170,7 +183,7 @@ router.put("/menu/:id", async (req, res) => {
     try {
         const mealId = parseInt(req.params.id);
         const userId = req.session.user.id;
-        const { category, name, description, price, imageUrl, isAvailable, isUzakMesafe } = req.body;
+        const { category, name, description, price, imageUrl, isAvailable, isUzakMesafe, cargoWeightDesi, stockQuantity } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -243,6 +256,23 @@ router.put("/menu/:id", async (req, res) => {
         if (isUzakMesafe !== undefined) {
             updateFields.push("is_uzak_mesafe = ?");
             updateValues.push(isUzakMesafe === true || isUzakMesafe === 'true' || isUzakMesafe === 1 ? 1 : 0);
+        }
+        if (cargoWeightDesi !== undefined) {
+            let w = parseFloat(cargoWeightDesi);
+            if (isNaN(w) || w < 0) w = 0;
+            w = Math.round(w * 100) / 100;
+            updateFields.push("cargo_weight_desi = ?");
+            updateValues.push(w);
+        }
+        if (stockQuantity !== undefined) {
+            // Boş → sınırsız (-1); geçersiz/negatif → -1
+            let st = -1;
+            if (stockQuantity !== null && stockQuantity !== '') {
+                st = parseInt(stockQuantity);
+                if (isNaN(st) || st < 0) st = -1;
+            }
+            updateFields.push("stock_quantity = ?");
+            updateValues.push(st);
         }
 
         if (updateFields.length === 0) {
@@ -332,7 +362,8 @@ router.get("/earnings", async (req, res) => {
                 COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.subtotal ELSE 0 END), 0) as total_revenue,
                 COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.delivery_fee ELSE 0 END), 0) as total_delivery_fees,
                 COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.discount_amount ELSE 0 END), 0) as total_discounts,
-                COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.total_amount ELSE 0 END), 0) as total_earnings,
+                -- Satıcının net kazancı: ürün toplamı - indirim (teslimat ücreti kuryenin/platformun payıdır, dahil edilmez)
+                COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN (o.subtotal - o.discount_amount) ELSE 0 END), 0) as total_earnings,
                 COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as completed_orders,
                 COUNT(CASE WHEN o.status = 'cancelled' THEN 1 END) as cancelled_orders
             FROM orders o
@@ -445,7 +476,8 @@ router.get("/dashboard", async (req, res) => {
             SELECT 
                 COUNT(CASE WHEN o.status IN ('pending', 'confirmed') THEN 1 END) as new_orders,
                 COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as completed_orders,
-                COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.total_amount ELSE 0 END), 0) as today_earnings,
+                -- Net kazanç: ürün toplamı - indirim (teslimat ücreti hariç)
+                COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN (o.subtotal - o.discount_amount) ELSE 0 END), 0) as today_earnings,
                 COALESCE(AVG(s.rating), 0) as shop_rating
             FROM orders o
             LEFT JOIN sellers s ON s.id = o.seller_id
@@ -510,7 +542,7 @@ router.put("/profile", async (req, res) => {
         const userId = req.session.user.id;
         let emailChangeRequiresVerification = false;
         let usersTableFieldSpecified = false;
-        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled, uzakMesafeEnabled } = req.body;
+        const { email, fullname, shopName, description, location, workingHours, logoUrl, bannerUrl, deliveryRadiusKm, pickupEnabled, uzakMesafeEnabled, cargoPricingMode, cargoFee, cargoFreeThreshold, cargoFeePer100km, cargoRegions, cargoMaxDistanceKm } = req.body;
         const sellerQuery = await db.query(
             "SELECT id FROM sellers WHERE user_id = ?",
             [userId]
@@ -593,10 +625,13 @@ router.put("/profile", async (req, res) => {
         const updateValues = [];
         
         if (shopName !== undefined) {
-            if (typeof shopName !== 'string' || /[<>"']/.test(shopName)) {
+            // Not: SQL parametreli (injection'a kapalı), çıktı da HTML-escape ediliyor.
+            // Kesme işareti/tırnak (örn. "Ahmet'in Yeri") meşru olduğundan izin verilir;
+            // yalnızca etiket enjeksiyonuna yol açabilecek < > engellenir.
+            if (typeof shopName !== 'string' || /[<>]/.test(shopName)) {
                 return res.status(400).json({
                     success: false,
-                    message: "İşletme adında < > \" ' karakterleri kullanılamaz."
+                    message: "İşletme adında < ve > karakterleri kullanılamaz."
                 });
             }
             updateFields.push("shop_name = ?");
@@ -630,6 +665,46 @@ router.put("/profile", async (req, res) => {
         if (uzakMesafeEnabled !== undefined) {
             updateFields.push("uzak_mesafe_enabled = ?");
             updateValues.push(uzakMesafeEnabled === true || uzakMesafeEnabled === 1 || uzakMesafeEnabled === '1' ? 1 : 0);
+        }
+        if (cargoPricingMode !== undefined) {
+            const validModes = ['free', 'flat', 'by_region', 'by_weight'];
+            const mode = validModes.includes(cargoPricingMode) ? cargoPricingMode : 'free';
+            updateFields.push("cargo_pricing_mode = ?");
+            updateValues.push(mode);
+        }
+        if (cargoFee !== undefined) {
+            let fee = parseFloat(cargoFee);
+            if (isNaN(fee) || fee < 0) fee = 0;
+            fee = Math.round(fee * 100) / 100;
+            updateFields.push("cargo_fee = ?");
+            updateValues.push(fee);
+        }
+        if (cargoFreeThreshold !== undefined) {
+            let th = parseFloat(cargoFreeThreshold);
+            if (isNaN(th) || th < 0) th = 0;
+            th = Math.round(th * 100) / 100;
+            updateFields.push("cargo_free_threshold = ?");
+            updateValues.push(th);
+        }
+        if (cargoFeePer100km !== undefined) {
+            let pk = parseFloat(cargoFeePer100km);
+            if (isNaN(pk) || pk < 0) pk = 0;
+            pk = Math.round(pk * 100) / 100;
+            updateFields.push("cargo_fee_per_100km = ?");
+            updateValues.push(pk);
+        }
+        if (cargoMaxDistanceKm !== undefined) {
+            let md = parseInt(cargoMaxDistanceKm);
+            if (isNaN(md) || md < 0) md = 0;
+            updateFields.push("cargo_max_distance_km = ?");
+            updateValues.push(md);
+        }
+        if (cargoRegions !== undefined) {
+            // Geçerli il adlarına normalize et; boş dizi = tüm Türkiye
+            const { normalizeRegions } = require("../../lib/cargoGeo");
+            const normalized = normalizeRegions(cargoRegions);
+            updateFields.push("cargo_regions = ?");
+            updateValues.push(normalized.length > 0 ? JSON.stringify(normalized) : null);
         }
         if (req.body.hasOwnCouriers !== undefined) {
             updateFields.push("has_own_couriers = ?");
@@ -788,6 +863,12 @@ router.get("/profile", async (req, res) => {
                 delivery_radius_km as deliveryRadiusKm,
                 pickup_enabled as pickupEnabled,
                 uzak_mesafe_enabled as uzakMesafeEnabled,
+                cargo_pricing_mode as cargoPricingMode,
+                cargo_fee as cargoFee,
+                cargo_free_threshold as cargoFreeThreshold,
+                cargo_fee_per_100km as cargoFeePer100km,
+                cargo_regions as cargoRegions,
+                cargo_max_distance_km as cargoMaxDistanceKm,
                 has_own_couriers as hasOwnCouriers,
                 latitude,
                 longitude
@@ -812,6 +893,15 @@ router.get("/profile", async (req, res) => {
         profileData.deliveryRadiusKm = parseInt(profileData.deliveryRadiusKm) || 0;
         profileData.pickupEnabled = profileData.pickupEnabled === 1 || profileData.pickupEnabled === true;
         profileData.hasOwnCouriers = profileData.hasOwnCouriers === 1 || profileData.hasOwnCouriers === true;
+        profileData.cargoPricingMode = profileData.cargoPricingMode || 'free';
+        profileData.cargoFee = parseFloat(profileData.cargoFee) || 0;
+        profileData.cargoFreeThreshold = parseFloat(profileData.cargoFreeThreshold) || 0;
+        profileData.cargoFeePer100km = parseFloat(profileData.cargoFeePer100km) || 0;
+        profileData.cargoMaxDistanceKm = parseInt(profileData.cargoMaxDistanceKm) || 0;
+        if (typeof profileData.cargoRegions === 'string') {
+            try { profileData.cargoRegions = JSON.parse(profileData.cargoRegions); } catch (e) { profileData.cargoRegions = []; }
+        }
+        if (!Array.isArray(profileData.cargoRegions)) profileData.cargoRegions = [];
         if (profileData.workingHours === null || profileData.workingHours === undefined) {
             profileData.workingHours = '';
         } else if (typeof profileData.workingHours === 'string') {

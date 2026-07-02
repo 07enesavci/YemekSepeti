@@ -37,6 +37,12 @@ function openAddMealModal() {
     if (uzakCb) uzakCb.checked = !!window.__uzakMesafePage;
     const uzakHidden = document.getElementById('meal-uzak-mesafe-hidden');
     if (uzakHidden) uzakHidden.value = window.__uzakMesafePage ? '1' : '0';
+    const weightGroup = document.getElementById('cargo-weight-group');
+    if (weightGroup) weightGroup.style.display = (window.__uzakMesafePage || (uzakCb && uzakCb.checked)) ? 'block' : 'none';
+    const weightInput = document.getElementById('meal-cargo-weight');
+    if (weightInput) weightInput.value = '';
+    const stockInputAdd = document.getElementById('meal-stock');
+    if (stockInputAdd) stockInputAdd.value = ''; // yeni ürün varsayılan: sınırsız
 
     modalInstance.style.display = 'flex';
 }
@@ -108,6 +114,17 @@ function openEditMealModalWithData(meal) {
     if (uzakCb) uzakCb.checked = !!window.__uzakMesafePage || !!meal.isUzakMesafe;
     const uzakHidden = document.getElementById('meal-uzak-mesafe-hidden');
     if (uzakHidden) uzakHidden.value = (window.__uzakMesafePage || meal.isUzakMesafe) ? '1' : '0';
+    const weightGroup = document.getElementById('cargo-weight-group');
+    const isCargoMeal = window.__uzakMesafePage || !!meal.isUzakMesafe;
+    if (weightGroup) weightGroup.style.display = isCargoMeal ? 'block' : 'none';
+    const weightInput = document.getElementById('meal-cargo-weight');
+    if (weightInput) weightInput.value = (parseFloat(meal.cargoWeightDesi) || 0) > 0 ? meal.cargoWeightDesi : '';
+    const stockInputEdit = document.getElementById('meal-stock');
+    if (stockInputEdit) {
+        // -1 = sınırsız → alan boş gösterilir; 0 ve üzeri sayı yazılır
+        var st = (meal.stockQuantity != null) ? parseInt(meal.stockQuantity) : -1;
+        stockInputEdit.value = (isNaN(st) || st < 0) ? '' : st;
+    }
 
     modalInstance.style.display = 'flex';
 }
@@ -147,6 +164,11 @@ function createMealModal() {
                         <input type="number" id="meal-price" class="form-input" step="0.01" min="0" required>
                     </div>
                     <div class="form-group">
+                        <label for="meal-stock" class="form-label">Stok Adedi</label>
+                        <input type="number" id="meal-stock" class="form-input" step="1" min="0" placeholder="Boş = sınırsız">
+                        <p style="font-size: 0.8rem; color: #888; margin: 0.25rem 0 0;">Boş bırakırsanız stok sınırsız kabul edilir. 0 girerseniz ürün tükendi olarak işaretlenir.</p>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">Resim Seçeneği</label>
                         <div style="margin-bottom: 10px;">
                             <label style="margin-right: 20px; cursor: pointer;">
@@ -174,6 +196,11 @@ function createMealModal() {
                             <input type="checkbox" id="meal-uzak-mesafe"> <strong>Uzak Mesafe Kargo</strong> ürünü
                         </label>
                         <p style="font-size: 0.8rem; color: #888; margin: 0.25rem 0 0 1.5rem;">Bu ürün sadece Uzak Mesafe Kargo siparişlerinde görünür.</p>
+                    </div>
+                    <div class="form-group" id="cargo-weight-group" style="display: none;">
+                        <label for="meal-cargo-weight" class="form-label">Kargo Desi / Ağırlık</label>
+                        <input type="number" id="meal-cargo-weight" class="form-input" step="0.01" min="0" placeholder="Örn. 2.5">
+                        <p style="font-size: 0.8rem; color: #888; margin: 0.25rem 0 0;">Yalnızca "Mesafe/Ağırlık bazlı" kargo ücretlendirmesinde kullanılır. Bilmiyorsanız 0 bırakın.</p>
                     </div>
                     <!-- Uzak mesafe sayfasında hidden olarak gönderilir -->
                     <input type="hidden" id="meal-uzak-mesafe-hidden" value="0">
@@ -235,6 +262,15 @@ function createMealModal() {
         });
     }
     
+    // Uzak mesafe işaretlenince desi/ağırlık alanını göster/gizle
+    const uzakMesafeToggle = document.getElementById('meal-uzak-mesafe');
+    if (uzakMesafeToggle) {
+        uzakMesafeToggle.addEventListener('change', () => {
+            const wg = document.getElementById('cargo-weight-group');
+            if (wg) wg.style.display = (window.__uzakMesafePage || uzakMesafeToggle.checked) ? 'block' : 'none';
+        });
+    }
+
     const mealForm = document.getElementById('meal-form');
 
     if (mealForm) {
@@ -314,6 +350,8 @@ function createMealModal() {
             const isUzakMesafeVal = window.__uzakMesafePage
                 ? true
                 : (uzakMesafeCb ? uzakMesafeCb.checked : (uzakMesafeHidden ? uzakMesafeHidden.value === '1' : false));
+            const weightEl = document.getElementById('meal-cargo-weight');
+            const stockEl = document.getElementById('meal-stock');
             const mealData = {
                 name: document.getElementById('meal-name').value,
                 category: document.getElementById('meal-category').value,
@@ -321,7 +359,10 @@ function createMealModal() {
                 price: parseFloat(document.getElementById('meal-price').value),
                 imageUrl: imageUrl,
                 isAvailable: document.getElementById('meal-available').checked,
-                isUzakMesafe: isUzakMesafeVal
+                isUzakMesafe: isUzakMesafeVal,
+                cargoWeightDesi: (isUzakMesafeVal && weightEl && weightEl.value !== '') ? (parseFloat(weightEl.value) || 0) : 0,
+                // Boş → sınırsız (backend -1 yapar), sayı → o adet
+                stockQuantity: (stockEl && stockEl.value !== '') ? (parseInt(stockEl.value) || 0) : ''
             };
             
             console.log('📦 Meal data:', mealData);

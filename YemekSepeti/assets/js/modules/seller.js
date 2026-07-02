@@ -162,6 +162,12 @@ function createMealCardHTML(meal) {
                     `<span class="status-dot ${statusClass}">${statusText}</span>`
                 }
                 ${meal.isUzakMesafe ? '<span class="status-dot" style="background-color: #7c3aed; margin-left: 4px;">📦 Uzak Mesafe</span>' : ''}
+                ${(function(){
+                    var s = (meal.stockQuantity != null) ? parseInt(meal.stockQuantity) : -1;
+                    if (isNaN(s) || s < 0) return '<span class="status-dot" style="background-color:#3498db; margin-left:4px;">Stok: ∞</span>';
+                    if (s === 0) return '<span class="status-dot" style="background-color:#e74c3c; margin-left:4px;">Stok Tükendi</span>';
+                    return '<span class="status-dot" style="background-color:#16a085; margin-left:4px;">Stok: ' + s + '</span>';
+                })()}
             </div>
             <div class="menu-item-price">
                 ${parseFloat(meal.price || 0).toFixed(2)} TL
@@ -327,7 +333,8 @@ async function updateEarningsStats(period = 'month') {
 
             const pendingEl = statCards[1].querySelector('.stat-value');
             if (pendingEl) {
-                const pendingAmount = stats.totalOrders - stats.completedOrders;
+                // Devam eden siparişler: toplamdan hem tamamlananları hem iptalleri düş
+                const pendingAmount = Math.max(0, stats.totalOrders - stats.completedOrders - (stats.cancelledOrders || 0));
                 pendingEl.textContent = `${pendingAmount} sipariş`;
             }
 
@@ -493,11 +500,6 @@ function createOrderCardHTML(order) {
             <button class="btn btn-secondary reject-order-btn" data-order-id="${order.id}">Reddet</button>
             <button class="btn btn-primary accept-order-btn" data-order-id="${order.id}">Onayla ve Hazırlamaya Başla</button>
         `;
-    } else if (order.status === 'preparing' && order.deliveryType === 'cargo') {
-        // Kargo siparişlerinde hazırlanıyor → doğrudan kargoya gönderim butonu
-        actionButtons = `
-            <button class="btn btn-primary cargo-ship-btn" data-order-id="${order.id}" style="background:#8e44ad;border-color:#8e44ad;">📦 Kargoya Verildi</button>
-        `;
     } else if (order.status === 'preparing') {
         let readyButtonText;
         if (order.deliveryType === 'pickup') readyButtonText = 'Alıcıya Hazır Olduğunu Bildir';
@@ -549,7 +551,7 @@ function createOrderCardHTML(order) {
                 ${order.statusText ? `<p><strong>Durum:</strong> ${order.statusText}</p>` : ''}
                 <p><strong>Ödeme:</strong> ${paymentInfo}</p>
                 ${order.courierId && order.courierName ? `<p><strong>Kurye:</strong> ${order.courierName} (ID: ${order.courierId})</p>` : ''}
-                ${order.deliveryType === 'cargo' && order.cargoCompany ? `<p><strong>Kargo Firması:</strong> ${order.cargoCompany}${order.cargoTrackingNumber ? ` • Takip: <strong>${order.cargoTrackingNumber}</strong>` : ''}</p>` : ''}
+                ${order.deliveryType === 'cargo' && order.cargoCompany ? `<p><strong>Kargo Firması:</strong> ${order.cargoCompany}${order.cargoTrackingNumber ? ` • Takip: ${order.cargoTrackingUrl ? `<a href="${order.cargoTrackingUrl}" target="_blank" rel="noopener noreferrer"><strong>${order.cargoTrackingNumber}</strong></a>` : `<strong>${order.cargoTrackingNumber}</strong>`}` : ''}</p>` : ''}
             </div>
             ${actionButtons ? `
             <div class="order-card-actions">
@@ -608,8 +610,8 @@ async function loadOrdersForTab(tab, isSilent = false) {
             const tabNames = {
                 'new': 'Yeni sipariş',
                 'preparing': 'Hazırlanan sipariş',
-                'cargo_ready': 'Kargoya verilecek sipariş',
-                'shipped': 'Kargodaki sipariş',
+                'ready': 'Hazır sipariş',
+                'shipped': 'Yolda/kargodaki sipariş',
                 'history': 'Geçmiş sipariş'
             };
             newHtml = `<p style="text-align: center; padding: 2rem; color: #666;">${tabNames[tab] || 'Sipariş'} bulunmuyor.</p>`;
@@ -685,16 +687,13 @@ function attachOrderEventListeners() {
                 if (deliveryType === 'pickup') {
                     showSellerActionNotification('success', 'Alıcıya Bildirildi', '#' + orderId + ' numaralı gel al siparişi hazır. Müşteriye bildirim gönderildi.');
                 } else if (deliveryType === 'cargo') {
-                    showSellerActionNotification('success', 'Kargoya Hazır', '#' + orderId + ' kargoya verilecekler listesine taşındı.');
+                    showSellerActionNotification('success', 'Kargoya Hazır', '#' + orderId + ' "Hazır Siparişler" sekmesine taşındı, kargoya verebilirsiniz.');
                 } else {
                     showSellerActionNotification('success', 'Kurye Çağrısı Hazır', '#' + orderId + ' için kurye çağrısı yapılabilir.');
                 }
+                // Sipariş 'preparing' → 'ready' oldu: her iki sekmeyi de tazele
                 await loadOrdersForTab('preparing');
-                if (deliveryType === 'cargo') {
-                    await loadOrdersForTab('cargo_ready');
-                } else {
-                    await loadOrdersForTab('new');
-                }
+                await loadOrdersForTab('ready');
             } catch (error) {
                 showSellerActionNotification('error', 'İşlem Başarısız', error.message || 'Durum güncellenemedi.');
             }
@@ -723,9 +722,10 @@ function attachOrderEventListeners() {
                 
                 const data = await response.json();
                 showSellerActionNotification('success', 'Kurye Atandı', data.message || ('#' + orderId + ' kuryeye atandı.'));
-                
-                // Siparişleri yenile
-                await loadOrdersForTab('preparing');
+
+                // Sipariş 'ready' listesinden çıkıp kurye akışına geçer
+                await loadOrdersForTab('ready');
+                await loadOrdersForTab('shipped');
             } catch (error) {
                 showSellerActionNotification('error', 'Kurye Atama Hatası', error.message || 'Kurye atanamadı.');
                 button.disabled = false;
@@ -747,7 +747,8 @@ function attachOrderEventListeners() {
             try {
                 await updateOrderStatus(orderId, 'delivered');
                 showSellerActionNotification('success', 'Sipariş Teslim Edildi', '#' + orderId + ' müşteriye teslim edildi.');
-                await loadOrdersForTab('preparing');
+                // Gel al 'ready' den, kargo 'shipped' ten teslim edilir → ikisini de tazele
+                await loadOrdersForTab('ready');
                 await loadOrdersForTab('shipped');
                 await loadOrdersForTab('history');
             } catch (error) {
@@ -777,11 +778,23 @@ function showCargoShipModal(orderId) {
             <h3 style="margin:0 0 1rem 0;">📦 Kargoya Ver</h3>
             <div style="margin-bottom:1rem;">
                 <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.4rem;">Kargo Firması *</label>
-                <input id="cargo-company-input" type="text" placeholder="Örn: Yurtiçi Kargo" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                <select id="cargo-company-select" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                    <option value="yurtici">Yurtiçi Kargo</option>
+                    <option value="aras">Aras Kargo</option>
+                    <option value="mng">MNG Kargo</option>
+                    <option value="ptt">PTT Kargo</option>
+                    <option value="surat">Sürat Kargo</option>
+                    <option value="ups">UPS Kargo</option>
+                    <option value="sendeo">Sendeo</option>
+                    <option value="hepsijet">HepsiJET</option>
+                    <option value="__other">Diğer (elle yaz)</option>
+                </select>
+                <input id="cargo-company-input" type="text" autocomplete="off" placeholder="Kargo firması adı" style="display:none;margin-top:0.5rem;width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                <small style="color:#64748b;font-size:0.78rem;">Listedeki firmalar için müşteriye tıklanabilir takip linki otomatik oluşturulur.</small>
             </div>
             <div style="margin-bottom:1.5rem;">
                 <label style="display:block;font-size:0.9rem;font-weight:600;margin-bottom:0.4rem;">Takip Numarası (opsiyonel)</label>
-                <input id="cargo-tracking-input" type="text" placeholder="Takip numarası" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
+                <input id="cargo-tracking-input" type="text" autocomplete="off" placeholder="Takip numarası" style="width:100%;padding:0.5rem 0.75rem;border:1px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;">
             </div>
             <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
                 <button id="cargo-ship-cancel" class="btn btn-secondary">İptal</button>
@@ -794,8 +807,17 @@ function showCargoShipModal(orderId) {
     document.getElementById('cargo-ship-cancel').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 
+    const companySelect = document.getElementById('cargo-company-select');
+    const companyOther = document.getElementById('cargo-company-input');
+    companySelect.addEventListener('change', () => {
+        companyOther.style.display = companySelect.value === '__other' ? 'block' : 'none';
+    });
+
     document.getElementById('cargo-ship-confirm').addEventListener('click', async () => {
-        const cargoCompany = document.getElementById('cargo-company-input').value.trim();
+        // Bilinen firma anahtarı ('yurtici' vb.) veya "Diğer" seçilirse serbest metin
+        const cargoCompany = companySelect.value === '__other'
+            ? companyOther.value.trim()
+            : companySelect.value;
         const cargoTrackingNumber = document.getElementById('cargo-tracking-input').value.trim();
         if (!cargoCompany) {
             alert('Kargo firması zorunludur.');
@@ -815,9 +837,10 @@ function showCargoShipModal(orderId) {
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'Hata oluştu');
             modal.remove();
-            showSellerActionNotification('success', 'Kargoya Verildi', `#${orderId} kargoya verildi. Firma: ${cargoCompany}`);
-            await loadOrdersForTab('preparing');
-            await loadOrdersForTab('cargo_ready');
+            const firmaAdi = companySelect.value === '__other' ? cargoCompany : (companySelect.options[companySelect.selectedIndex]?.text || cargoCompany);
+            showSellerActionNotification('success', 'Kargoya Verildi', `#${orderId} kargoya verildi. Firma: ${firmaAdi}`);
+            // Sipariş 'ready' den çıkıp 'on_delivery' (yolda/kargoda) olur
+            await loadOrdersForTab('ready');
             await loadOrdersForTab('shipped');
         } catch (err) {
             showSellerActionNotification('error', 'Hata', err.message);
@@ -1162,13 +1185,51 @@ async function loadProfilePage() {
             const pickupCb = document.getElementById('pickup-enabled');
             if (pickupCb) pickupCb.checked = profile.pickupEnabled !== false;
             const uzakMesafeCb = document.getElementById('uzak-mesafe-enabled');
+            // Kargo ücret ayarları görünürlüğü ve alan senkronizasyonu
+            const cargoSettingsBox = document.getElementById('cargo-pricing-settings');
+            const cargoModeSelect = document.getElementById('cargo-pricing-mode');
+            const cargoFlatFields = document.getElementById('cargo-flat-fields');
+            const cargoFeeInput = document.getElementById('cargo-fee');
+            const cargoThresholdInput = document.getElementById('cargo-free-threshold');
+            const cargoPerKmWrap = document.getElementById('cargo-per-km-wrap');
+            const cargoPerKmInput = document.getElementById('cargo-fee-per-100km');
+            const cargoRegionsInput = document.getElementById('cargo-regions');
+            const cargoMaxDistInput = document.getElementById('cargo-max-distance');
+            const cargoFeeLabel = document.getElementById('cargo-fee-label');
+
+            function syncCargoSettingsVisibility() {
+                const on = uzakMesafeCb && uzakMesafeCb.checked;
+                if (cargoSettingsBox) cargoSettingsBox.style.display = on ? 'block' : 'none';
+            }
+            function syncCargoFlatFields() {
+                if (!cargoModeSelect) return;
+                const mode = cargoModeSelect.value;
+                const showFee = mode === 'flat' || mode === 'by_region';
+                if (cargoFlatFields) cargoFlatFields.style.display = showFee ? 'block' : 'none';
+                if (cargoPerKmWrap) cargoPerKmWrap.style.display = mode === 'by_region' ? 'block' : 'none';
+                if (cargoFeeLabel) cargoFeeLabel.textContent = mode === 'by_region' ? 'Taban Kargo Ücreti (₺)' : 'Kargo Ücreti (₺)';
+            }
+            if (cargoModeSelect) {
+                const validModes = ['free', 'flat', 'by_region'];
+                cargoModeSelect.value = validModes.includes(profile.cargoPricingMode) ? profile.cargoPricingMode : 'free';
+                cargoModeSelect.addEventListener('change', syncCargoFlatFields);
+            }
+            if (cargoFeeInput) cargoFeeInput.value = (parseFloat(profile.cargoFee) || 0) > 0 ? profile.cargoFee : '';
+            if (cargoThresholdInput) cargoThresholdInput.value = (parseFloat(profile.cargoFreeThreshold) || 0) > 0 ? profile.cargoFreeThreshold : '';
+            if (cargoPerKmInput) cargoPerKmInput.value = (parseFloat(profile.cargoFeePer100km) || 0) > 0 ? profile.cargoFeePer100km : '';
+            if (cargoMaxDistInput) cargoMaxDistInput.value = (parseInt(profile.cargoMaxDistanceKm) || 0) > 0 ? profile.cargoMaxDistanceKm : '';
+            if (cargoRegionsInput) cargoRegionsInput.value = Array.isArray(profile.cargoRegions) ? profile.cargoRegions.join(', ') : '';
+            syncCargoFlatFields();
+
             if (uzakMesafeCb) {
                 uzakMesafeCb.checked = !!profile.uzakMesafeEnabled;
                 uzakMesafeCb.addEventListener('change', function() {
                     window.__sellerUzakMesafeEnabled = this.checked;
                     updateSidebarUzakMesafe(this.checked);
+                    syncCargoSettingsVisibility();
                 });
             }
+            syncCargoSettingsVisibility();
             window.__sellerUzakMesafeEnabled = !!profile.uzakMesafeEnabled;
             updateSidebarUzakMesafe(!!profile.uzakMesafeEnabled);
             updateRadiusUI(radiusSlider.value);
@@ -1275,6 +1336,23 @@ async function loadProfilePage() {
                     pickupEnabled: pickupCb ? pickupCb.checked : true,
                     uzakMesafeEnabled: uzakMesafeCb ? uzakMesafeCb.checked : false
                 };
+
+                // Kargo ücret ayarları
+                const cargoModeEl = document.getElementById('cargo-pricing-mode');
+                const cargoFeeEl = document.getElementById('cargo-fee');
+                const cargoThresholdEl = document.getElementById('cargo-free-threshold');
+                const cargoPerKmEl = document.getElementById('cargo-fee-per-100km');
+                const cargoRegionsEl = document.getElementById('cargo-regions');
+                const cargoMaxDistEl = document.getElementById('cargo-max-distance');
+                if (cargoModeEl) {
+                    const validCargoModes = ['free', 'flat', 'by_region'];
+                    profileData.cargoPricingMode = validCargoModes.includes(cargoModeEl.value) ? cargoModeEl.value : 'free';
+                    profileData.cargoFee = cargoFeeEl && cargoFeeEl.value !== '' ? parseFloat(cargoFeeEl.value) || 0 : 0;
+                    profileData.cargoFreeThreshold = cargoThresholdEl && cargoThresholdEl.value !== '' ? parseFloat(cargoThresholdEl.value) || 0 : 0;
+                    profileData.cargoFeePer100km = cargoPerKmEl && cargoPerKmEl.value !== '' ? parseFloat(cargoPerKmEl.value) || 0 : 0;
+                    profileData.cargoMaxDistanceKm = cargoMaxDistEl && cargoMaxDistEl.value !== '' ? parseInt(cargoMaxDistEl.value) || 0 : 0;
+                    profileData.cargoRegions = cargoRegionsEl ? cargoRegionsEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                }
                 window.__sellerUzakMesafeEnabled = uzakMesafeCb ? uzakMesafeCb.checked : false;
                 updateSidebarUzakMesafe(window.__sellerUzakMesafeEnabled);
                 
@@ -2257,10 +2335,9 @@ async function showOwnCourierAssignModal(orderId) {
                 if (!res.ok) throw new Error(data.message || 'Kurye atanamadı');
                 modal.remove();
                 showSellerActionNotification('success', 'Kurye Atandı', data.message || `Sipariş #${orderId} kuryeye atandı.`);
-                // Kurye atandıktan sonra on_delivery olur → 'shipped' tabı yenile
-                await loadOrdersForTab('preparing');
+                // Kurye atandıktan sonra sipariş 'ready' den çıkıp kurye akışına geçer
+                await loadOrdersForTab('ready');
                 await loadOrdersForTab('shipped');
-                await loadOrdersForTab('new');
             } catch (err) {
                 showSellerActionNotification('error', 'Kurye Atama Hatası', err.message);
                 confirmBtn.disabled = false;
