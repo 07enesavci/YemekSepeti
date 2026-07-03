@@ -24,7 +24,11 @@ self.addEventListener('fetch', function(event) {
         );
         return;
     }
-    event.respondWith(fetch(event.request));
+    event.respondWith(
+        fetch(event.request).catch(function() {
+            return new Response('', { status: 503, statusText: 'Service Unavailable' });
+        })
+    );
 });
 
 // Web Push: gelen push'u göster

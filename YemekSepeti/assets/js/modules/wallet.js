@@ -217,11 +217,43 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (walletTransactions) {
-                walletTransactions.innerHTML = `
-                    <p style="text-align: center; padding: 2rem; color: #666;">
-                        Henüz işlem geçmişiniz bulunmamaktadır.
-                    </p>
-                `;
+                const txList = data.transactions || [];
+                if (txList.length === 0) {
+                    walletTransactions.innerHTML = `
+                        <p style="text-align: center; padding: 2rem; color: #666;">
+                            Henüz işlem geçmişiniz bulunmamaktadır.
+                        </p>
+                    `;
+                } else {
+                    const txIcons = {
+                        deposit: '💰', withdrawal: '📤', order_payment: '🛒',
+                        refund: '🔄', coupon_bonus: '🎁'
+                    };
+                    const txLabels = {
+                        deposit: 'Para Yükleme', withdrawal: 'Para Çekme',
+                        order_payment: 'Sipariş Ödemesi', refund: 'İade',
+                        coupon_bonus: 'Kupon Bonusu'
+                    };
+                    const isPositive = (type) => ['deposit', 'refund', 'coupon_bonus'].includes(type);
+                    const formatDate = (d) => {
+                        if (!d) return '-';
+                        const dt = new Date(d);
+                        if (isNaN(dt.getTime())) return '-';
+                        return dt.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    };
+                    walletTransactions.innerHTML = '<ul class="tx-list">' + txList.map(tx => `
+                        <li class="tx-item">
+                            <div class="tx-icon ${tx.type}">${txIcons[tx.type] || '📢'}</div>
+                            <div class="tx-info">
+                                <div class="tx-desc">${tx.description || txLabels[tx.type] || tx.type}</div>
+                                <div class="tx-date">${formatDate(tx.createdAt)}</div>
+                            </div>
+                            <div class="tx-amount ${isPositive(tx.type) ? 'positive' : 'negative'}">
+                                ${isPositive(tx.type) ? '+' : '-'}${Math.abs(tx.amount).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                            </div>
+                        </li>
+                    `).join('') + '</ul>';
+                }
             }
 
             if (couponsList) {
@@ -405,7 +437,276 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (loadMoneyBtn) {
         loadMoneyBtn.addEventListener('click', () => {
-            alert('Para yükleme özelliği yakında eklenecektir.');
+            openTopupModal();
+        });
+    }
+
+    /* ── Para Yükleme Modal Mantığı ──────────────────────── */
+    let topupSelectedAmount = 0;
+    let topupSelectedCardId = null;
+    let topupPaymentTab = 'saved'; // 'saved' | 'new'
+
+    const topupOverlay = document.getElementById('topup-modal-overlay');
+    const topupCloseBtn = document.getElementById('topup-modal-close');
+    const topupSubmitBtn = document.getElementById('topup-submit-btn');
+    const topupCustomInput = document.getElementById('topup-custom-input');
+    const topupSelectedDisplay = document.getElementById('topup-selected-display');
+    const topupSelectedValue = document.getElementById('topup-selected-value');
+    const topupAmountBtns = document.querySelectorAll('.topup-amount-btn');
+    const topupTabs = document.querySelectorAll('.topup-tab');
+    const topupSavedTab = document.getElementById('topup-saved-tab');
+    const topupNewTab = document.getElementById('topup-new-tab');
+    const topupSavedCvcGroup = document.getElementById('topup-saved-cvc-group');
+    const topupCardNumber = document.getElementById('topup-card-number');
+    const topupCardExpiry = document.getElementById('topup-card-expiry');
+    const topupCardName = document.getElementById('topup-card-name');
+
+    const resetTopupCard = initCreditCardAnimation({
+        card: 'topup-cc-card',
+        highlight: 'topup-cc-highlight',
+        number: 'topup-cc-number',
+        holder: 'topup-cc-holder',
+        month: 'topup-cc-month',
+        year: 'topup-cc-year',
+        cvv: 'topup-cc-cvv',
+        numInput: 'topup-card-number',
+        holderInput: 'topup-card-name',
+        expiryInput: 'topup-card-expiry',
+        cvvInput: 'topup-card-cvc'
+    });
+
+    function openTopupModal() {
+        if (!topupOverlay) return;
+        topupSelectedAmount = 0;
+        topupSelectedCardId = null;
+        topupPaymentTab = 'saved';
+        // Reset UI
+        topupAmountBtns.forEach(b => b.classList.remove('selected'));
+        if (topupCustomInput) topupCustomInput.value = '';
+        if (topupSelectedDisplay) topupSelectedDisplay.style.display = 'none';
+        if (topupSubmitBtn) topupSubmitBtn.disabled = true;
+        // Reset tabs
+        topupTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === 'saved'));
+        if (topupSavedTab) topupSavedTab.style.display = '';
+        if (topupNewTab) topupNewTab.style.display = 'none';
+        // Reset CVC
+        if (topupSavedCvcGroup) topupSavedCvcGroup.style.display = 'none';
+        const savedCvc = document.getElementById('topup-saved-cvc');
+        if (savedCvc) savedCvc.value = '';
+        // Reset new card fields
+        if (topupCardName) topupCardName.value = '';
+        if (topupCardNumber) topupCardNumber.value = '';
+        if (topupCardExpiry) topupCardExpiry.value = '';
+        const topupCardCvc = document.getElementById('topup-card-cvc');
+        if (topupCardCvc) topupCardCvc.value = '';
+        if (resetTopupCard) resetTopupCard();
+        // Load saved cards
+        loadTopupSavedCards();
+        topupOverlay.style.display = 'flex';
+    }
+
+    function closeTopupModal() {
+        if (topupOverlay) topupOverlay.style.display = 'none';
+    }
+
+    if (topupCloseBtn) topupCloseBtn.addEventListener('click', closeTopupModal);
+    if (topupOverlay) topupOverlay.addEventListener('click', (e) => {
+        if (e.target === topupOverlay) closeTopupModal();
+    });
+
+    function updateTopupAmount(amount) {
+        topupSelectedAmount = amount;
+        if (topupSelectedDisplay && topupSelectedValue) {
+            if (amount > 0) {
+                topupSelectedValue.textContent = amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₺';
+                topupSelectedDisplay.style.display = '';
+            } else {
+                topupSelectedDisplay.style.display = 'none';
+            }
+        }
+        validateTopupForm();
+    }
+
+    // Hızlı tutar butonları
+    topupAmountBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            topupAmountBtns.forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            if (topupCustomInput) topupCustomInput.value = '';
+            updateTopupAmount(parseFloat(btn.dataset.amount));
+        });
+    });
+
+    // Manuel tutar girişi
+    if (topupCustomInput) {
+        topupCustomInput.addEventListener('input', () => {
+            topupAmountBtns.forEach(b => b.classList.remove('selected'));
+            const val = parseFloat(topupCustomInput.value);
+            updateTopupAmount(val && val >= 10 && val <= 5000 ? val : 0);
+        });
+    }
+
+    // Tab geçişi
+    topupTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            topupPaymentTab = tab.dataset.tab;
+            topupTabs.forEach(t => t.classList.toggle('active', t === tab));
+            if (topupSavedTab) topupSavedTab.style.display = topupPaymentTab === 'saved' ? '' : 'none';
+            if (topupNewTab) topupNewTab.style.display = topupPaymentTab === 'new' ? '' : 'none';
+            validateTopupForm();
+        });
+    });
+
+    // Kayıtlı kartları yükle
+    async function loadTopupSavedCards() {
+        const container = document.getElementById('topup-saved-cards-list');
+        if (!container) return;
+        container.innerHTML = '<p class="text-muted" style="text-align:center;padding:1rem;">Yükleniyor…</p>';
+        const cards = await BUYER_API.getPaymentCards();
+        if (!cards.length) {
+            container.innerHTML = '<p class="text-muted" style="text-align:center;padding:0.75rem;">Kayıtlı kart yok. "Yeni Kart" sekmesinden ödeme yapabilirsiniz.</p>';
+            if (topupSavedCvcGroup) topupSavedCvcGroup.style.display = 'none';
+            return;
+        }
+        container.innerHTML = '';
+        cards.forEach(c => {
+            const cardNum = c.cardNumber || ('**** **** **** ' + (c.cardLastFour || '****'));
+            const item = document.createElement('div');
+            item.className = 'topup-saved-card-item';
+            item.dataset.cardId = String(c.id);
+            item.innerHTML = `
+                <div class="topup-saved-card-radio"></div>
+                <div class="topup-saved-card-info">
+                    <div class="topup-saved-card-name">${escapeHtml(c.cardName || 'Kart')}</div>
+                    <div class="topup-saved-card-number">${escapeHtml(cardNum)}</div>
+                </div>
+            `;
+            item.addEventListener('click', () => {
+                container.querySelectorAll('.topup-saved-card-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                topupSelectedCardId = c.id;
+                if (topupSavedCvcGroup) topupSavedCvcGroup.style.display = '';
+                const savedCvc = document.getElementById('topup-saved-cvc');
+                if (savedCvc) { savedCvc.value = ''; savedCvc.focus(); }
+                validateTopupForm();
+            });
+            container.appendChild(item);
+        });
+    }
+
+    // Kart numarası formatlama
+    if (topupCardNumber) {
+        topupCardNumber.addEventListener('input', () => formatCardInput(topupCardNumber));
+    }
+    if (topupCardExpiry) {
+        topupCardExpiry.addEventListener('input', (e) => formatExpiryInput(topupCardExpiry, e));
+    }
+    if (topupCardName) {
+        topupCardName.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ\s]/g, '');
+        });
+    }
+
+    // Input değişikliklerinde form validasyonu
+    ['topup-saved-cvc', 'topup-card-name', 'topup-card-number', 'topup-card-expiry', 'topup-card-cvc'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', validateTopupForm);
+    });
+
+    function validateTopupForm() {
+        if (!topupSubmitBtn) return;
+        let valid = topupSelectedAmount >= 10 && topupSelectedAmount <= 5000;
+        if (valid) {
+            if (topupPaymentTab === 'saved') {
+                const cvc = (document.getElementById('topup-saved-cvc')?.value || '').replace(/\D/g, '');
+                valid = !!topupSelectedCardId && cvc.length >= 3;
+            } else {
+                const name = (document.getElementById('topup-card-name')?.value || '').trim();
+                const num = (document.getElementById('topup-card-number')?.value || '').replace(/\D/g, '');
+                const exp = parseExpiryMmYy(document.getElementById('topup-card-expiry')?.value || '');
+                const cvc = (document.getElementById('topup-card-cvc')?.value || '').replace(/\D/g, '');
+                valid = name.length >= 2 && num.length >= 13 && !!exp && cvc.length >= 3;
+            }
+        }
+        topupSubmitBtn.disabled = !valid;
+    }
+
+    // Submit
+    if (topupSubmitBtn) {
+        topupSubmitBtn.addEventListener('click', async () => {
+            if (topupSubmitBtn.disabled) return;
+            const textSpan = topupSubmitBtn.querySelector('.topup-submit-text');
+            const spinnerSpan = topupSubmitBtn.querySelector('.topup-submit-spinner');
+            topupSubmitBtn.disabled = true;
+            if (textSpan) textSpan.style.display = 'none';
+            if (spinnerSpan) spinnerSpan.style.display = '';
+
+            try {
+                const baseUrl = window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : '');
+                let body = { amount: topupSelectedAmount };
+
+                if (topupPaymentTab === 'saved') {
+                    body.savedCardId = topupSelectedCardId;
+                    body.savedCardCvc = (document.getElementById('topup-saved-cvc')?.value || '').replace(/\D/g, '');
+                } else {
+                    const exp = parseExpiryMmYy(document.getElementById('topup-card-expiry')?.value || '');
+                    body.cardData = {
+                        cardHolderName: (document.getElementById('topup-card-name')?.value || '').trim(),
+                        cardNumber: (document.getElementById('topup-card-number')?.value || '').replace(/\s/g, ''),
+                        expireMonth: String(exp.month).padStart(2, '0'),
+                        expireYear: String(exp.year),
+                        cvc: (document.getElementById('topup-card-cvc')?.value || '').replace(/\D/g, '')
+                    };
+                }
+
+                // CSRF token al
+                let csrfToken = '';
+                try {
+                    const csrfRes = await fetch(`${baseUrl}/api/auth/csrf-token`, { credentials: 'include' });
+                    const csrfData = await csrfRes.json();
+                    csrfToken = csrfData.token || '';
+                } catch (_) {}
+
+                const response = await fetch(`${baseUrl}/api/buyer/wallet/topup`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    closeTopupModal();
+                    if (window.showAlert) {
+                        window.showAlert('Başarılı', data.message || 'Para yüklendi!', 'success');
+                    } else {
+                        alert(data.message || 'Para yüklendi!');
+                    }
+                    // Bakiyeyi yenile
+                    await loadWalletData();
+                } else {
+                    if (window.showAlert) {
+                        window.showAlert('Hata', data.message || 'Ödeme başarısız.', 'error');
+                    } else {
+                        alert(data.message || 'Ödeme başarısız.');
+                    }
+                }
+            } catch (err) {
+                console.error('[Topup] Hata:', err);
+                if (window.showAlert) {
+                    window.showAlert('Hata', 'Bir hata oluştu. Lütfen tekrar deneyin.', 'error');
+                } else {
+                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                }
+            } finally {
+                topupSubmitBtn.disabled = false;
+                if (textSpan) textSpan.style.display = '';
+                if (spinnerSpan) spinnerSpan.style.display = 'none';
+                validateTopupForm();
+            }
         });
     }
 

@@ -626,7 +626,7 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
         }
 
         const sellers = await Seller.findAll({
-            where: Object.keys(sellerWhere).length ? sellerWhere : undefined,
+            where: Reflect.ownKeys(sellerWhere).length ? sellerWhere : undefined,
             attributes: [
                 'id', 'shop_name', 'location', 'is_open', 'is_active',
                 'rating', 'total_reviews', 'logo_url', 'banner_url', 'created_at'
@@ -647,6 +647,14 @@ router.get("/all-sellers", requireRole(['admin','super_admin','support']), async
             list = sellers.filter((s) => {
                 const u = s.user;
                 if (!u) return false;
+                
+                if (t.length === 1) {
+                    return (
+                        (u.fullname && u.fullname.toLowerCase().startsWith(t)) ||
+                        (s.shop_name && s.shop_name.toLowerCase().startsWith(t))
+                    );
+                }
+
                 return (
                     (u.fullname && u.fullname.toLowerCase().includes(t)) ||
                     (u.email && u.email.toLowerCase().includes(t)) ||

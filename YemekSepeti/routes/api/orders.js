@@ -9,7 +9,7 @@ const { Op, QueryTypes } = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 const { refundIyzicoPaymentForOrder, refundIyzicoPaymentPartial } = require("../../lib/iyzicoRefund");
 const { decryptText } = require("../../lib/cardCrypto");
-const { sendPickupReadyEmail } = require("../../config/email");
+const { sendPickupReadyEmail, sendOrderReceivedEmail, sendInvoiceEmail } = require("../../config/email");
 const { computeCargoFee } = require("../../lib/cargoPricing");
 const { buildCargoTracking, isKnownCarrier } = require("../../lib/cargoCarriers");
 const { evaluateCargo } = require("../../lib/cargoGeo");
@@ -884,12 +884,24 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                                 {
                                     model: User,
                                     as: 'buyer',
-                                    attributes: ['fullname', 'phone']
+                                    attributes: ['fullname', 'phone', 'email']
                                 },
                                 {
                                     model: OrderItem,
                                     as: 'items',
                                     attributes: ['meal_name', 'quantity', 'meal_price', 'subtotal']
+                                },
+                                {
+                                    model: Address,
+                                    as: 'address',
+                                    attributes: ['full_address', 'district', 'city'],
+                                    required: false
+                                },
+                                {
+                                    model: Seller,
+                                    as: 'seller',
+                                    attributes: ['shop_name'],
+                                    required: false
                                 }
                             ]
                         });
@@ -920,6 +932,30 @@ router.post("/", requireRole('buyer'), async (req, res) => {
                                 totalAmount: newOrder.total_amount,
                                 message: 'Siparişiniz alındı.'
                             });
+
+                            // Alıcıya sipariş onay e-postası gönder
+                            if (newOrder.buyer && newOrder.buyer.email) {
+                                try {
+                                    const orderMailData = {
+                                        orderNumber: newOrder.order_number,
+                                        date: new Date(newOrder.created_at).toLocaleString('tr-TR'),
+                                        sellerName: newOrder.seller?.shop_name || "Ev Lezzetleri",
+                                        buyerName: newOrder.buyer.fullname,
+                                        buyerPhone: newOrder.buyer.phone || "-",
+                                        address: newOrder.address ? newOrder.address.full_address : "Adres bulunamadı",
+                                        paymentMethod: newOrder.payment_method,
+                                        cashPaymentMethod: newOrder.cash_payment_method,
+                                        items: newOrder.items || [],
+                                        deliveryFee: newOrder.delivery_fee,
+                                        discountAmount: newOrder.discount_amount,
+                                        totalAmount: newOrder.total_amount
+                                    };
+                                    await sendOrderReceivedEmail(newOrder.buyer.email, orderMailData);
+                                    console.log('📧 Sipariş onay e-postası gönderildi:', newOrder.buyer.email);
+                                } catch (emailErr) {
+                                    console.error('❌ Sipariş onay e-postası gönderilirken hata:', emailErr.message);
+                                }
+                            }
 
                             // Admin sipariş sayfası canlı güncellensin
                             global.io.to('admin').emit('admin_orders_updated', { reason: 'new_order' });
@@ -1490,6 +1526,40 @@ router.put("/seller/orders/:id/status", requireRole('seller'), async (req, res) 
                         }
                     } catch (emailErr) {
                         console.error('Gel Al hazır e-postası gönderilemedi:', emailErr);
+                    }
+                })();
+            }
+
+            if (status === 'delivered') {
+                (async () => {
+                    try {
+                        const fullOrder = await Order.findByPk(orderId, {
+                            include: [
+                                { model: User, as: 'buyer', attributes: ['fullname', 'phone', 'email'] },
+                                { model: OrderItem, as: 'items', attributes: ['meal_name', 'quantity', 'meal_price', 'subtotal'] },
+                                { model: Address, as: 'address', attributes: ['full_address'] },
+                                { model: Seller, as: 'seller', attributes: ['shop_name'] }
+                            ]
+                        });
+                        if (fullOrder && fullOrder.buyer && fullOrder.buyer.email) {
+                            const orderMailData = {
+                                orderNumber: fullOrder.order_number,
+                                date: new Date(fullOrder.delivered_at || fullOrder.created_at).toLocaleString('tr-TR'),
+                                sellerName: fullOrder.seller?.shop_name || "Ev Lezzetleri",
+                                buyerName: fullOrder.buyer.fullname,
+                                buyerPhone: fullOrder.buyer.phone || "-",
+                                address: fullOrder.address ? fullOrder.address.full_address : "Adres bulunamadı",
+                                paymentMethod: fullOrder.payment_method,
+                                cashPaymentMethod: fullOrder.cash_payment_method,
+                                items: fullOrder.items || [],
+                                deliveryFee: fullOrder.delivery_fee,
+                                discountAmount: fullOrder.discount_amount,
+                                totalAmount: fullOrder.total_amount
+                            };
+                            await sendInvoiceEmail(fullOrder.buyer.email, orderMailData);
+                        }
+                    } catch (invoiceErr) {
+                        console.error('Fatura e-postası gönderilemedi (orders.js):', invoiceErr);
                     }
                 })();
             }

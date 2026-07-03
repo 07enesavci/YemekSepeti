@@ -36,7 +36,7 @@ async function showOrderDetail(orderId) {
             <div class="order-detail-modal-content">
                 <div class="order-detail-modal-header">
                     <h2>Sipariş Detayı - #${orderDetail.orderNumber || orderDetail.id}</h2>
-                    <button class="order-detail-modal-close" onclick="closeOrderDetailModal()">&times;</button>
+                    <button class="order-detail-modal-close" id="order-detail-close-btn">&times;</button>
                 </div>
                 <div class="order-detail-modal-body">
                     <div class="order-detail-section order-status-timeline">
@@ -124,6 +124,7 @@ async function showOrderDetail(orderId) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('order-detail-close-btn').addEventListener('click', closeOrderDetailModal);
     
     document.getElementById('order-detail-modal').addEventListener('click', (e) => {
         if (e.target.id === 'order-detail-modal') {
@@ -171,7 +172,7 @@ async function showReviewModal(orderId) {
                 <div class="order-detail-modal-content">
                     <div class="order-detail-modal-header">
                         <h2>Siparişi Değerlendir - #${orderId}</h2>
-                        <button type="button" class="order-detail-modal-close" onclick="closeReviewModal()">&times;</button>
+                        <button type="button" class="order-detail-modal-close" id="review-close-btn">&times;</button>
                     </div>
                     <div class="order-detail-modal-body">
                         <form id="review-form">
@@ -199,7 +200,7 @@ async function showReviewModal(orderId) {
                             </div>
                             
                             <div class="order-detail-modal-footer" style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
-                                <button type="button" class="btn btn-secondary" onclick="closeReviewModal()">İptal</button>
+                                <button type="button" class="btn btn-secondary" id="review-cancel-btn">İptal</button>
                                 <button type="submit" class="btn btn-primary">Yorumu Gönder</button>
                             </div>
                         </form>
@@ -209,6 +210,8 @@ async function showReviewModal(orderId) {
         `;
         
         document.body.insertAdjacentHTML('beforeend', modalHTML);
+        document.getElementById('review-close-btn').addEventListener('click', closeReviewModal);
+        document.getElementById('review-cancel-btn').addEventListener('click', closeReviewModal);
         
         let selectedRating = 0;
         const stars = document.querySelectorAll('#star-rating .star');
@@ -617,6 +620,7 @@ function renderBuyerOrdersSection(section, orders, emptyText, orderType) {
 
     section.querySelectorAll('.order-card').forEach(card => card.remove());
     section.querySelectorAll('.buyer-orders-empty-state').forEach(node => node.remove());
+    section.querySelectorAll('.loading-text').forEach(node => node.remove());
 
     if (!orders || orders.length === 0) {
         const empty = document.createElement('p');

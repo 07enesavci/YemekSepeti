@@ -77,13 +77,13 @@
 
     <%- include('../partials/footer') %>
 
-    <!-- Socket.IO: page modüllerinden önce yüklenmeli -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Socket.IO: önce yerel, CDN sadece yedek -->
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         (function ensureSocketIoClientLoaded() {
             if (typeof window.io !== 'undefined') return;
             var script = document.createElement('script');
-            script.src = '/socket.io/socket.io.js';
+            script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
             document.head.appendChild(script);
         })();
     </script>

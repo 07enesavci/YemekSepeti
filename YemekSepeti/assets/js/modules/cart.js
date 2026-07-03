@@ -1168,15 +1168,15 @@ async function loadAvailableCoupons() {
             var isApplied = appliedCoupon && (appliedCoupon.code === coupon.code || appliedCoupon.id === coupon.id);
             var couponCard = document.createElement('div');
             couponCard.className = 'coupon-card';
-            couponCard.style.cssText = 'padding: 0.75rem; border: 1px solid ' + (isApplied ? '#4CAF50' : '#e0e0e0') + '; border-radius: 6px; background: ' + (isApplied ? '#f0f8f0' : '#f9f9f9') + '; cursor: ' + (isApplied ? 'default' : 'pointer') + '; transition: all 0.2s;';
+            couponCard.style.cssText = 'padding: 0.75rem; border: 1px solid ' + (isApplied ? '#4CAF50' : 'var(--border-color)') + '; border-radius: 6px; background: ' + (isApplied ? 'rgba(76, 175, 80, 0.1)' : 'var(--bg-color)') + '; cursor: ' + (isApplied ? 'default' : 'pointer') + '; transition: all 0.2s;';
             if (!isApplied) {
                 couponCard.onmouseover = function() {
                     this.style.borderColor = '#4CAF50';
-                    this.style.background = '#f0f8f0';
+                    this.style.background = 'rgba(76, 175, 80, 0.05)';
                 };
                 couponCard.onmouseout = function() {
-                    this.style.borderColor = '#e0e0e0';
-                    this.style.background = '#f9f9f9';
+                    this.style.borderColor = 'var(--border-color)';
+                    this.style.background = 'var(--bg-color)';
                 };
                 couponCard.onclick = async function() {
                     var couponInput = document.getElementById('coupon');
@@ -1188,11 +1188,11 @@ async function loadAvailableCoupons() {
                 '<div style="display: flex; justify-content: space-between; align-items: center;">' +
                     '<div>' +
                         '<strong style="color: #4CAF50; font-size: 0.9rem;">' + coupon.code + '</strong>' +
-                        '<div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">' + discountText +
+                        '<div style="font-size: 0.85rem; color: var(--text-color-light); margin-top: 0.25rem;">' + discountText +
                         (minOrderText ? ' • ' + minOrderText : '') + '</div>' +
-                        (coupon.description ? '<div style="font-size: 0.8rem; color: #999; margin-top: 0.25rem;">' + coupon.description + '</div>' : '') +
+                        (coupon.description ? '<div style="font-size: 0.8rem; color: var(--text-color-light); opacity: 0.8; margin-top: 0.25rem;">' + coupon.description + '</div>' : '') +
                     '</div>' +
-                    '<span style="font-size: 0.75rem; color: ' + (isApplied ? '#4CAF50' : '#999') + ';">' + (isApplied ? '✓ Uygulandı' : 'Kullan') + '</span>' +
+                    '<span style="font-size: 0.75rem; color: ' + (isApplied ? '#4CAF50' : 'var(--text-color-light)') + ';">' + (isApplied ? '✓ Uygulandı' : 'Kullan') + '</span>' +
                 '</div>';
             couponsList.appendChild(couponCard);
         });

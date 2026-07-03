@@ -62,10 +62,13 @@
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/dashboard` : '/seller/dashboard' %>" class="header-user-menu-item">📊 Panelim</a>
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/orders` : '/seller/orders' %>" class="header-user-menu-item">📋 Siparişler</a>
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/menu` : '/seller/menu' %>" class="header-user-menu-item">🍲 Menü Yönetimi</a>
+                            <a href="/seller/uzak-mesafe" class="header-user-menu-item" id="header-uzak-mesafe-link" style="display: none;">📦 Uzak Mesafe Kargo</a>
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/earnings` : '/seller/earnings' %>" class="header-user-menu-item">💰 Kazançlar</a>
-                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/profile` : '/seller/profile' %>" class="header-user-menu-item">🏪 Dükkan Profili</a>
+
                             <a href="<%= user.sellerId ? `/seller/${user.sellerId}/coupons` : '/seller/coupons' %>" class="header-user-menu-item">🎫 Kuponlar</a>
                             <a href="/seller/reviews" class="header-user-menu-item">⭐ Yorumlar</a>
+                            <a href="/seller/feedback" class="header-user-menu-item">✉️ Öneri & Şikayet</a>
+                            <a href="<%= user.sellerId ? `/seller/${user.sellerId}/profile` : '/seller/profile' %>" class="header-user-menu-item">🏪 Dükkan Profili</a>
                             <button type="button" class="header-user-menu-item danger" id="header-logout-btn">🚪 Çıkış Yap</button>
                         </div>
                     </li>
@@ -100,6 +103,8 @@
                             <a href="/courier/<%= courierId %>/available" class="header-user-menu-item">🛵 Uygun Siparişler</a>
                             <a href="/courier/<%= courierId %>/history" class="header-user-menu-item">🕒 Geçmiş Siparişler</a>
                             <a href="/courier/<%= courierId %>/profile" class="header-user-menu-item">👤 Profilim</a>
+                            <a href="/courier/<%= courierId %>/reports" class="header-user-menu-item">📈 Raporlar</a>
+                            <a href="/courier/<%= courierId %>/feedback" class="header-user-menu-item">✉️ Öneri & Şikayet</a>
                             <button type="button" class="header-user-menu-item danger" id="header-logout-btn">🚪 Çıkış Yap</button>
                         </div>
                     </li>

@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../../middleware/auth');
-const { Feedback } = require('../../models');
+const { Feedback, User } = require('../../models');
+const { sendFeedbackConfirmationEmail } = require('../../config/email');
 
 router.use(requireAuth);
 
@@ -49,6 +50,17 @@ router.post('/', async (req, res) => {
         // Adminleri bilgilendir (canlı liste güncellemesi)
         if (global.io) {
             global.io.to('admin').emit('feedback_created', { id: record.id, type, role: normalizeRole(user.role) });
+        }
+
+        // Kullanıcıya onay maili gönder
+        try {
+            const userRecord = await User.findByPk(user.id);
+            if (userRecord && userRecord.email) {
+                await sendFeedbackConfirmationEmail(userRecord.email, record.id, record.subject);
+            }
+        } catch (mailErr) {
+            console.error('Feedback onay maili gönderilemedi:', mailErr.message);
+            // Mail gönderilemese bile talebin alındığını kullanıcıya bildiriyoruz, işlemi kesmiyoruz.
         }
 
         return res.status(201).json({ success: true, message: 'Talebiniz alındı. En kısa sürede değerlendirilecektir.' });

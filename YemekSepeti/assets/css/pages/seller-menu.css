@@ -67,6 +67,7 @@
     font-size: 0.9rem;
     position: relative;
     padding-left: 15px;
+    color: var(--text-color);
 }
 /* Durum noktası */
 .status-dot::before {
@@ -84,6 +85,21 @@
 }
 .status-dot.inactive::before {
     background-color: #E74C3C; /* Kırmızı (Stokta Yok) */
+}
+.status-dot.stock-infinite::before {
+    background-color: #3498db; /* Mavi (Sınırsız Stok) */
+}
+.status-dot.stock-out::before {
+    background-color: #e74c3c; /* Kırmızı (Tükendi) */
+}
+.status-dot.stock-ok::before {
+    background-color: #16a085; /* Yeşil (Stok Var) */
+}
+.status-dot.admin-pending::before {
+    background-color: #f39c12; /* Turuncu (Onay Bekliyor) */
+}
+.status-dot.uzak-mesafe::before {
+    background-color: #7c3aed; /* Mor (Uzak Mesafe) */
 }
 
 .menu-item-price {

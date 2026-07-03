@@ -38,7 +38,7 @@ const apiLimiter = rateLimit({
     message: { success: false, message: 'Çok fazla istek. Lütfen biraz bekleyin.' },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { ip: false },
+    validate: false,
     skip: (req) => req.method === 'OPTIONS'
 });
 
@@ -50,7 +50,7 @@ const authLimiter = rateLimit({
     message: { success: false, message: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { ip: false },
+    validate: false,
     skip: (req) => req.method === 'OPTIONS'
 });
 
@@ -62,7 +62,7 @@ const strictLimiter = rateLimit({
     message: { success: false, message: 'Çok fazla deneme. Lütfen 1 dakika bekleyin.' },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { ip: false },
+    validate: false,
     skip: (req) => req.method === 'OPTIONS'
 });
 

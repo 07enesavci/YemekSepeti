@@ -520,7 +520,7 @@ function displayRestaurants(sellers, append) {
         
         const isFavorite = window.__userRole === 'buyer' && favoriteSellerIds.indexOf(seller.id) !== -1;
         const heartBtn = window.__userRole === 'buyer' ? `
-            <button type="button" class="favorite-heart-btn" data-seller-id="${seller.id}" onclick="event.preventDefault(); event.stopPropagation();" style="position: absolute; top: 10px; left: 10px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(255,255,255,0.9); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; z-index: 2;">${isFavorite ? '❤️' : '🤍'}</button>
+            <button type="button" class="favorite-heart-btn" data-seller-id="${seller.id}" style="position: absolute; top: 10px; left: 10px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(255,255,255,0.9); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; z-index: 2;">${isFavorite ? '❤️' : '🤍'}</button>
         ` : '';
         
         return `
@@ -552,8 +552,7 @@ function displayRestaurants(sellers, append) {
                         <span style="font-size: 0.9rem; color: #666;">${starsHTML}</span>
                         <a href="/buyer/seller-profile/${seller.id}?tab=reviews" 
                            class="rating-count" 
-                           style="font-size: 0.85rem;"
-                           onclick="event.stopPropagation();">
+                           style="font-size: 0.85rem;">
                             (${seller.totalReviews || 0} değerlendirme)
                         </a>
                     </div>
@@ -564,8 +563,7 @@ function displayRestaurants(sellers, append) {
                     </div>
                     <a href="/buyer/seller-profile/${seller.id}${currentFilters.quickFilter === 'uzak_mesafe' ? '?mode=uzak_mesafe' : ''}"
                        class="btn btn-primary btn-full"
-                       style="text-decoration: none; display: block; text-align: center;"
-                       onclick="event.stopPropagation();">
+                       style="text-decoration: none; display: block; text-align: center;">
                         Menüyü Gör
                     </a>
                 </div>

@@ -959,6 +959,7 @@ router.get("/coupons", async (req, res) => {
                 valid_from,
                 valid_until,
                 is_active,
+                created_by,
                 created_at
             FROM coupons
             WHERE (applicable_seller_ids IS NULL OR JSON_CONTAINS(applicable_seller_ids, ?))
@@ -991,7 +992,8 @@ router.get("/coupons", async (req, res) => {
                 validFrom: c.valid_from,
                 validUntil: c.valid_until,
                 isActive: c.is_active,
-                createdAt: c.created_at
+                createdAt: c.created_at,
+                canEdit: c.created_by === userId
             };
         });
         

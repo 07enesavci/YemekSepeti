@@ -150,3 +150,275 @@
     </div>
 </div>
 
+<!-- Para Yükleme Modal -->
+<div id="topup-modal-overlay" class="topup-modal-overlay" style="display:none;">
+    <div class="topup-modal">
+        <div class="topup-modal-header">
+            <h3>💳 Para Yükle</h3>
+            <button type="button" class="topup-modal-close" id="topup-modal-close">&times;</button>
+        </div>
+        <div class="topup-modal-body">
+            <!-- Tutar Seçimi -->
+            <div class="topup-step" id="topup-step-amount">
+                <label class="topup-label">Yüklenecek Tutarı Seçin</label>
+                <div class="topup-quick-amounts">
+                    <button type="button" class="topup-amount-btn" data-amount="50">50 ₺</button>
+                    <button type="button" class="topup-amount-btn" data-amount="100">100 ₺</button>
+                    <button type="button" class="topup-amount-btn" data-amount="200">200 ₺</button>
+                    <button type="button" class="topup-amount-btn" data-amount="500">500 ₺</button>
+                    <button type="button" class="topup-amount-btn" data-amount="1000">1.000 ₺</button>
+                </div>
+                <div class="topup-custom-amount">
+                    <label for="topup-custom-input" class="form-label">veya manuel tutar girin (₺)</label>
+                    <input type="number" id="topup-custom-input" class="form-input" min="10" max="5000" step="0.01" placeholder="Tutar (min 10, max 5.000)" autocomplete="off">
+                </div>
+                <div class="topup-selected-amount" id="topup-selected-display" style="display:none;">
+                    Yüklenecek: <strong id="topup-selected-value">0,00 ₺</strong>
+                </div>
+            </div>
+
+            <!-- Ödeme Yöntemi -->
+            <div class="topup-step" id="topup-step-payment">
+                <label class="topup-label">Ödeme Yöntemi</label>
+                <div class="topup-payment-tabs">
+                    <button type="button" class="topup-tab active" data-tab="saved">Kayıtlı Kart</button>
+                    <button type="button" class="topup-tab" data-tab="new">Yeni Kart</button>
+                </div>
+
+                <!-- Kayıtlı Kart Seçimi -->
+                <div class="topup-tab-content active" id="topup-saved-tab">
+                    <div id="topup-saved-cards-list" class="topup-saved-cards">
+                        <p class="text-muted" style="text-align:center;padding:1rem;">Yükleniyor…</p>
+                    </div>
+                    <div class="form-group" id="topup-saved-cvc-group" style="display:none;">
+                        <label for="topup-saved-cvc" class="form-label">CVC</label>
+                        <input type="password" id="topup-saved-cvc" class="form-input" maxlength="4" placeholder="•••" autocomplete="off" inputmode="numeric" style="max-width:120px;">
+                    </div>
+                </div>
+
+                <!-- Yeni Kart Girişi -->
+                <div class="topup-tab-content" id="topup-new-tab" style="display:none;">
+                    <div class="cc-anim-wrapper" style="margin-bottom: 1.5rem;">
+                        <section class="cc-anim-card" id="topup-cc-card">
+                            <div class="cc-anim-highlight hl-hidden" id="topup-cc-highlight"></div>
+                            <section class="cc-anim-front">
+                                <div class="cc-anim-header">
+                                    <span style="font-size:13px;opacity:.85;">Kredi Kartı</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="36" width="54" viewBox="-96 -98.908 832 593.448">
+                                        <path fill="#ff5f00" d="M224.833 42.298h190.416v311.005H224.833z"/>
+                                        <path d="M244.446 197.828a197.448 197.448 0 0175.54-155.475 197.777 197.777 0 100 311.004 197.448 197.448 0 01-75.54-155.53z" fill="#eb001b"/>
+                                        <path d="M640 197.828a197.777 197.777 0 01-320.015 155.474 197.777 197.777 0 000-311.004A197.777 197.777 0 01640 197.773z" fill="#f79e1b"/>
+                                    </svg>
+                                </div>
+                                <div class="cc-anim-number" id="topup-cc-number">
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                    <span>#<br/></span><span>#<br/></span><span>#<br/></span><span>#<br/></span>
+                                </div>
+                                <div class="cc-anim-footer">
+                                    <div>
+                                        <div class="cc-anim-section-title">Kart Sahibi</div>
+                                        <div id="topup-cc-holder" style="text-transform:uppercase;font-size:14px;">Ad Soyad</div>
+                                    </div>
+                                    <div>
+                                        <div class="cc-anim-section-title">SKT</div>
+                                        <span id="topup-cc-month" style="font-size:14px;">AA</span>/<span id="topup-cc-year" style="font-size:14px;">YY</span>
+                                    </div>
+                                </div>
+                            </section>
+                            <section class="cc-anim-back">
+                                <div class="cc-anim-hide-line"></div>
+                                <div class="cc-anim-cvv-block">
+                                    <span>CVV</span>
+                                    <div class="cc-anim-cvv-field" id="topup-cc-cvv"></div>
+                                </div>
+                            </section>
+                        </section>
+                    </div>
+                    <div class="form-group">
+                        <label for="topup-card-name" class="form-label">Kart üzerindeki isim</label>
+                        <input type="text" id="topup-card-name" class="form-input" placeholder="Ad Soyad" maxlength="80" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="topup-card-number" class="form-label">Kart numarası</label>
+                        <input type="text" id="topup-card-number" class="form-input" inputmode="numeric" placeholder="0000 0000 0000 0000" maxlength="19" autocomplete="off">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="topup-card-expiry" class="form-label">Son kullanma (AA/YY)</label>
+                            <input type="text" id="topup-card-expiry" class="form-input" placeholder="AA/YY" maxlength="5" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="topup-card-cvc" class="form-label">CVV</label>
+                            <input type="password" id="topup-card-cvc" class="form-input" maxlength="4" placeholder="•••" autocomplete="off" inputmode="numeric">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="topup-modal-footer">
+            <button type="button" class="btn btn-primary topup-submit-btn" id="topup-submit-btn" disabled>
+                <span class="topup-submit-text">Para Yükle</span>
+                <span class="topup-submit-spinner" style="display:none;">⏳ İşleniyor...</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Para Yükleme Modal Stilleri */
+.topup-modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.55); z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.2s ease;
+}
+.topup-modal {
+    background: var(--card-bg, #fff); border-radius: 16px;
+    width: 90%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+    animation: slideUp 0.3s ease;
+}
+.topup-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color, #eee);
+}
+.topup-modal-header h3 { margin: 0; font-size: 1.3rem; }
+.topup-modal-close {
+    background: none; border: none; font-size: 1.8rem;
+    cursor: pointer; color: var(--text-color-light, #888); line-height: 1;
+    padding: 0 4px;
+}
+.topup-modal-close:hover { color: var(--primary-color, #E53935); }
+.topup-modal-body { padding: 1.5rem; }
+.topup-modal-footer {
+    padding: 1rem 1.5rem 1.5rem; border-top: 1px solid var(--border-color, #eee);
+}
+.topup-label {
+    display: block; font-weight: 600; font-size: 1rem;
+    margin-bottom: 0.75rem; color: var(--text-color, #333);
+}
+.topup-step { margin-bottom: 1.5rem; }
+.topup-step:last-child { margin-bottom: 0; }
+
+/* Hızlı tutar butonları */
+.topup-quick-amounts {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;
+}
+.topup-amount-btn {
+    flex: 1 1 calc(33.33% - 0.5rem); min-width: 80px;
+    padding: 0.7rem 0.5rem; border: 2px solid var(--border-color, #ddd);
+    border-radius: 10px; background: var(--card-bg, #fff);
+    font-size: 1rem; font-weight: 600; cursor: pointer;
+    color: var(--text-color, #333); transition: all 0.2s;
+}
+.topup-amount-btn:hover {
+    border-color: var(--primary-color, #E53935);
+    color: var(--primary-color, #E53935);
+    transform: translateY(-1px);
+}
+.topup-amount-btn.selected {
+    border-color: var(--primary-color, #E53935);
+    background: var(--primary-color, #E53935);
+    color: #fff;
+}
+
+/* Seçili tutar göstergesi */
+.topup-selected-amount {
+    text-align: center; padding: 0.75rem;
+    background: rgba(229,57,53,0.08); border-radius: 8px;
+    margin-top: 0.75rem; font-size: 1.05rem;
+}
+.topup-selected-amount strong {
+    color: var(--primary-color, #E53935); font-size: 1.2rem;
+}
+
+/* Tab butonları */
+.topup-payment-tabs {
+    display: flex; gap: 0; margin-bottom: 1rem;
+    border: 1px solid var(--border-color, #ddd); border-radius: 8px;
+    overflow: hidden;
+}
+.topup-tab {
+    flex: 1; padding: 0.6rem; border: none; background: var(--card-bg, #fff);
+    font-size: 0.9rem; font-weight: 500; cursor: pointer;
+    color: var(--text-color-light, #888); transition: all 0.2s;
+}
+.topup-tab.active {
+    background: var(--primary-color, #E53935); color: #fff; font-weight: 600;
+}
+
+/* Kayıtlı kart listesi */
+.topup-saved-cards {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    max-height: 200px; overflow-y: auto; margin-bottom: 0.75rem;
+}
+.topup-saved-card-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.75rem; border: 2px solid var(--border-color, #ddd);
+    border-radius: 8px; cursor: pointer; transition: all 0.2s;
+}
+.topup-saved-card-item:hover,
+.topup-saved-card-item.selected {
+    border-color: var(--primary-color, #E53935);
+}
+.topup-saved-card-item.selected {
+    background: rgba(229,57,53,0.06);
+}
+.topup-saved-card-radio {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--border-color, #ccc);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.topup-saved-card-item.selected .topup-saved-card-radio {
+    border-color: var(--primary-color, #E53935);
+}
+.topup-saved-card-item.selected .topup-saved-card-radio::after {
+    content: ''; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--primary-color, #E53935);
+}
+.topup-saved-card-info { flex: 1; }
+.topup-saved-card-name { font-weight: 600; font-size: 0.9rem; }
+.topup-saved-card-number { font-size: 0.82rem; color: var(--text-color-light, #888); }
+
+/* Submit butonu */
+.topup-submit-btn {
+    width: 100%; padding: 0.9rem; font-size: 1.05rem; font-weight: 600;
+    border-radius: 10px;
+}
+.topup-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* İşlem geçmişi stilleri */
+.tx-list { list-style: none; padding: 0; margin: 0; }
+.tx-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.85rem 0; border-bottom: 1px solid var(--border-color, #eee);
+}
+.tx-item:last-child { border-bottom: none; }
+.tx-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+}
+.tx-icon.deposit { background: rgba(46,125,50,0.12); }
+.tx-icon.withdrawal, .tx-icon.order_payment { background: rgba(229,57,53,0.12); }
+.tx-icon.refund { background: rgba(25,118,210,0.12); }
+.tx-icon.coupon_bonus { background: rgba(255,143,0,0.12); }
+.tx-info { flex: 1; min-width: 0; }
+.tx-desc { font-size: 0.9rem; font-weight: 500; color: var(--text-color, #333); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-date { font-size: 0.78rem; color: var(--text-color-light, #999); margin-top: 2px; }
+.tx-amount { font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+.tx-amount.positive { color: #2E7D32; }
+.tx-amount.negative { color: #E53935; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+@media (max-width: 500px) {
+    .topup-quick-amounts { gap: 0.35rem; }
+    .topup-amount-btn { flex: 1 1 calc(33.33% - 0.35rem); font-size: 0.9rem; padding: 0.55rem 0.3rem; }
+    .topup-modal { width: 95%; }
+}
+</style>

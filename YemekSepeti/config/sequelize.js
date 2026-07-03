@@ -351,6 +351,17 @@ async function ensurePushSubscriptionsTable() {
     } catch (_) {}
 }
 
+/** users.wallet_balance sütunu yoksa ekle (cüzdan bakiyesi). */
+async function ensureUserWalletBalanceColumn() {
+    try {
+        await sequelize.query(
+            `ALTER TABLE users ADD COLUMN wallet_balance DECIMAL(10,2) NOT NULL DEFAULT 0.00`
+        );
+    } catch (_) {
+        // Sütun zaten mevcut
+    }
+}
+
 module.exports = {
     sequelize,
     testConnection,
@@ -372,5 +383,6 @@ module.exports = {
     ensureOrderExtraColumns,
     ensureReviewSellerReplyColumns,
     ensureReviewDeletionColumns,
-    ensurePushSubscriptionsTable
+    ensurePushSubscriptionsTable,
+    ensureUserWalletBalanceColumn
 };

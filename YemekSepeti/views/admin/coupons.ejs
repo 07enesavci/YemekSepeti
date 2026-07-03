@@ -51,14 +51,18 @@
                     <hr class="divider">
 
                     <h4 class="form-label">Kuponu Hangi Satıcılara Uygula?</h4>
-                    
+
                     <div class="form-check">
                         <input type="checkbox" id="select-all-sellers">
                         <label for="select-all-sellers"><strong>Tüm Satıcıları Seç</strong></label>
                     </div>
 
+                    <input type="text" id="seller-search" class="form-input" placeholder="Dükkan ara..." autocomplete="off"
+                        style="margin:0.5rem 0 0.4rem;max-width:320px;">
+                    <small id="seller-search-count" style="display:none;color:#888;font-size:0.82rem;margin-bottom:0.4rem;display:block;"></small>
+
                     <div id="seller-checkbox-list" class="seller-checkbox-list">
-                        </div>
+                    </div>
 
                     <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Kuponları Tanımla</button>
                 </form>
@@ -67,9 +71,15 @@
 
         <div class="card" style="margin-top: 2rem;">
             <div class="card-content">
-                <h3 class="checkout-card-title">Tanımlı Kuponlar</h3>
-                <div id="coupon-list-container">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;">
+                    <h3 class="checkout-card-title" style="margin:0;">Tanımlı Kuponlar</h3>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <input type="text" id="coupon-list-search" class="form-input" placeholder="Kupon kodu veya açıklama ara..." autocomplete="off"
+                            style="width:260px;max-width:100%;">
+                        <small id="coupon-list-count" style="white-space:nowrap;color:#888;font-size:0.82rem;display:none;"></small>
                     </div>
+                </div>
+                <div id="coupon-list-container"></div>
             </div>
         </div>
 
@@ -114,6 +124,8 @@
                         <input type="number" id="edit-coupon-max-discount" class="form-input" step="0.01" min="0" placeholder="Opsiyonel">
                     </div>
                     <h4 class="form-label">Uygulanacak Satıcılar</h4>
+                    <input type="text" id="edit-seller-search" class="form-input" placeholder="Dükkan ara..." autocomplete="off"
+                        style="margin-bottom:0.4rem;max-width:100%;">
                     <div id="edit-coupon-seller-list" class="seller-checkbox-list" style="max-height: 200px; overflow-y: auto;">
                     </div>
                     <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
@@ -132,11 +144,78 @@
 </style>
 <script src="/assets/js/modules/ys-select.js"></script>
 <script>
+function initSellerSearch(inputId, listId, countId) {
+    var input = document.getElementById(inputId);
+    var list  = document.getElementById(listId);
+    var countEl = countId ? document.getElementById(countId) : null;
+    if (!input || !list) return;
+
+    input.addEventListener('input', function() {
+        var q = input.value.trim().toLowerCase();
+        var items = list.querySelectorAll('.form-check');
+        var visible = 0;
+        items.forEach(function(item) {
+            var label = item.querySelector('label');
+            var name  = label ? label.textContent.toLowerCase() : '';
+            var show  = !q || name.indexOf(q) !== -1;
+            item.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        if (countEl) {
+            if (q) {
+                countEl.textContent = visible + ' dükkan bulundu';
+                countEl.style.display = 'block';
+            } else {
+                countEl.style.display = 'none';
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     initYsSelects(document);
+    initSellerSearch('seller-search', 'seller-checkbox-list', 'seller-search-count');
 
-    // Edit modalı açıldığında yeniden init et
+    // Kupon listesi arama
+    var couponSearchInput = document.getElementById('coupon-list-search');
+    var couponCountEl = document.getElementById('coupon-list-count');
+    var couponContainer = document.getElementById('coupon-list-container');
+
+    function applyCouponSearch() {
+        if (!couponSearchInput || !couponContainer) return;
+        var q = couponSearchInput.value.trim().toLowerCase();
+        var items = couponContainer.querySelectorAll('.coupon-list-item');
+        if (items.length === 0) return;
+        var visible = 0;
+        items.forEach(function(item) {
+            var text = item.textContent.toLowerCase();
+            var show = !q || text.indexOf(q) !== -1;
+            item.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+        if (couponCountEl) {
+            if (q) {
+                couponCountEl.textContent = visible + ' kupon bulundu';
+                couponCountEl.style.display = 'inline';
+            } else {
+                couponCountEl.style.display = 'none';
+            }
+        }
+    }
+
+    if (couponSearchInput) {
+        couponSearchInput.addEventListener('input', applyCouponSearch);
+    }
+
+    // Liste her yenilendiğinde (filtre değişince vb.) aramayı yeniden uygula
+    if (couponContainer) {
+        new MutationObserver(function() { applyCouponSearch(); })
+            .observe(couponContainer, { childList: true, subtree: true });
+    }
+
+    // Edit modalı açıldığında yeniden init et + satıcı araması
     var editModal = document.getElementById('coupon-edit-modal');
+    var editSearchInited = false;
     if (editModal) {
         var observer = new MutationObserver(function(mutations) {
             mutations.forEach(function(m) {
@@ -145,6 +224,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (sel && !sel.classList.contains('ys-select-original')) {
                         initYsSelects(editModal);
                     }
+                    if (!editSearchInited) {
+                        initSellerSearch('edit-seller-search', 'edit-coupon-seller-list', null);
+                        editSearchInited = true;
+                    }
+                    // Arama kutusunu temizle her açılışta
+                    var es = document.getElementById('edit-seller-search');
+                    if (es) { es.value = ''; es.dispatchEvent(new Event('input')); }
                 }
             });
         });

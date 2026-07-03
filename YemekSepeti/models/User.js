@@ -69,6 +69,11 @@ module.exports=(sequelize, DataTypes)=>{
         password_reset_expires: {
             type: DataTypes.DATE,
             allowNull: true
+        },
+        wallet_balance: {
+            type: DataTypes.DECIMAL(10, 2),
+            allowNull: false,
+            defaultValue: 0.00
         }
     }, {
         tableName: 'users',

@@ -424,6 +424,477 @@ async function sendPickupReadyEmail(email, orderNumber, shopName) {
     return await sendEmail(email, `Siparişiniz Hazır - ${orderNumber}`, html);
 }
 
+async function sendInvoiceEmail(email, orderData) {
+    const kdvRate = 20; // %20 KDV varsayımı
+    const total = parseFloat(orderData.totalAmount || 0);
+    const kdvMatrahi = (total / (1 + (kdvRate / 100))).toFixed(2);
+    const hesaplananKdv = (total - kdvMatrahi).toFixed(2);
+    
+    // ETTN (UUID)
+    const ettn = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+
+    const faturaNo = 'EAV' + new Date().getFullYear() + Math.floor(Math.random() * 1000000000).toString().padStart(9, '0');
+
+    const itemsHtml = (orderData.items || []).map(item => `
+        <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 11px;">${item.meal_name}</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 11px; text-align: center;">${item.quantity} Adet</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 11px; text-align: right;">${item.meal_price} TL</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 11px; text-align: right;">${item.subtotal} TL</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 11px; text-align: right;">0.00 TL</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #eee; font-size: 11px; text-align: right;">${item.subtotal} TL</td>
+        </tr>
+    `).join('');
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, Helvetica, sans-serif; line-height: 1.4; color: #333333; background-color: #f5f5f5; margin: 0; padding: 20px 0; }
+                .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e0e0e0; }
+                
+                .header-banner { background-color: #dc2626; padding: 30px; text-align: center; }
+                .header-banner h1 { margin: 0; color: white; font-size: 32px; font-weight: 800; font-style: italic; letter-spacing: -1px; }
+                
+                .rate-section { text-align: center; padding: 20px; border-bottom: 1px solid #eee; }
+                .rate-section p { margin: 0 0 10px 0; font-weight: bold; font-size: 14px; }
+                .rate-btn { display: inline-block; background-color: #c026d3; color: white; text-decoration: none; padding: 8px 25px; border-radius: 4px; font-weight: bold; font-size: 13px; }
+                
+                .invoice-body { padding: 40px; }
+                .top-row { display: table; width: 100%; margin-bottom: 30px; }
+                .col-left, .col-right { display: table-cell; vertical-align: top; width: 50%; font-size: 10px; color: #444; }
+                
+                .company-info p, .buyer-info p { margin: 2px 0; }
+                .buyer-info { margin-top: 20px; }
+                .buyer-name { font-weight: bold; font-size: 12px; margin-bottom: 5px; color: #000; }
+                .ettn { margin-top: 20px; font-weight: bold; font-size: 11px; color: #000; }
+                
+                .e-arsiv-logo { width: 80px; height: 80px; border: 2px solid #dc2626; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #dc2626; font-weight: bold; font-size: 36px; font-style: italic; margin-bottom: 5px; }
+                .e-arsiv-text { color: #dc2626; font-weight: bold; font-size: 11px; margin-bottom: 20px; letter-spacing: 1px; }
+                
+                .invoice-meta { margin-top: 20px; }
+                .invoice-meta table { width: 100%; font-size: 10px; }
+                .invoice-meta td.lbl { color: #dc2626; font-weight: bold; width: 40%; padding: 3px 0; }
+                .invoice-meta td.val { font-weight: bold; color: #000; padding: 3px 0; }
+                
+                .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; margin-top: 20px; }
+                .items-table th { color: #dc2626; font-size: 10px; font-weight: bold; text-align: left; padding: 10px 0; border-bottom: 2px solid #eee; }
+                .items-table th.right { text-align: right; }
+                .items-table th.center { text-align: center; }
+                
+                .totals-section { display: table; width: 100%; margin-top: 20px; font-size: 11px; }
+                .totals-left { display: table-cell; vertical-align: bottom; width: 50%; font-weight: bold; color: #000; }
+                .totals-right { display: table-cell; vertical-align: top; width: 50%; }
+                .totals-table { width: 100%; border-collapse: collapse; }
+                .totals-table td { padding: 4px 0; }
+                .totals-table td.lbl { color: #dc2626; font-weight: bold; text-align: right; padding-right: 15px; }
+                .totals-table td.val { text-align: right; color: #000; font-weight: bold; }
+                
+                .footer-notes { display: table; width: 100%; margin-top: 40px; font-size: 9px; color: #666; }
+                .footer-col { display: table-cell; vertical-align: top; width: 50%; padding-right: 20px; }
+                .footer-col strong { color: #000; }
+                .footer-col p { margin: 3px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header-banner">
+                    <h1>Ev Lezzetleri</h1>
+                </div>
+                
+                <div class="rate-section">
+                    <p>Siparişiniz nasıldı?</p>
+                    <a href="#" class="rate-btn">Değerlendir</a>
+                </div>
+                
+                <div class="invoice-body">
+                    <div class="top-row">
+                        <div class="col-left">
+                            <div class="company-info">
+                                <p><strong>Ev Lezzetleri Elektronik İletişim Perakende Gıda Anonim Şirketi</strong></p>
+                                <p>Esentepe Mahallesi, Dede Korkut Sokak No:28 34394 Şişli, İstanbul</p>
+                                <p>Tel: 0212 000 00 00 &nbsp; Fax: 0212 000 00 01</p>
+                                <p>Web: www.evlezzetleri.com</p>
+                                <p>E-Posta: destek@evlezzetleri.com</p>
+                                <p>Vergi Dairesi: BOĞAZİÇİ KURUMLAR</p>
+                                <p>VKN: 1111111111</p>
+                                <p>Mersis No: 0000000000000000</p>
+                                <p>Ticaret Sicil No: 000000</p>
+                            </div>
+                            
+                            <div class="buyer-info">
+                                <p>SAYIN</p>
+                                <p class="buyer-name">${orderData.buyerName}</p>
+                                <p>${orderData.address}</p>
+                                <p>E-Posta: <a href="mailto:${email}" style="color: #0066cc;">${email}</a></p>
+                                <p>Tel: ${orderData.buyerPhone}</p>
+                                <p>Vergi Dairesi: </p>
+                                <p>TCKN: 11111111111</p>
+                            </div>
+                            
+                            <div class="ettn">
+                                ETTN: ${ettn}
+                            </div>
+                        </div>
+                        
+                        <div class="col-right" style="text-align: center;">
+                            <div style="display: flex; justify-content: center; gap: 20px; align-items: flex-start; margin-bottom: 20px;">
+                                <div>
+                                    <div class="e-arsiv-logo">GİB</div>
+                                    <div class="e-arsiv-text">e-ARŞİV FATURA</div>
+                                </div>
+                                <div style="width: 80px; height: 80px; background-color: #eee; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px;">[QR KOD]</div>
+                            </div>
+                            
+                            <div class="invoice-meta" style="text-align: left; padding-left: 20px;">
+                                <table>
+                                    <tr><td class="lbl">Fatura Tipi:</td><td class="val">SATIŞ</td></tr>
+                                    <tr><td class="lbl">Fatura No:</td><td class="val">${faturaNo}</td></tr>
+                                    <tr><td class="lbl">Fatura Tarihi:</td><td class="val">${orderData.date.split(' ')[0]} ${orderData.date.split(' ')[1]}</td></tr>
+                                    <tr><td class="lbl">Alışveriş Tarihi:</td><td class="val">${orderData.date.split(' ')[0]}</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>Mal/Hizmet Açıklaması</th>
+                                <th class="center">Miktar</th>
+                                <th class="right">Birim Fiyat</th>
+                                <th class="right">Mal / Hizmet Tutarı</th>
+                                <th class="right">İsk. Tutar</th>
+                                <th class="right">Net Tutar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsHtml}
+                        </tbody>
+                    </table>
+                    
+                    <div class="totals-section">
+                        <div class="totals-left">
+                            Yalnız: ${total} TürkLirası Sıfır Kuruş
+                        </div>
+                        <div class="totals-right">
+                            <table class="totals-table">
+                                <tr><td class="lbl">Mal Hizmet Toplam Tutarı</td><td class="val">${total.toFixed(2)} TL</td></tr>
+                                <tr><td class="lbl">Toplam İskonto</td><td class="val">0.00 TL</td></tr>
+                                <tr><td class="lbl">KDV Matrahı</td><td class="val">${kdvMatrahi} TL</td></tr>
+                                <tr><td class="lbl">Hesaplanan KDV (%20.00)</td><td class="val">${hesaplananKdv} TL</td></tr>
+                                <tr><td class="lbl">Vergiler Dahil Toplam Tutar</td><td class="val">${total.toFixed(2)} TL</td></tr>
+                                <tr><td class="lbl" style="color: #dc2626;">Ödenecek Tutar</td><td class="val">${total.toFixed(2)} TL</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="footer-notes">
+                        <div class="footer-col">
+                            <strong>İnternet Satış Bilgileri</strong>
+                            <p>Ödeme Şekli: ${orderData.paymentMethod === 'credit_card' ? 'Online Kredi/Banka Kartı' : 'Kapıda Ödeme'}</p>
+                            <p>Satış İşleminin Yapıldığı Web Adresi: <a href="http://www.evlezzetleri.com" style="color:#0066cc;">www.evlezzetleri.com</a></p>
+                            <p>Ödeme Aracısı: Banka</p>
+                            <p>Ödeme Tarihi: ${orderData.date.split(' ')[0]}</p>
+                        </div>
+                        <div class="footer-col">
+                            <strong>Genel Açıklamalar:</strong> Bu Fatura E-Arşiv İzni Kapsamında Oluşturulmuştur.<br>
+                            Bu Satış İnternet Üzerinden Yapılmıştır.<br>
+                            E-Arşiv İzni Kapsamında Elektronik Ortamda İletilmiştir.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    
+    return await sendEmail(email, `Ev Lezzetleri E-Arşiv Faturanız (#${faturaNo})`, html);
+}
+
+async function sendOrderReceivedEmail(email, orderData) {
+    const itemsHtml = orderData.items.map(item => `
+        <tr>
+            <td style="padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 11px;">${item.quantity} X &nbsp; ${item.meal_name}</td>
+            <td style="padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 11px; text-align: right;">${item.subtotal} TL</td>
+        </tr>
+    `).join('');
+
+    let totalsHtml = '';
+    if (orderData.deliveryFee && parseFloat(orderData.deliveryFee) > 0) {
+        totalsHtml += `
+        <tr>
+            <td style="padding: 10px 15px; text-align: right; font-size: 11px; color: #555;">Gönderim Ücreti</td>
+            <td style="padding: 10px 15px; text-align: right; font-size: 11px; color: #555;">${orderData.deliveryFee} TL</td>
+        </tr>`;
+    }
+    if (orderData.discountAmount && parseFloat(orderData.discountAmount) > 0) {
+        totalsHtml += `
+        <tr>
+            <td style="padding: 10px 15px; text-align: right; font-size: 11px; color: #555;">Kupon</td>
+            <td style="padding: 10px 15px; text-align: right; font-size: 11px; color: #555;">-${orderData.discountAmount} TL</td>
+        </tr>`;
+    }
+    totalsHtml += `
+        <tr>
+            <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 12px;">Toplam</td>
+            <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 12px; color: #dc2626;">${orderData.totalAmount} TL</td>
+        </tr>`;
+
+    let paymentText = orderData.paymentMethod === 'credit_card' ? 'Online Kredi/Banka Kartı' : 'Kapıda Ödeme';
+    if (orderData.paymentMethod === 'cash' && orderData.cashPaymentMethod === 'credit_card') {
+        paymentText = 'Kapıda Kredi/Banka Kartı';
+    } else if (orderData.paymentMethod === 'cash') {
+        paymentText = 'Kapıda Nakit';
+    }
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #333333; background-color: #f5f5f5; margin: 0; padding: 20px 0; }
+                .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+                .logo-header { text-align: center; padding: 20px; font-size: 28px; font-weight: 800; color: #dc2626; letter-spacing: -0.5px; }
+                
+                .banner { 
+                    background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%); 
+                    color: white; 
+                    text-align: center; 
+                    padding: 40px 20px; 
+                }
+                .banner-icon { font-size: 40px; margin-bottom: 10px; display: inline-block; border: 2px solid white; border-radius: 50%; width: 60px; height: 60px; line-height: 60px; }
+                .banner h2 { margin: 0; font-size: 20px; font-weight: 700; }
+                .banner p { margin: 10px 0 0 0; font-size: 12px; opacity: 0.9; padding: 0 40px; }
+
+                .content-box { padding: 30px; }
+                
+                .details-title { font-weight: bold; font-size: 14px; margin-bottom: 15px; }
+                .details-table { width: 100%; font-size: 11px; color: #555; border-collapse: collapse; margin-bottom: 20px; }
+                .details-table td { padding: 5px 0; }
+                .details-table td.label { width: 30%; font-weight: 600; }
+                .details-table td.value { text-align: right; }
+                
+                .divider { border-top: 2px dashed #000000; margin: 20px 0; }
+                
+                .message-body { font-size: 12px; color: #444; }
+                .message-body p { margin-bottom: 15px; }
+                
+                .signature { font-size: 12px; margin-bottom: 25px; }
+                .signature-brand { color: #dc2626; }
+                
+                .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                .items-header { background-color: #6ee7b7; font-weight: bold; font-size: 12px; }
+                .items-header td { padding: 10px 15px; }
+
+                .footer { text-align: center; padding: 20px 30px; font-size: 9px; color: #888; background-color: #ffffff; border-top: 1px dotted #ccc; }
+                .social-icons { margin: 15px 0; }
+                .social-icons span { display: inline-block; width: 24px; height: 24px; background-color: #dc2626; color: white; border-radius: 50%; line-height: 24px; font-size: 12px; margin: 0 5px; }
+                .bottom-banner { background-color: #dc2626; color: white; text-align: center; padding: 15px; font-size: 18px; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo-header">
+                    Ev Lezzetleri
+                </div>
+                
+                <div class="banner">
+                    <div class="banner-icon">✓</div>
+                    <h2>Siparişiniz bize ulaşmıştır.<br>Teşekkür ederiz.</h2>
+                    <p>Siparişlerinizle veya sistemimizle ilgili sorularınızı online olarak cevaplıyoruz! Hemen Yardım Merkezi'nden bize ulaşın!</p>
+                </div>
+                
+                <div class="content-box">
+                    <div class="details-title">Sipariş detayları:</div>
+                    <table class="details-table">
+                        <tr>
+                            <td class="label">Satıcı:</td>
+                            <td class="value">${orderData.sellerName}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Sipariş zamanı:</td>
+                            <td class="value">${orderData.date}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Sipariş numarası:</td>
+                            <td class="value">${orderData.orderNumber}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Ödeme Yöntemi:</td>
+                            <td class="value">${paymentText}</td>
+                        </tr>
+                    </table>
+                    
+                    <div class="divider"></div>
+                    
+                    <div class="details-title">Teslimat Bilgileri:</div>
+                    <table class="details-table">
+                        <tr>
+                            <td class="label">İsim:</td>
+                            <td class="value">${orderData.buyerName}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Adres:</td>
+                            <td class="value">${orderData.address}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Telefon:</td>
+                            <td class="value">${orderData.buyerPhone}</td>
+                        </tr>
+                    </table>
+                    
+                    <div style="text-align: center; margin: 20px 0;">
+                        <div style="width: 60px; height: 3px; background-color: #6ee7b7; margin: 0 auto;"></div>
+                    </div>
+                    
+                    <div class="message-body">
+                        <p>Merhaba ${orderData.buyerName},</p>
+                        <p>${orderData.sellerName} siparişiniz için teşekkürler!</p>
+                    </div>
+                    
+                    <div class="signature">
+                        Saygılarımızla,<br>
+                        <span class="signature-brand">Ev Lezzetleri</span>
+                    </div>
+                    
+                    <table class="items-table">
+                        <tr class="items-header">
+                            <td>Adet | Ürünler</td>
+                            <td style="text-align: right;">Toplam</td>
+                        </tr>
+                        ${itemsHtml}
+                        ${totalsHtml}
+                    </table>
+                </div>
+                
+                <div class="footer">
+                    <p style="color: #dc2626; margin-bottom: 20px;">Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesini görüntülemek için tıklayınız...</p>
+                    <p>Bu e-posta Ev Lezzetleri siparişinizi takiben gönderilmiştir.</p>
+                    <p>Ev Lezzetleri Elektronik İletişim Perakende Gıda Anonim Şirketi<br>
+                    © ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
+                </div>
+                
+                <div class="bottom-banner">
+                    Ev Lezzetleri
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    return await sendEmail(email, `Siparişiniz Alındı - ${orderData.orderNumber}`, html);
+}
+
+async function sendFeedbackConfirmationEmail(email, ticketId, subject) {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body { font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #333333; background-color: #f5f5f5; margin: 0; padding: 20px 0; }
+                .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+                .logo-header { text-align: center; padding: 20px; font-size: 28px; font-weight: 800; color: #dc2626; letter-spacing: -0.5px; }
+                
+                .banner { 
+                    background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%); 
+                    color: white; 
+                    text-align: center; 
+                    padding: 40px 20px; 
+                }
+                .banner-icon { font-size: 40px; margin-bottom: 10px; display: inline-block; border: 2px solid white; border-radius: 50%; width: 60px; height: 60px; line-height: 60px; }
+                .banner h2 { margin: 0; font-size: 24px; font-weight: 700; }
+                .banner p { margin: 10px 0 0 0; font-size: 14px; opacity: 0.9; }
+
+                .content-box { padding: 30px; }
+                
+                .details-title { font-weight: bold; font-size: 16px; margin-bottom: 15px; }
+                .details-table { width: 100%; font-size: 13px; color: #555; border-collapse: collapse; margin-bottom: 25px; }
+                .details-table td { padding: 4px 0; }
+                .details-table td.label { width: 30%; font-weight: 600; }
+                .details-table td.value { text-align: right; }
+                
+                .divider { border-top: 2px dashed #e0e0e0; margin: 25px 0; }
+                
+                .message-body { font-size: 14px; color: #444; }
+                .message-body p { margin-bottom: 15px; }
+                
+                .signature { font-size: 14px; margin-top: 30px; }
+                .signature-brand { color: #dc2626; font-weight: bold; }
+                
+                .footer { text-align: center; padding: 20px 30px; font-size: 11px; color: #888; background-color: #ffffff; border-top: 1px solid #f0f0f0; }
+                .social-icons { margin: 15px 0; }
+                .social-icons span { display: inline-block; width: 30px; height: 30px; background-color: #dc2626; color: white; border-radius: 50%; line-height: 30px; font-size: 14px; margin: 0 5px; }
+                .bottom-banner { background-color: #dc2626; color: white; text-align: center; padding: 15px; font-size: 18px; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo-header">
+                    Ev Lezzetleri
+                </div>
+                
+                <div class="banner">
+                    <div class="banner-icon">✓</div>
+                    <h2>Talebiniz bize ulaşmıştır.<br>Teşekkür ederiz.</h2>
+                    <p>Talebinizle ilgili en kısa sürede size dönüş yapacağız.</p>
+                </div>
+                
+                <div class="content-box">
+                    <div class="details-title">Talep detayları:</div>
+                    <table class="details-table">
+                        <tr>
+                            <td class="label">Takip Numarası:</td>
+                            <td class="value">#${ticketId}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Konu:</td>
+                            <td class="value">${subject}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Tarih:</td>
+                            <td class="value">${new Date().toLocaleString('tr-TR')}</td>
+                        </tr>
+                    </table>
+                    
+                    <div class="divider"></div>
+                    
+                    <div class="message-body">
+                        <p>Merhaba,</p>
+                        <p>Yardım talebinizi aldık ve sistemimize kaydettik. Destek ekibimiz belirttiğiniz konu hakkında incelemelerini tamamlayıp size en kısa süre içinde geri dönüş sağlayacaktır.</p>
+                        <p>Bu süreçte gösterdiğiniz sabır için teşekkür ederiz.</p>
+                    </div>
+                    
+                    <div class="signature">
+                        Saygılarımızla,<br>
+                        <span class="signature-brand">Ev Lezzetleri</span>
+                    </div>
+                    
+                    <div class="divider"></div>
+                </div>
+                
+                <div class="footer">
+                    <p>Bu e-posta Ev Lezzetleri sistemi tarafından otomatik oluşturulmuştur. Lütfen cevaplamayınız.</p>
+                    <p>Ev Lezzetleri Elektronik İletişim Perakende Gıda Anonim Şirketi<br>
+                    © ${new Date().getFullYear()} Ev Lezzetleri. Tüm hakları saklıdır.</p>
+                </div>
+                
+                <div class="bottom-banner">
+                    Ev Lezzetleri
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    return await sendEmail(email, `Talebiniz Alındı (#${ticketId}) - Ev Lezzetleri`, html);
+}
+
 module.exports = {
     sendEmail,
     sendVerificationCode,
@@ -432,5 +903,8 @@ module.exports = {
     sendSellerRejectionEmail,
     sendCourierApprovalEmail,
     sendCourierRejectionEmail,
-    sendPickupReadyEmail
+    sendPickupReadyEmail,
+    sendFeedbackConfirmationEmail,
+    sendOrderReceivedEmail,
+    sendInvoiceEmail
 };

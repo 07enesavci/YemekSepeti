@@ -3,7 +3,15 @@ const router=express.Router();
 const db=require("../../config/database");
 const { requireRole }=require("../../middleware/auth");
 const bcrypt=require("bcryptjs");
-const { User, Address, Order, Review, Seller } = require("../../models");
+const { User, Address, Order, Review, Seller, WalletTransaction } = require("../../models");
+const Iyzipay = require("iyzipay");
+const { strictLimiter } = require("../../middleware/security");
+
+const iyzipay = new Iyzipay({
+    apiKey: process.env.IYZICO_API_KEY || "",
+    secretKey: process.env.IYZICO_SECRET_KEY || "",
+    uri: process.env.IYZICO_BASE_URL || "https://sandbox-api.iyzipay.com"
+});
 const { Op } = require('sequelize');
 const { encryptText, decryptText } = require("../../lib/cardCrypto");
 const { recalculateSellerRatings } = require("../../lib/sellerRatingHelper");
@@ -293,7 +301,23 @@ router.delete("/addresses/:id", requireRole('buyer'), async (req, res) => {
 router.get("/wallet", requireRole('buyer'), async (req, res) => {
     try {
         const userId = req.session.user.id;
-        const balance = 0;
+
+        // Gerçek bakiyeyi veritabanından oku
+        const user = await User.findByPk(userId, { attributes: ['wallet_balance'] });
+        const balance = user ? parseFloat(user.wallet_balance) || 0 : 0;
+
+        // Son 20 işlem geçmişi
+        let transactions = [];
+        try {
+            transactions = await WalletTransaction.findAll({
+                where: { user_id: userId },
+                order: [['created_at', 'DESC']],
+                limit: 20,
+                attributes: ['id', 'transaction_type', 'amount', 'balance_after', 'description', 'created_at']
+            });
+        } catch (txErr) {
+            // Tablo henüz oluşmamışsa sessiz geç
+        }
         
         const couponsSql = `
             SELECT 
@@ -354,10 +378,217 @@ router.get("/wallet", requireRole('buyer'), async (req, res) => {
             success: true,
             data: {
                 balance: balance,
+                transactions: transactions.map(t => ({
+                    id: t.id,
+                    type: t.transaction_type,
+                    amount: parseFloat(t.amount),
+                    balanceAfter: parseFloat(t.balance_after),
+                    description: t.description,
+                    createdAt: t.created_at
+                })),
                 coupons: formattedCoupons
             }
         });
     } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."
+        });
+    }
+});
+
+// --- CÜZDAN PARA YÜKLEME (iyzico ile) ---
+router.post("/wallet/topup", requireRole('buyer'), strictLimiter, async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const { amount, cardData, savedCardId, savedCardCvc } = req.body;
+
+        // Tutar validasyonu
+        const topupAmount = parseFloat(amount);
+        if (!topupAmount || topupAmount < 10 || topupAmount > 5000) {
+            return res.status(400).json({
+                success: false,
+                message: "Yükleme tutarı 10₺ ile 5.000₺ arasında olmalıdır."
+            });
+        }
+        const roundedAmount = Math.round(topupAmount * 100) / 100;
+
+        // iyzico API anahtarları kontrolü
+        if (!process.env.IYZICO_API_KEY || !process.env.IYZICO_SECRET_KEY) {
+            return res.status(500).json({
+                success: false,
+                message: "Ödeme sistemi yapılandırması eksik."
+            });
+        }
+
+        // Kart bilgilerini hazırla (yeni kart veya kayıtlı kart)
+        let effectiveCard = null;
+        if (savedCardId) {
+            const [rows] = await db.pool.query(
+                `SELECT id, card_name, card_number_encrypted, card_expiry_month, card_expiry_year FROM payment_cards WHERE id = ? AND user_id = ? LIMIT 1`,
+                [parseInt(savedCardId, 10), userId]
+            );
+            const saved = rows && rows[0];
+            const cardNumber = saved ? decryptText(saved.card_number_encrypted) : null;
+            if (!saved || !cardNumber) {
+                return res.status(400).json({ success: false, message: "Kayıtlı kart bulunamadı veya çözülemedi." });
+            }
+            if (!savedCardCvc) {
+                return res.status(400).json({ success: false, message: "Kayıtlı kart için CVC gerekli." });
+            }
+            effectiveCard = {
+                cardHolderName: saved.card_name,
+                cardNumber,
+                expireMonth: String(saved.card_expiry_month).padStart(2, '0'),
+                expireYear: String(saved.card_expiry_year).length === 2
+                    ? String(new Date().getFullYear()).slice(0, 2) + String(saved.card_expiry_year)
+                    : String(saved.card_expiry_year),
+                cvc: String(savedCardCvc).replace(/\D/g, '').slice(0, 4)
+            };
+        } else if (cardData) {
+            if (!cardData.cardHolderName || !cardData.cardNumber || !cardData.expireMonth || !cardData.expireYear || !cardData.cvc) {
+                return res.status(400).json({ success: false, message: "Kart bilgileri eksik." });
+            }
+            effectiveCard = cardData;
+        } else {
+            return res.status(400).json({ success: false, message: "Ödeme için kart bilgisi gerekli." });
+        }
+
+        // Kullanıcı bilgilerini al
+        const buyerUser = await User.findByPk(userId, {
+            attributes: ['fullname', 'phone', 'email', 'created_at', 'wallet_balance']
+        });
+        if (!buyerUser) {
+            return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı." });
+        }
+
+        const fullname = (buyerUser.fullname || "Musteri").trim();
+        const [firstName, ...surnameParts] = fullname.split(" ");
+        const surname = surnameParts.length ? surnameParts.join(" ") : "Musteri";
+        const gsmNumber = (buyerUser.phone || "+905555555555").startsWith("+")
+            ? buyerUser.phone
+            : `+9${(buyerUser.phone || "05555555555").replace(/\D/g, "")}`;
+
+        // iyzico ödeme isteği
+        const conversationId = `TOPUP-${userId}-${Date.now()}`;
+        const paymentRequest = {
+            locale: Iyzipay.LOCALE.TR,
+            conversationId,
+            price: roundedAmount.toFixed(2),
+            paidPrice: roundedAmount.toFixed(2),
+            currency: Iyzipay.CURRENCY.TRY,
+            installment: "1",
+            basketId: `WALLET-${userId}-${Date.now()}`,
+            paymentChannel: Iyzipay.PAYMENT_CHANNEL.WEB,
+            paymentGroup: Iyzipay.PAYMENT_GROUP.PRODUCT,
+            paymentCard: {
+                cardHolderName: effectiveCard.cardHolderName,
+                cardNumber: String(effectiveCard.cardNumber).replace(/\s/g, ""),
+                expireMonth: String(effectiveCard.expireMonth).padStart(2, '0'),
+                expireYear: String(effectiveCard.expireYear).slice(-2),
+                cvc: String(effectiveCard.cvc),
+                registerCard: '0'
+            },
+            buyer: {
+                id: String(userId),
+                name: firstName || "Musteri",
+                surname,
+                gsmNumber,
+                email: buyerUser.email || "test@example.com",
+                identityNumber: "11111111111",
+                lastLoginDate: new Date().toISOString().replace("T", " ").slice(0, 19),
+                registrationDate: new Date(buyerUser.created_at || Date.now()).toISOString().replace("T", " ").slice(0, 19),
+                registrationAddress: "Turkiye",
+                ip: req.ip || "85.34.78.112",
+                city: "Istanbul",
+                country: "Turkey",
+                zipCode: "34000"
+            },
+            shippingAddress: {
+                contactName: fullname,
+                city: "Istanbul",
+                country: "Turkey",
+                address: "Turkiye",
+                zipCode: "34000"
+            },
+            billingAddress: {
+                contactName: fullname,
+                city: "Istanbul",
+                country: "Turkey",
+                address: "Turkiye",
+                zipCode: "34000"
+            },
+            basketItems: [
+                {
+                    id: `TOPUP-${Date.now()}`,
+                    name: "Cüzdan Para Yükleme",
+                    category1: "Cüzdan",
+                    itemType: Iyzipay.BASKET_ITEM_TYPE.VIRTUAL,
+                    price: roundedAmount.toFixed(2)
+                }
+            ]
+        };
+
+        const paymentResult = await new Promise((resolve, reject) => {
+            iyzipay.payment.create(paymentRequest, (err, result) => {
+                if (err) return reject(err);
+                return resolve(result);
+            });
+        });
+
+        if (!paymentResult || paymentResult.status !== "success") {
+            return res.status(400).json({
+                success: false,
+                message: paymentResult?.errorMessage || "Ödeme başarısız oldu. Lütfen kart bilgilerinizi kontrol edin."
+            });
+        }
+
+        // Ödeme başarılı — bakiyeyi atomik olarak güncelle
+        const { sequelize } = require("../../models");
+        const t = await sequelize.transaction();
+        try {
+            // Bakiyeyi güncelle
+            await sequelize.query(
+                `UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?`,
+                { replacements: [roundedAmount, userId], transaction: t }
+            );
+
+            // Güncel bakiyeyi oku
+            const [[updatedUser]] = await sequelize.query(
+                `SELECT wallet_balance FROM users WHERE id = ?`,
+                { replacements: [userId], transaction: t }
+            );
+            const newBalance = parseFloat(updatedUser.wallet_balance);
+
+            // İşlem kaydı oluştur
+            await WalletTransaction.create({
+                user_id: userId,
+                transaction_type: 'deposit',
+                amount: roundedAmount,
+                balance_after: newBalance,
+                description: `Cüzdana ${roundedAmount.toFixed(2)} TL yüklendi (iyzico)`
+            }, { transaction: t });
+
+            await t.commit();
+
+            res.json({
+                success: true,
+                message: `${roundedAmount.toFixed(2)} TL başarıyla cüzdanınıza yüklendi.`,
+                data: {
+                    newBalance,
+                    amount: roundedAmount
+                }
+            });
+        } catch (dbErr) {
+            await t.rollback();
+            console.error('[Wallet Topup] DB transaction hatası:', dbErr);
+            res.status(500).json({
+                success: false,
+                message: "Ödeme alındı ancak bakiye güncellenirken hata oluştu. Lütfen destek ile iletişime geçin."
+            });
+        }
+    } catch (error) {
+        console.error('[Wallet Topup] Hata:', error);
         res.status(500).json({
             success: false,
             message: "Sunucu hatası. Lütfen daha sonra tekrar deneyin."

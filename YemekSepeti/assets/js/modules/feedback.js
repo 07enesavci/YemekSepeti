@@ -5,7 +5,10 @@
         in_review: { label: 'İnceleniyor', color: '#1e40af', bg: '#dbeafe' },
         resolved:  { label: 'Çözüldü',     color: '#065f46', bg: '#d1fae5' }
     };
-    var TYPE_LABELS = { suggestion: '💡 Öneri', complaint: '⚠️ Şikayet' };
+    var TYPE_LABELS = { 
+        suggestion: '<span style="display:inline-flex;align-items:center;gap:0.25rem;"><span>💡</span> <span style="position:relative;top:1px;">Öneri</span></span>', 
+        complaint: '<span style="display:inline-flex;align-items:center;gap:0.25rem;"><span>⚠️</span> <span style="position:relative;top:1px;">Şikayet</span></span>' 
+    };
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -44,7 +47,7 @@
                 var dateTxt = f.createdAt ? new Date(f.createdAt).toLocaleString('tr-TR') : '';
                 html += '<div style="border:1px solid var(--border-color);border-radius:10px;padding:0.75rem 0.9rem;margin-bottom:0.6rem;background:var(--card-bg);">'
                     + '<div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;align-items:center;">'
-                    + '<strong>' + (TYPE_LABELS[f.type] || '') + ' — ' + esc(f.subject) + '</strong>'
+                    + '<strong style="display:flex;align-items:center;gap:0.3rem;">' + (TYPE_LABELS[f.type] || '') + ' — ' + esc(f.subject) + '</strong>'
                     + statusBadge(f.status)
                     + '</div>'
                     + '<div style="color:var(--text-color-light);font-size:0.85rem;margin-top:0.3rem;">' + esc(f.message) + '</div>'

@@ -356,7 +356,7 @@ async function loadSellerMenu(sellerId, seller) {
                 } else if (!item.isAvailable) {
                     cartButtonHtml = `<button class="btn btn-secondary btn-full" disabled style="margin-top: 0.5rem; opacity: 0.6; cursor: not-allowed;">Tükendi</button>`;
                 } else {
-                    cartButtonHtml = `<button class="btn btn-primary btn-full sepete-ekle-btn" onclick="addToCart(${item.id}, ${sellerId}, 1)" style="margin-top: 0.5rem; position: relative; overflow: hidden;"><span class="btn-label">Sepete Ekle</span><span class="food-anim" aria-hidden="true"><svg viewBox="0 0 24 20" width="24" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.5 8.5Q6.5 6.5 7.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M12 7.5Q11 5.5 12 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M16.5 8.5Q15.5 6.5 16.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M3 14Q3 9 12 9Q21 9 21 14Z" fill="currentColor"/><ellipse cx="12" cy="14.5" rx="9" ry="2.2" fill="currentColor"/></svg></span><span class="cart-anim" aria-hidden="true"><svg viewBox="0 0 36 26" width="30" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2.5H6L10 18.5H25.5L28.5 7.5L7.5 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11.5" cy="23" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="24" cy="23" r="2" stroke="currentColor" stroke-width="1.5"/><path class="cart-tick" d="M14.5 13.5L16.5 15.5L21.5 10.5" stroke="#FFD700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:10;stroke-dashoffset:10"/></svg></span></button>`;
+                    cartButtonHtml = `<button class="btn btn-primary btn-full sepete-ekle-btn" data-item-id="${item.id}" data-seller-id="${sellerId}" data-quantity="1" style="margin-top: 0.5rem; position: relative; overflow: hidden;"><span class="btn-label">Sepete Ekle</span><span class="food-anim" aria-hidden="true"><svg viewBox="0 0 24 20" width="24" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.5 8.5Q6.5 6.5 7.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M12 7.5Q11 5.5 12 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M16.5 8.5Q15.5 6.5 16.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M3 14Q3 9 12 9Q21 9 21 14Z" fill="currentColor"/><ellipse cx="12" cy="14.5" rx="9" ry="2.2" fill="currentColor"/></svg></span><span class="cart-anim" aria-hidden="true"><svg viewBox="0 0 36 26" width="30" height="22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2.5H6L10 18.5H25.5L28.5 7.5L7.5 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11.5" cy="23" r="2" stroke="currentColor" stroke-width="1.5"/><circle cx="24" cy="23" r="2" stroke="currentColor" stroke-width="1.5"/><path class="cart-tick" d="M14.5 13.5L16.5 15.5L21.5 10.5" stroke="#FFD700" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:10;stroke-dashoffset:10"/></svg></span></button>`;
                 }
 
                 menuHTML += `
@@ -385,7 +385,7 @@ async function loadSellerMenu(sellerId, seller) {
         
         // Inline onclick yerine modern event listener kullan
         setTimeout(function() {
-            var addToCartButtons = menuContent.querySelectorAll('button[onclick*="addToCart"]');
+            var addToCartButtons = menuContent.querySelectorAll('.sepete-ekle-btn');
 
             // GSAP başlangıç pozisyonlarını ayarla
             if (typeof gsap !== 'undefined') {
@@ -400,18 +400,15 @@ async function loadSellerMenu(sellerId, seller) {
             }
 
             addToCartButtons.forEach(function(button) {
-                var onclickAttr = button.getAttribute('onclick');
-                if (onclickAttr) {
-                    button.removeAttribute('onclick');
+                var mealId = button.getAttribute('data-item-id');
+                var sellerId = button.getAttribute('data-seller-id');
+                var quantity = button.getAttribute('data-quantity');
+                
+                if (mealId && sellerId) {
                     button.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        var match = onclickAttr.match(/addToCart\((\d+),\s*(\d+)(?:,\s*(\d+))?\)/);
-                        if (match) {
-                            var mealId = parseInt(match[1]);
-                            var sellerId = parseInt(match[2]);
-                            var quantity = match[3] ? parseInt(match[3]) : 1;
-                            addToCart(mealId, sellerId, quantity);
+                        addToCart(parseInt(mealId), parseInt(sellerId), parseInt(quantity) || 1);
 
                             if (typeof gsap !== 'undefined' && button.classList.contains('sepete-ekle-btn') && !button.classList.contains('animating')) {
                                 var lbl = button.querySelector('.btn-label');
@@ -490,7 +487,6 @@ async function loadSellerMenu(sellerId, seller) {
                                     button.disabled = false;
                                 }, 1000);
                             }
-                        }
                     });
                 }
             });

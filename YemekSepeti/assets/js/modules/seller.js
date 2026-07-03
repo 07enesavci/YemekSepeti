@@ -4,6 +4,8 @@
 function updateSidebarUzakMesafe(enabled) {
     const li = document.getElementById('sidebar-uzak-mesafe-li');
     if (li) li.style.display = enabled ? 'block' : 'none';
+    const headerLink = document.getElementById('header-uzak-mesafe-link');
+    if (headerLink) headerLink.style.display = enabled ? 'block' : 'none';
 }
 
 async function fetchAndApplyUzakMesafeSidebar(baseUrl) {
@@ -158,15 +160,15 @@ function createMealCardHTML(meal) {
             </div>
             <div class="menu-item-status">
                 ${meal.isApproved === false ?
-                    '<span class="status-dot" style="background-color: #f39c12;">Admin Onayı Bekliyor</span>' :
+                    '<span class="status-dot admin-pending">Admin Onayı Bekliyor</span>' :
                     `<span class="status-dot ${statusClass}">${statusText}</span>`
                 }
-                ${meal.isUzakMesafe ? '<span class="status-dot" style="background-color: #7c3aed; margin-left: 4px;">📦 Uzak Mesafe</span>' : ''}
+                ${meal.isUzakMesafe ? '<span class="status-dot uzak-mesafe" style="margin-left: 4px;">📦 Uzak Mesafe</span>' : ''}
                 ${(function(){
                     var s = (meal.stockQuantity != null) ? parseInt(meal.stockQuantity) : -1;
-                    if (isNaN(s) || s < 0) return '<span class="status-dot" style="background-color:#3498db; margin-left:4px;">Stok: ∞</span>';
-                    if (s === 0) return '<span class="status-dot" style="background-color:#e74c3c; margin-left:4px;">Stok Tükendi</span>';
-                    return '<span class="status-dot" style="background-color:#16a085; margin-left:4px;">Stok: ' + s + '</span>';
+                    if (isNaN(s) || s < 0) return '<span class="status-dot stock-infinite" style="margin-left:4px;">Stok: ∞</span>';
+                    if (s === 0) return '<span class="status-dot stock-out" style="margin-left:4px;">Stok Tükendi</span>';
+                    return '<span class="status-dot stock-ok" style="margin-left:4px;">Stok: ' + s + '</span>';
                 })()}
             </div>
             <div class="menu-item-price">
@@ -1609,8 +1611,12 @@ async function loadSellerCoupons() {
                             <span>Geçerli: ${validFrom} - ${validUntil}</span>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
+                            ${coupon.canEdit ? `
                             <button class="btn btn-sm edit-coupon-btn" data-id="${coupon.id}" data-code="${coupon.code}" data-description="${coupon.description || ''}" data-discount-type="${coupon.discountType}" data-discount-value="${coupon.discountValue}" data-min-order="${coupon.minOrderAmount || 0}" data-max-discount="${coupon.maxDiscountAmount || ''}" data-is-active="${coupon.isActive ? '1' : '0'}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #3498DB !important; color: white !important; border: none; border-radius: 4px; cursor: pointer;">DÜZENLE</button>
-                            <button class="btn btn-sm delete-coupon-btn" data-id="${coupon.id}" style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #E74C3C !important; color: white !important; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s;">SİL</button>
+                            <button class="btn btn-sm delete-coupon-btn" data-id="${coupon.id}" ${!coupon.isActive ? 'disabled title="Pasif kupon silinemez"' : ''} style="padding: 0.35rem 0.85rem; font-size: 0.85rem; background-color: #E74C3C !important; color: white !important; border: none; border-radius: 4px; ${!coupon.isActive ? 'opacity:0.5; cursor:not-allowed;' : 'cursor: pointer; transition: background-color 0.2s;'}">SİL</button>
+                            ` : `
+                            <span style="font-size: 0.8rem; color: #7c3aed; background: rgba(124, 58, 237, 0.1); padding: 4px 8px; border-radius: 4px;">Platform Kuponu</span>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -1845,7 +1851,7 @@ function initializeCouponsPage() {
                         });
                         const data = await response.json();
                         if (response.ok && data.success) {
-                            alert('Kupon başarıyla silindi.');
+                            alert(data.message || 'İşlem başarılı.');
                             loadSellerCoupons();
                         } else {
                             alert(data.message || 'Kupon silinirken hata oluştu.');
@@ -2193,6 +2199,27 @@ function renderScheduleEditor(rawHours) {
     const container = document.getElementById('schedule-editor');
     if (!container) return;
     const data = parseWorkingHoursToSchedule(rawHours);
+    function generateTimeOptions(selectedValue) {
+        let options = '';
+        const times = [];
+        for (let h = 0; h < 24; h++) {
+            for (let m = 0; m < 60; m += 30) {
+                times.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+            }
+        }
+        times.push('23:59'); // Gece yarısına kadar açık olanlar için
+        if (selectedValue && !times.includes(selectedValue)) {
+            times.push(selectedValue);
+            times.sort();
+        }
+        
+        times.forEach(timeStr => {
+            const selected = (timeStr === selectedValue) ? 'selected' : '';
+            options += `<option value="${timeStr}" ${selected}>${timeStr}</option>`;
+        });
+        return options;
+    }
+
     container.innerHTML = SCHEDULE_DAYS.map(d => {
         const v = data.days[d.key];
         return `
@@ -2201,13 +2228,26 @@ function renderScheduleEditor(rawHours) {
                     <input type="checkbox" class="day-enabled" ${v.enabled ? 'checked' : ''}>
                     <span>${d.label}</span>
                 </label>
-                <input type="time" class="day-open form-input" value="${v.open}" style="flex:1; max-width:120px;">
+                <div style="flex:1; max-width:120px;">
+                    <select class="day-open form-control" style="width:100%;">
+                        ${generateTimeOptions(v.open)}
+                    </select>
+                </div>
                 <span style="color:#94a3b8;">—</span>
-                <input type="time" class="day-close form-input" value="${v.close}" style="flex:1; max-width:120px;">
+                <div style="flex:1; max-width:120px;">
+                    <select class="day-close form-control" style="width:100%;">
+                        ${generateTimeOptions(v.close)}
+                    </select>
+                </div>
                 <button type="button" class="btn btn-sm btn-secondary day-closed-btn" data-day="${d.key}" title="Bu gün kapalı">Kapalı</button>
             </div>
         `;
     }).join('');
+
+    if (window.initYsSelects) {
+        window.initYsSelects(container);
+    }
+
 
     const autoCb = document.getElementById('schedule-auto-toggle');
     if (autoCb) autoCb.checked = data.autoToggle !== false;

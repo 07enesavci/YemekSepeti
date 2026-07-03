@@ -8,6 +8,7 @@ router.use(requireRole('courier'), requireCourierApproved);
 const { Op, Sequelize, QueryTypes } = require("sequelize");
 const { sequelize } = require("../../config/database");
 const { createNotification } = require("../../lib/notificationHelper");
+const { sendInvoiceEmail } = require("../../config/email");
 
 function getDistance(lat1, lon1, lat2, lon2) {
     if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
@@ -449,6 +450,39 @@ router.put("/tasks/:id/complete", async (req, res) => {
                 // Admin sipariş sayfası canlı güncellensin
                 global.io.to('admin').emit('admin_orders_updated', { reason: 'delivered', orderId: orderId });
             }
+
+            // Faturayı gönder
+            (async () => {
+                try {
+                    const fullOrder = await Order.findByPk(orderId, {
+                        include: [
+                            { model: User, as: 'buyer', attributes: ['fullname', 'phone', 'email'] },
+                            { model: OrderItem, as: 'items', attributes: ['meal_name', 'quantity', 'meal_price', 'subtotal'] },
+                            { model: Address, as: 'address', attributes: ['full_address'] },
+                            { model: Seller, as: 'seller', attributes: ['shop_name'] }
+                        ]
+                    });
+                    if (fullOrder && fullOrder.buyer && fullOrder.buyer.email) {
+                        const orderMailData = {
+                            orderNumber: fullOrder.order_number,
+                            date: new Date(fullOrder.delivered_at || fullOrder.created_at).toLocaleString('tr-TR'),
+                            sellerName: fullOrder.seller?.shop_name || "Ev Lezzetleri",
+                            buyerName: fullOrder.buyer.fullname,
+                            buyerPhone: fullOrder.buyer.phone || "-",
+                            address: fullOrder.address ? fullOrder.address.full_address : "Adres bulunamadı",
+                            paymentMethod: fullOrder.payment_method,
+                            cashPaymentMethod: fullOrder.cash_payment_method,
+                            items: fullOrder.items || [],
+                            deliveryFee: fullOrder.delivery_fee,
+                            discountAmount: fullOrder.discount_amount,
+                            totalAmount: fullOrder.total_amount
+                        };
+                        await sendInvoiceEmail(fullOrder.buyer.email, orderMailData);
+                    }
+                } catch (invoiceErr) {
+                    console.error('Fatura e-postası gönderilemedi (courier.js):', invoiceErr);
+                }
+            })();
         }
 
         res.json({ success: true, message: 'Görev başarıyla tamamlandı.' });

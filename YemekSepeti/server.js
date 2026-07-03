@@ -83,7 +83,8 @@ try {
                 ensureCouponColumns,
                 ensureReviewSellerReplyColumns,
                 ensureReviewDeletionColumns,
-                ensurePushSubscriptionsTable
+                ensurePushSubscriptionsTable,
+                ensureUserWalletBalanceColumn
             } = require('./config/sequelize');
             const useAlterSync = process.env.SEQUELIZE_ALTER_SYNC === 'true';
             sequelize.sync({ alter: useAlterSync })
@@ -108,6 +109,7 @@ try {
                     await ensureReviewSellerReplyColumns();
                     await ensureReviewDeletionColumns();
                     await ensurePushSubscriptionsTable();
+                    await ensureUserWalletBalanceColumn();
                     writeLog('INFO', 'Sequelize: Tablolar ve yeni sütunlar SQL tarafında güncellendi ✅');
                     console.log("✅ SQL Tabloları ve Sütunlar Başarıyla Senkronize Edildi!");
                 })
@@ -137,6 +139,7 @@ try {
                             await ensureReviewSellerReplyColumns();
                             await ensureReviewDeletionColumns();
                             await ensurePushSubscriptionsTable();
+                            await ensureUserWalletBalanceColumn();
                             console.log("✅ Sequelize sync (alter olmadan) tamamlandı.");
                         });
                     }
@@ -211,8 +214,10 @@ try {
             `https://${adminDomain}`, `http://${adminDomain}`
         ];
         const devOrigins = [
-            'http://localhost:3000', 'http://127.0.0.1:3000',
-            'http://partner.localhost:3000', 'http://admin.localhost:3000'
+            'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002',
+            'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002',
+            'http://partner.localhost:3000', 'http://admin.localhost:3000',
+            'http://partner.localhost:3001', 'http://admin.localhost:3001'
         ];
         return new Set([...devOrigins, ...productionOrigins, ...extra]);
     };
@@ -1023,6 +1028,10 @@ try {
     const isNumericPort = /^\d+$/.test(String(PORT));
 
     const listenServer = (portToUse) => {
+        // Aktif portu CORS allow listesine dinamik olarak ekle (port fallback durumlarında)
+        _corsAllowSet.add(`http://localhost:${portToUse}`);
+        _corsAllowSet.add(`http://127.0.0.1:${portToUse}`);
+
         server.once('error', (err) => {
             throw err;
         });

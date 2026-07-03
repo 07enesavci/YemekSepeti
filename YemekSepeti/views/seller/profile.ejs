@@ -1,4 +1,4 @@
-﻿<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css?v=20260629-mobilefix1">
+<link rel="stylesheet" href="/assets/css/pages/seller-dashboard.css?v=20260629-mobilefix1">
 <link rel="stylesheet" href="/assets/css/pages/seller-profile-admin.css">
 
 <div class="panel-layout">
@@ -148,7 +148,7 @@
 
                         <div style="margin-bottom: 0.75rem;">
                             <label for="cargo-pricing-mode" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Ücret Modu</label>
-                            <select id="cargo-pricing-mode" class="form-control" style="width: 100%;">
+                            <select id="cargo-pricing-mode" class="form-input" style="width: 100%;">
                                 <option value="free">Ücretsiz Kargo</option>
                                 <option value="flat">Sabit Kargo Ücreti</option>
                                 <option value="by_region">Mesafe Bazlı Ücret</option>
@@ -158,16 +158,16 @@
                         <div id="cargo-flat-fields" style="display: none;">
                             <div style="margin-bottom: 0.75rem;">
                                 <label for="cargo-fee" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;" id="cargo-fee-label">Kargo Ücreti (₺)</label>
-                                <input type="number" id="cargo-fee" class="form-control" min="0" step="0.01" placeholder="Örn. 49.90" style="width: 100%;">
+                                <input type="number" id="cargo-fee" class="form-input" min="0" step="0.01" placeholder="Örn. 49.90" style="width: 100%;">
                             </div>
                             <div id="cargo-per-km-wrap" style="margin-bottom: 0.75rem; display: none;">
                                 <label for="cargo-fee-per-100km" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Her 100 km için ek ücret (₺)</label>
-                                <input type="number" id="cargo-fee-per-100km" class="form-control" min="0" step="0.01" placeholder="Örn. 10.00" style="width: 100%;">
+                                <input type="number" id="cargo-fee-per-100km" class="form-input" min="0" step="0.01" placeholder="Örn. 10.00" style="width: 100%;">
                                 <small style="color: #64748b; font-size: 0.78rem;">Toplam = taban ücret + (mesafe / 100 km, yukarı yuvarlanır) × bu ücret.</small>
                             </div>
                             <div>
                                 <label for="cargo-free-threshold" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Ücretsiz Kargo Eşiği (₺)</label>
-                                <input type="number" id="cargo-free-threshold" class="form-control" min="0" step="0.01" placeholder="0 = kapalı" style="width: 100%;">
+                                <input type="number" id="cargo-free-threshold" class="form-input" min="0" step="0.01" placeholder="0 = kapalı" style="width: 100%;">
                                 <small style="color: #64748b; font-size: 0.78rem;">Bu tutar ve üzeri sepetlerde kargo ücretsiz olur. 0 girerseniz kapalı kalır.</small>
                             </div>
                         </div>
@@ -175,12 +175,12 @@
                         <hr style="border: none; border-top: 1px solid rgba(124,58,237,0.15); margin: 1rem 0;">
                         <div style="margin-bottom: 0.75rem;">
                             <label for="cargo-regions" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Gönderim Yapılan İller</label>
-                            <input type="text" id="cargo-regions" class="form-control" placeholder="Örn. İstanbul, Ankara, İzmir (boş = tüm Türkiye)" style="width: 100%;">
+                            <input type="text" id="cargo-regions" class="form-input" placeholder="Örn. İstanbul, Ankara, İzmir (boş = tüm Türkiye)" style="width: 100%;">
                             <small style="color: #64748b; font-size: 0.78rem;">Virgülle ayırın. Boş bırakırsanız tüm Türkiye'ye gönderim yapılır.</small>
                         </div>
                         <div>
                             <label for="cargo-max-distance" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Azami Kargo Mesafesi (km)</label>
-                            <input type="number" id="cargo-max-distance" class="form-control" min="0" step="1" placeholder="0 = sınırsız" style="width: 100%;">
+                            <input type="number" id="cargo-max-distance" class="form-input" min="0" step="1" placeholder="0 = sınırsız" style="width: 100%;">
                             <small style="color: #64748b; font-size: 0.78rem;">Bu mesafeden uzak adreslere kargo gönderilmez. 0 = sınırsız.</small>
                         </div>
                     </div>
@@ -233,6 +233,11 @@
     document.addEventListener('DOMContentLoaded', function() {
         var btn = document.getElementById('btn-delete-account');
         if (btn) btn.addEventListener('click', doDeleteAccount);
+        
+        if (window.initYsSelects) {
+            window.initYsSelects(document);
+        }
     });
 })();
 </script>
+<script src="/assets/js/modules/ys-select.js"></script>
