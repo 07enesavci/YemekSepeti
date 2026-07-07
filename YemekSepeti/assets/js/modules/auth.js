@@ -56,10 +56,14 @@ document.addEventListener("DOMContentLoaded", function ()
         });
     }
 
-    // Canlı şifre güç göstergesi
+    // Canlı şifre güç göstergesi — yalnızca yeni şifre belirlenen alanlarda göster
+    // (kayıt / şifre sıfırlama). Giriş (login) ekranında gösterilmez.
     function attachPasswordStrength(inputId) {
         var el = document.getElementById(inputId);
-        if (el && window.YsUI) window.YsUI.addPasswordStrengthIndicator(el);
+        if (!el || !window.YsUI) return;
+        // Login parolası autocomplete="new-password" içermez; strength gösterme
+        if ((el.getAttribute('autocomplete') || '') !== 'new-password') return;
+        window.YsUI.addPasswordStrengthIndicator(el);
     }
 
     attachLiveEmailValidation('email');

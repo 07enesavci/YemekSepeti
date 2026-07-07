@@ -1609,7 +1609,7 @@ function createTransactionItemHTML(transaction) {
 
     const orderId = transaction.id || transaction.orderId;
     const detailBtn = orderId
-        ? `<button type="button" class="btn btn-secondary btn-sm courier-history-detail-btn" data-order-id="${orderId}" style="margin-left: 0.5rem;">Detay</button>`
+        ? `<button type="button" class="btn btn-secondary btn-sm courier-history-detail-btn" data-order-id="${orderId}">Detay</button>`
         : '';
 
     return `
@@ -1620,8 +1620,8 @@ function createTransactionItemHTML(transaction) {
             <div class="transaction-details">
                 <strong>${transaction.description}</strong>
                 <span>${formattedDate}</span>
-                ${detailBtn}
             </div>
+            ${detailBtn}
             <div class="transaction-amount ${typeClass}">
                 ${sign}${amount.toFixed(2)} TL
             </div>
@@ -1735,6 +1735,13 @@ async function loadHistoryData() {
 }
 
 function attachCourierHistoryDetailButtons() {
+    // Modal, animasyonlu <main class="ys-page-fade-in"> içinde kalırsa transform bağlamı
+    // yüzünden position:fixed viewport'a göre çalışmaz ve modal sayfanın çok altında açılır.
+    // Bu yüzden modalı doğrudan <body>'ye taşıyarak viewport'a sabitliyoruz.
+    const modalEl = document.getElementById('courier-order-detail-modal');
+    if (modalEl && modalEl.parentElement !== document.body) {
+        document.body.appendChild(modalEl);
+    }
     document.querySelectorAll('.courier-history-detail-btn').forEach(btn => {
         btn.addEventListener('click', async function() {
             const orderId = this.getAttribute('data-order-id');
@@ -1745,7 +1752,7 @@ function attachCourierHistoryDetailButtons() {
             if (!modal || !body) return;
             modal.style.display = 'flex';
             body.innerHTML = '<p class="text-muted">Yükleniyor...</p>';
-            title.textContent = 'Sipariş #' + orderId + ' Detayı';
+            if (title) title.textContent = 'Sipariş #' + orderId + ' Detayı';
             const task = await fetchTaskDetail(orderId);
             if (!task) {
                 body.innerHTML = '<p style="color: #E74C3C;">Detay yüklenemedi.</p>';
@@ -1762,7 +1769,7 @@ function attachCourierHistoryDetailButtons() {
                 <p><strong>Restoran:</strong> ${task.pickup && task.pickup.name ? (task.pickup.name + (task.pickup.address ? ', ' + task.pickup.address : '')).replace(/</g, '&lt;') : '—'}</p>
                 <p><strong>Teslimat adresi:</strong> ${dropoff.replace(/</g, '&lt;')}</p>
                 <p><strong>Müşteri:</strong> ${customer.replace(/</g, '&lt;')}</p>
-                <table class="form-input" style="width:100%; margin: 0.5rem 0; border-collapse: collapse;">
+                <table class="courier-detail-table">
                     <thead><tr><th>Ürün</th><th>Adet</th><th>Birim</th><th>Toplam</th></tr></thead>
                     <tbody>${itemsHtml}</tbody>
                 </table>

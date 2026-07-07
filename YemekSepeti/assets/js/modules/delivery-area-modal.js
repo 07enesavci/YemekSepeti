@@ -151,6 +151,14 @@
         }
     }
 
+    // Native <select> yerine sitenin ys-select (temaya uyumlu) bileşenini kullan.
+    // Seçenekler dinamik yüklendiği için her doldurmadan sonra özel arayüzü tazele.
+    function syncYsSelect(el) {
+        try {
+            if (el && typeof el.syncCustomUI === 'function') el.syncCustomUI();
+        } catch (e) {}
+    }
+
     async function loadCities(selectEl) {
         const res = await fetch(addressApiUrl('/api/address/cities'), addressFetchOpts());
         if (!res.ok) throw new Error('İller yüklenemedi.');
@@ -163,6 +171,7 @@
             opt.textContent = c;
             selectEl.appendChild(opt);
         });
+        syncYsSelect(selectEl);
     }
 
     async function loadDistricts(city, selectIlce) {
@@ -172,6 +181,7 @@
         if (!res.ok || !j.success || !Array.isArray(j.districts)) {
             selectIlce.innerHTML = '<option value="">İlçe bulunamadı</option>';
             selectIlce.disabled = true;
+            syncYsSelect(selectIlce);
             return;
         }
         selectIlce.innerHTML = '<option value="">İlçe seçin</option>';
@@ -182,6 +192,7 @@
             selectIlce.appendChild(opt);
         });
         selectIlce.disabled = false;
+        syncYsSelect(selectIlce);
     }
 
     async function fillFormFromStored() {
@@ -195,8 +206,10 @@
             await loadCities(selIl);
             if (stored) {
                 selIl.value = stored.il;
+                syncYsSelect(selIl);
                 await loadDistricts(stored.il, selIlce);
                 selIlce.value = stored.ilce;
+                syncYsSelect(selIlce);
                 inpMah.value = stored.mahalle;
                 if (stored.lat != null && stored.lng != null) {
                     pendingLat = stored.lat;
@@ -204,6 +217,7 @@
                 }
             } else {
                 inpMah.value = '';
+                syncYsSelect(selIl);
             }
             if (errFill) {
                 errFill.hidden = true;
@@ -401,13 +415,16 @@
                 const city = selIl.value;
                 selIlce.innerHTML = '<option value="">Yükleniyor...</option>';
                 selIlce.disabled = true;
+                syncYsSelect(selIlce);
                 if (!city) {
                     selIlce.innerHTML = '<option value="">Önce il seçin</option>';
+                    syncYsSelect(selIlce);
                     return;
                 }
                 loadDistricts(city, selIlce).catch(() => {
                     selIlce.innerHTML = '<option value="">İlçeler yüklenemedi</option>';
                     selIlce.disabled = true;
+                    syncYsSelect(selIlce);
                 });
             });
         }
@@ -513,11 +530,13 @@
                 pendingLat = lat;
                 pendingLng = lng;
                 if (j.il) selIlEl.value = j.il;
+                syncYsSelect(selIlEl);
                 return loadDistricts(j.il, selIlceEl).then(() => {
                     const wanted = j.ilce || '';
                     const opts = Array.from(selIlceEl.options || []);
                     const has = opts.some((o) => o.value === wanted);
                     selIlceEl.value = has ? wanted : (opts[1] && opts[1].value) || '';
+                    syncYsSelect(selIlceEl);
 
                     const inpMah = document.getElementById('delivery-mahalle');
                     if (inpMah && typeof j.mahalle === 'string') {
@@ -588,6 +607,12 @@
                 }
                 await applyPayload(overlay, { il, ilce, mahalle, source: 'manual' }, errEl);
             });
+        }
+
+        // İl / İlçe seçimlerini sitenin temaya uyumlu ys-select bileşenine dönüştür
+        // (native dropdown'un siyah/mavi renkleri yerine site stili kullanılsın).
+        if (window.initYsSelects && form) {
+            window.initYsSelects(form);
         }
     }
 

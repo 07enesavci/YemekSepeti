@@ -148,6 +148,7 @@ body.delivery-area-modal-open {
 
 .delivery-area-title {
     margin: 0 0 8px 0;
+    font-family: var(--font-family-heading);
     font-size: 1.35rem;
     font-weight: 700;
     color: var(--text-color);

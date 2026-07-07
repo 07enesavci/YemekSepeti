@@ -914,6 +914,9 @@ function renderRecentOrdersList(orders, containerId) {
         ordersList.innerHTML = '<p style="text-align: center; padding: 2rem; color: #666;">Henüz sipariş bulunmuyor.</p>';
         return;
     }
+    // Detay modalı için sipariş verisini sakla (sayfadan ayrılmadan gösterilir)
+    window.__sellerRecentOrdersMap = window.__sellerRecentOrdersMap || {};
+    orders.forEach(o => { window.__sellerRecentOrdersMap[o.id] = o; });
     ordersList.innerHTML = orders.map(order => {
         const statusClass = order.status === 'delivered' ? 'delivered' : 
                            order.status === 'preparing' ? 'preparing' : 
@@ -938,10 +941,70 @@ function renderRecentOrdersList(orders, containerId) {
                 <div class="order-price">
                     ${total.toFixed(2)} TL
                 </div>
-                <a href="/seller/orders" class="btn btn-secondary btn-sm">Detay</a>
+                <button type="button" class="btn btn-secondary btn-sm seller-recent-detail-btn" data-order-id="${order.id}">Detay</button>
             </div>
         `;
     }).join('');
+    attachSellerRecentDetailButtons(ordersList);
+}
+
+// "Son İşlemler" listesindeki Detay butonları — sayfadan ayrılmadan modal açar
+function attachSellerRecentDetailButtons(scope) {
+    (scope || document).querySelectorAll('.seller-recent-detail-btn').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => openSellerRecentDetail(btn.getAttribute('data-order-id')));
+    });
+}
+
+function ensureSellerDetailModal() {
+    let modal = document.getElementById('seller-recent-detail-modal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'seller-recent-detail-modal';
+    modal.className = 'seller-detail-overlay';
+    modal.setAttribute('hidden', '');
+    modal.innerHTML = `
+        <div class="seller-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="seller-detail-title">
+            <div class="seller-detail-head">
+                <h3 id="seller-detail-title" class="seller-detail-title">Sipariş Detayı</h3>
+                <button type="button" class="seller-detail-close" aria-label="Kapat">✕</button>
+            </div>
+            <div id="seller-detail-body" class="seller-detail-body"></div>
+        </div>`;
+    document.body.appendChild(modal);
+    const close = () => modal.setAttribute('hidden', '');
+    modal.querySelector('.seller-detail-close').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hasAttribute('hidden')) close(); });
+    return modal;
+}
+
+function openSellerRecentDetail(orderId) {
+    const order = (window.__sellerRecentOrdersMap || {})[orderId];
+    if (!order) return;
+    const modal = ensureSellerDetailModal();
+    const title = modal.querySelector('#seller-detail-title');
+    const body = modal.querySelector('#seller-detail-body');
+    const esc = (s) => String(s == null ? '' : s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const total = parseFloat(order.total) || 0;
+    const discount = parseFloat(order.discount) || 0;
+    const statusMap = {
+        delivered: 'Teslim Edildi', preparing: 'Hazırlanıyor', cancelled: 'İptal Edildi',
+        ready: 'Hazır', on_delivery: 'Yolda', confirmed: 'Onaylandı', pending: 'Bekliyor'
+    };
+    const statusText = statusMap[order.status] || 'Bekliyor';
+    if (title) title.textContent = `Sipariş #${esc(order.orderNumber || order.id)}`;
+    if (body) {
+        body.innerHTML = `
+            <div class="seller-detail-row"><span>Müşteri</span><strong>${esc(order.customer || 'Müşteri')}</strong></div>
+            ${order.date ? `<div class="seller-detail-row"><span>Tarih</span><strong>${esc(order.date)}</strong></div>` : ''}
+            <div class="seller-detail-row"><span>Durum</span><strong>${esc(statusText)}</strong></div>
+            <div class="seller-detail-items"><span>Ürünler</span><p>${esc(order.items || 'Belirtilmemiş')}</p></div>
+            ${discount > 0 ? `<div class="seller-detail-row"><span>İndirim${order.couponCode ? ' (' + esc(order.couponCode) + ')' : ''}</span><strong class="seller-detail-discount">-${discount.toFixed(2)} TL</strong></div>` : ''}
+            <div class="seller-detail-row total"><span>Toplam</span><strong>${total.toFixed(2)} TL</strong></div>`;
+    }
+    modal.removeAttribute('hidden');
 }
 
 async function loadDashboardPage() {
