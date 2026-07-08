@@ -75,6 +75,27 @@
                     </a>
                 </li>
 
+                <script>
+                    // seller.js her satıcı sayfasında yüklenmiyor (örn. pageJs: "feedback.js"),
+                    // bu yüzden bu koşullu menü öğeleri o sayfalarda gizli kalıyordu.
+                    // Burada bağımsız olarak, seller.js zaten yapıyorsa tekrar da çalışsa zararsız.
+                    (function () {
+                        var baseUrl = (window.getApiBaseUrl ? window.getApiBaseUrl() : (window.getBaseUrl ? window.getBaseUrl() : ''));
+                        fetch(baseUrl + '/api/seller/profile', { credentials: 'include' })
+                            .then(function (res) { return res.ok ? res.json() : null; })
+                            .then(function (data) {
+                                if (!data || !data.success || !data.profile) return;
+                                var uzakLi = document.getElementById('sidebar-uzak-mesafe-li');
+                                if (uzakLi) uzakLi.style.display = data.profile.uzakMesafeEnabled ? 'block' : 'none';
+                                var headerLink = document.getElementById('header-uzak-mesafe-link');
+                                if (headerLink) headerLink.style.display = data.profile.uzakMesafeEnabled ? 'block' : 'none';
+                                var couriersLi = document.getElementById('sidebar-own-couriers-li');
+                                if (couriersLi) couriersLi.style.display = data.profile.hasOwnCouriers ? 'block' : 'none';
+                            })
+                            .catch(function () {});
+                    })();
+                </script>
+
             <% } else if (user && user.role === 'courier') { %>
                 <% const courierId = user.courierId || user.id; %>
                 <li>

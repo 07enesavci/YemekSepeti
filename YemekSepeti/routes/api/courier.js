@@ -964,9 +964,11 @@ router.get("/reports/shops", async (req, res) => {
         const userId = req.session.user.id;
         const courier = await Courier.findOne({ where: { user_id: userId }, attributes: ['id'] });
         if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı" });
-        
+
         let dateFilter = "";
-        const replacements = { courierId: courier.id };
+        // courier_tasks.courier_id, couriers.id değil users.id'yi referans alır (bkz. models/index.js:
+        // User.hasMany(CourierTask, {foreignKey: 'courier_id'})) — bu yüzden courier.id yerine userId kullanılmalı.
+        const replacements = { courierId: userId };
         
         if (req.query.startDate && req.query.endDate) {
             dateFilter = "AND t.created_at BETWEEN :startDate AND :endDate";

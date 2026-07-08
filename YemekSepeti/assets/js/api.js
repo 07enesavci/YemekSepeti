@@ -1015,37 +1015,65 @@ window.getCoupons=getCoupons;
 window.adminDeleteCoupon=adminDeleteCoupon;
 
 async function getNotifications(limit) {
-    const response = await fetch(`${API_BASE_URL}/api/notifications?limit=${limit || 20}`, { credentials: 'include', headers: getAuthHeaders() });
-    if (!response.ok) return { notifications: [], unreadCount: 0 };
-    return await response.json();
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/notifications?limit=${limit || 20}`, { credentials: 'include', headers: getAuthHeaders() });
+        if (!response.ok) return { notifications: [], unreadCount: 0 };
+        return await response.json();
+    } catch (error) {
+        return { notifications: [], unreadCount: 0 };
+    }
 }
 async function markNotificationRead(id) {
-    const response = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, { method: 'PUT', credentials: 'include', headers: getAuthHeaders() });
-    return response.ok;
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/notifications/${id}/read`, { method: 'PUT', credentials: 'include', headers: getAuthHeaders() });
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
 }
 async function markAllNotificationsRead() {
-    const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
-    return response.ok;
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/notifications/read-all`, { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
+        return response.ok;
+    } catch (error) {
+        return false;
+    }
 }
 async function getFavorites() {
-    const response = await fetch(`${API_BASE_URL}/api/favorites`, { credentials: 'include', headers: getAuthHeaders() });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data.favorites || [];
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/favorites`, { credentials: 'include', headers: getAuthHeaders() });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.favorites || [];
+    } catch (error) {
+        return [];
+    }
 }
 async function addFavorite(sellerId) {
-    const response = await fetch(`${API_BASE_URL}/api/favorites/${sellerId}`, { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
-    return await response.json();
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/favorites/${sellerId}`, { method: 'POST', credentials: 'include', headers: getAuthHeaders() });
+        return await response.json();
+    } catch (error) {
+        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+    }
 }
 async function removeFavorite(sellerId) {
-    const response = await fetch(`${API_BASE_URL}/api/favorites/${sellerId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
-    return await response.json();
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/favorites/${sellerId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+        return await response.json();
+    } catch (error) {
+        return { success: false, message: 'Sunucuya bağlanılamadı.' };
+    }
 }
 async function checkFavorite(sellerId) {
-    const response = await fetch(`${API_BASE_URL}/api/favorites/check/${sellerId}`, { credentials: 'include', headers: getAuthHeaders() });
-    if (!response.ok) return false;
-    const data = await response.json();
-    return !!data.isFavorite;
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/favorites/check/${sellerId}`, { credentials: 'include', headers: getAuthHeaders() });
+        if (!response.ok) return false;
+        const data = await response.json();
+        return !!data.isFavorite;
+    } catch (error) {
+        return false;
+    }
 }
 window.getNotifications=getNotifications;
 window.markNotificationRead=markNotificationRead;

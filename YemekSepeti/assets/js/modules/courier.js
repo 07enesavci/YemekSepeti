@@ -1,3 +1,12 @@
+function getStoredCourierId() {
+    try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        return user ? (user.courierId || user.id || '') : '';
+    } catch (e) {
+        return '';
+    }
+}
+
 // fetchAvailableTasks: loadAvailableOrders içinde kullanılan merkezi fetch fonksiyonu
 // Hem tasks hem de message alanını döndürür
 async function fetchAvailableTasks() {
@@ -426,7 +435,7 @@ async function handleAcceptOrder(event) {
             const baseUrl = window.getBaseUrl ? window.getBaseUrl() : '';
             // URL'den courierId'yi al
             const pathMatch = window.location.pathname.match(/\/courier\/(\d+)/);
-            const courierId = pathMatch ? pathMatch[1] : (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).courierId || JSON.parse(localStorage.getItem('user')).id : '');
+            const courierId = pathMatch ? pathMatch[1] : getStoredCourierId();
             window.location.href = `${baseUrl}/courier/${courierId}/dashboard`;
         }, 1500);
     } catch (error) {
@@ -1514,8 +1523,8 @@ async function loadActiveTasks() {
             }
 
             const pathMatch = window.location.pathname.match(/\/courier\/(\d+)/);
-            const courierId = pathMatch ? pathMatch[1] : (localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).courierId || JSON.parse(localStorage.getItem('user')).id : '');
-            
+            const courierId = pathMatch ? pathMatch[1] : getStoredCourierId();
+
             taskContainer.innerHTML = `
                 <div class="card-content">
                     <h3 class="checkout-card-title">Aktif Görev Yok</h3>
