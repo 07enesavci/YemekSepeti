@@ -144,9 +144,13 @@
     <div class="stats-modal">
         <div class="stats-modal-header">
             <h3 id="modal-courier-name">Kurye Detayları</h3>
-            <button type="button" id="modal-close" class="btn btn-secondary btn-sm">Kapat</button>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button type="button" id="modal-export-btn" class="btn btn-secondary btn-sm">📥 Rapor İndir (Son 30 Gün)</button>
+                <button type="button" id="modal-close" class="btn btn-secondary btn-sm">Kapat</button>
+            </div>
         </div>
         <div class="stats-modal-body">
+            <span id="modal-export-status" style="font-size: 0.8rem; color: var(--text-color-light);"></span>
             <div class="stats-grid">
                 <div class="stat-box">
                     <h4>✅ Tamamlanan Siparişler</h4>
@@ -249,7 +253,10 @@ async function loadCouriers() {
     }
 }
 
+var currentModalCourierId = null;
+
 async function openDetailsModal(id) {
+    currentModalCourierId = id;
     document.getElementById('stats-modal-overlay').style.display = 'flex';
     document.getElementById('modal-courier-name').innerText = 'Yükleniyor...';
     
@@ -439,6 +446,44 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('stats-modal-overlay').style.display = 'none';
         }
     });
+
+    document.getElementById('modal-export-btn').addEventListener('click', async () => {
+        if (!currentModalCourierId) return;
+        const statusEl = document.getElementById('modal-export-status');
+        const btn = document.getElementById('modal-export-btn');
+        statusEl.textContent = 'Hazırlanıyor...';
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${baseUrl}/api/admin/courier-stats/${currentModalCourierId}/export`, { credentials: 'include' });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || 'Rapor indirilemedi.');
+            }
+            const filename = filenameFromCD(res.headers.get('Content-Disposition'), 'Ev-Lezzetleri-Kurye-Raporu.xlsx');
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            const objUrl = URL.createObjectURL(blob);
+            a.href = objUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(objUrl);
+            statusEl.textContent = '';
+        } catch (err) {
+            statusEl.textContent = err.message || 'Rapor indirilirken hata oluştu.';
+        } finally {
+            btn.disabled = false;
+        }
+    });
 });
+
+function filenameFromCD(cd, fallback) {
+    cd = cd || '';
+    let m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+    if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+    m = cd.match(/filename="?([^";]+)"?/i);
+    return (m && m[1]) || fallback;
+}
 </script>
 

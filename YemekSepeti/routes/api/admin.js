@@ -10,6 +10,9 @@ const { sequelize }=require("../../models");
 const { sendSellerApprovalEmail, sendSellerRejectionEmail, sendCourierApprovalEmail, sendCourierRejectionEmail }=require("../../config/email");
 const { createCouponValidation, idParam, handleValidationErrors }=require("../../middleware/validate");
 const { validatePassword }=require("../../lib/passwordPolicy");
+const { exportLimiter }=require("../../middleware/security");
+const { MAX_EXPORT_ROWS, MAX_BREAKDOWN_ROWS, parseExportDateRange, writeReport, fmtRange }=require("../../lib/excelExport");
+const { buildSellerReport, buildCourierReport }=require("../../lib/reportBuilders");
 
 router.use((req,res,next)=>{ requireAuth(req,res,next); });
 
@@ -773,6 +776,37 @@ router.get("/seller-stats/:id", requireRole(['admin','super_admin','support']), 
         res.status(500).json({ success: false, message: "Satıcı detayı getirilemedi." });
     }
 });
+
+// Belirli bir satıcının rapor/sipariş geçmişini Excel olarak indir.
+// Tarih aralığı sınırlı (parseExportDateRange) + satır sayısı MAX_EXPORT_ROWS ile sınırlı.
+router.get("/seller-stats/:id/export", requireRole(['admin','super_admin','support']), exportLimiter, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        if (!userId) return res.status(400).json({ success: false, message: "Geçersiz satıcı ID." });
+
+        const range = parseExportDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { start, end } = range;
+
+        const user = await User.findByPk(userId, {
+            attributes: ['id', 'fullname', 'role'],
+            include: [{ model: Seller, as: 'seller' }]
+        });
+        if (!user || user.role !== 'seller' || !user.seller) {
+            return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+        }
+
+        const report = await buildSellerReport(sequelize, {
+            sellerId: user.seller.id,
+            shopName: user.seller.shop_name || user.fullname,
+            start, end
+        });
+        await writeReport(res, report);
+    } catch (error) {
+        console.error("Seller stats export error:", error);
+        if (!res.headersSent) res.status(500).json({ success: false, message: "Rapor indirilemedi." });
+    }
+});
 // Admin: Satıcı logo/banner sil
 const path = require('path');
 const fs = require('fs');
@@ -998,6 +1032,32 @@ router.get("/courier-stats/:id", requireRole(['admin','super_admin','support']),
     } catch (error) {
         console.error("Courier stats error:", error);
         res.status(500).json({ success: false, message: "Kurye detayı getirilemedi." });
+    }
+});
+
+// Belirli bir kuryenin rapor/teslimat geçmişini Excel olarak indir.
+// Tarih aralığı sınırlı (parseExportDateRange) + satır sayısı MAX_EXPORT_ROWS ile sınırlı.
+router.get("/courier-stats/:id/export", requireRole(['admin','super_admin','support']), exportLimiter, async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id);
+        if (!userId) return res.status(400).json({ success: false, message: "Kurye ID geçersiz." });
+
+        const range = parseExportDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { start, end } = range;
+
+        const user = await User.findByPk(userId, { attributes: ['id', 'role', 'fullname'] });
+        if (!user || user.role !== 'courier') {
+            return res.status(404).json({ success: false, message: "Kurye bulunamadı." });
+        }
+
+        const report = await buildCourierReport(sequelize, {
+            userId, courierName: user.fullname, start, end
+        });
+        await writeReport(res, report);
+    } catch (error) {
+        console.error("Courier stats export error:", error);
+        if (!res.headersSent) res.status(500).json({ success: false, message: "Rapor indirilemedi." });
     }
 });
 // --- TÜM KURYELER BİTİŞ ---
@@ -1386,6 +1446,197 @@ router.get("/reports/chart", requireRole(['admin','super_admin']), async (req, r
     } catch (err) {
         console.error("Admin reports chart error:", err);
         res.status(500).json({ success: false, message: "Grafik verisi yüklenemedi." });
+    }
+});
+
+// Genel platform raporu — Excel indirme. Tarih aralığı zorunlu değil (varsayılan son 30 gün)
+// ama MAX_EXPORT_RANGE_DAYS ile sınırlı; sipariş listesi MAX_EXPORT_ROWS ile sınırlanır ki
+// tüm siparişler tablosu tek seferde çekilip sunucuyu/DB havuzunu zorlamasın.
+router.get("/reports/export", requireRole(['admin','super_admin']), exportLimiter, async (req, res) => {
+    try {
+        const range = parseExportDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { start, end } = range;
+
+        const { sequelize: seq } = require('../../models');
+        const replacements = [start, end];
+        const toDay = (d) => (d instanceof Date)
+            ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
+            : new Date(`${String(d).slice(0, 10)}T12:00:00`);
+
+        // Tüm ağır sorgular tarih aralığı + LIMIT ile sınırlı → sabit maliyet.
+        const [summaryRows] = await seq.query(
+            `SELECT
+                COUNT(*) as totalOrders,
+                COUNT(CASE WHEN status = 'delivered' THEN 1 END) as deliveredOrders,
+                COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelledOrders,
+                COALESCE(SUM(CASE WHEN status = 'delivered' THEN total_amount ELSE 0 END), 0) as totalRevenue,
+                COUNT(DISTINCT seller_id) as activeSellers,
+                COUNT(DISTINCT courier_id) as activeCouriers
+             FROM orders WHERE created_at BETWEEN ? AND ?`,
+            { replacements }
+        );
+        const summary = summaryRows[0] || {};
+        const totalOrders = parseInt(summary.totalOrders) || 0;
+        const deliveredOrders = parseInt(summary.deliveredOrders) || 0;
+        const cancelledOrders = parseInt(summary.cancelledOrders) || 0;
+        const totalRevenue = parseFloat(summary.totalRevenue) || 0;
+        const activeSellers = parseInt(summary.activeSellers) || 0;
+        const activeCouriers = parseInt(summary.activeCouriers) || 0;
+        const avgBasket = deliveredOrders > 0 ? totalRevenue / deliveredOrders : 0;
+        const deliveryRate = totalOrders > 0 ? (deliveredOrders / totalOrders) * 100 : 0;
+
+        const [sellerRows] = await seq.query(
+            `SELECT s.shop_name,
+                COUNT(*) as orders,
+                COUNT(CASE WHEN o.status='delivered' THEN 1 END) as delivered,
+                COUNT(CASE WHEN o.status='cancelled' THEN 1 END) as cancelled,
+                COALESCE(SUM(CASE WHEN o.status='delivered' THEN o.total_amount ELSE 0 END),0) as revenue
+             FROM orders o JOIN sellers s ON o.seller_id = s.id
+             WHERE o.created_at BETWEEN ? AND ?
+             GROUP BY s.id, s.shop_name
+             ORDER BY revenue DESC
+             LIMIT ${MAX_BREAKDOWN_ROWS}`,
+            { replacements }
+        );
+
+        const [courierRows] = await seq.query(
+            `SELECT cu.fullname as courier_name,
+                COUNT(CASE WHEN o.status='delivered' THEN 1 END) as delivered,
+                COUNT(CASE WHEN o.status='cancelled' THEN 1 END) as cancelled,
+                COALESCE(SUM(CASE WHEN o.status='delivered' THEN o.delivery_fee ELSE 0 END),0) as earnings
+             FROM orders o JOIN users cu ON o.courier_id = cu.id
+             WHERE o.created_at BETWEEN ? AND ? AND o.courier_id IS NOT NULL
+             GROUP BY cu.id, cu.fullname
+             ORDER BY delivered DESC
+             LIMIT ${MAX_BREAKDOWN_ROWS}`,
+            { replacements }
+        );
+
+        const [dailyRows] = await seq.query(
+            `SELECT DATE(created_at) as day,
+                COUNT(*) as orders,
+                COUNT(CASE WHEN status='delivered' THEN 1 END) as delivered,
+                COALESCE(SUM(CASE WHEN status='delivered' THEN total_amount ELSE 0 END),0) as revenue
+             FROM orders WHERE created_at BETWEEN ? AND ?
+             GROUP BY DATE(created_at) ORDER BY day ASC`,
+            { replacements }
+        );
+
+        const [orderRows] = await seq.query(
+            `SELECT o.id, o.order_number, o.created_at, s.shop_name, bu.fullname as customer_name,
+                    cu.fullname as courier_name, o.total_amount, o.status, o.payment_method
+             FROM orders o
+             LEFT JOIN sellers s ON o.seller_id = s.id
+             LEFT JOIN users bu ON o.user_id = bu.id
+             LEFT JOIN users cu ON o.courier_id = cu.id
+             WHERE o.created_at BETWEEN ? AND ?
+             ORDER BY o.created_at DESC
+             LIMIT ${MAX_EXPORT_ROWS}`,
+            { replacements }
+        );
+
+        const PAYMENT_TR = { credit_card: 'Kredi Kartı', cash: 'Nakit / Kapıda', wallet: 'Cüzdan', iyzico: 'Online Ödeme' };
+
+        await writeReport(res, {
+            fileName: `Ev-Lezzetleri-Genel-Rapor-${end.toISOString().slice(0, 10)}.xlsx`,
+            title: 'Genel Platform Raporu',
+            subtitle: fmtRange(start, end),
+            kpis: [
+                { label: 'Toplam Sipariş', value: totalOrders, tone: 'primary' },
+                { label: 'Teslim Edilen', value: deliveredOrders, tone: 'success' },
+                { label: 'İptal Edilen', value: cancelledOrders, tone: 'danger' },
+                { label: 'Toplam Ciro', value: totalRevenue, money: true, tone: 'success' },
+                { label: 'Ort. Sepet', value: avgBasket, money: true, tone: 'neutral' },
+                { label: 'Teslim Oranı', value: deliveryRate, percent: true, tone: 'primary' },
+                { label: 'Sipariş Alan Satıcı', value: activeSellers, tone: 'neutral' },
+                { label: 'Teslimat Yapan Kurye', value: activeCouriers, tone: 'neutral' }
+            ],
+            info: [
+                ['Rapor Türü', 'Genel Platform Raporu (tüm satıcı & kuryeler)'],
+                ['Tarih Aralığı', fmtRange(start, end)],
+                ['Oluşturulma', new Date().toLocaleString('tr-TR')],
+                ['Listelenen Sipariş', `${orderRows.length}${orderRows.length >= MAX_EXPORT_ROWS ? ` (ilk ${MAX_EXPORT_ROWS} kayıt)` : ''}`]
+            ],
+            sheets: [
+                {
+                    name: 'Satıcı Bazlı Özet', heading: 'Satıcı Bazlı Özet',
+                    columns: [
+                        { header: 'Satıcı', key: 'shop', width: 28 },
+                        { header: 'Sipariş', key: 'orders', width: 12, type: 'int' },
+                        { header: 'Teslim', key: 'delivered', width: 12, type: 'int' },
+                        { header: 'İptal', key: 'cancelled', width: 12, type: 'int' },
+                        { header: 'Ciro', key: 'revenue', width: 18, type: 'money' }
+                    ],
+                    rows: sellerRows.map(r => ({
+                        shop: r.shop_name || 'Bilinmiyor',
+                        orders: parseInt(r.orders) || 0,
+                        delivered: parseInt(r.delivered) || 0,
+                        cancelled: parseInt(r.cancelled) || 0,
+                        revenue: parseFloat(r.revenue) || 0
+                    })),
+                    note: sellerRows.length >= MAX_BREAKDOWN_ROWS ? `En çok ciro yapan ilk ${MAX_BREAKDOWN_ROWS} satıcı listelendi.` : null
+                },
+                {
+                    name: 'Kurye Bazlı Özet', heading: 'Kurye Bazlı Özet',
+                    columns: [
+                        { header: 'Kurye', key: 'courier', width: 26 },
+                        { header: 'Teslim', key: 'delivered', width: 12, type: 'int' },
+                        { header: 'İptal', key: 'cancelled', width: 12, type: 'int' },
+                        { header: 'Tahmini Kazanç', key: 'earnings', width: 18, type: 'money' }
+                    ],
+                    rows: courierRows.map(r => ({
+                        courier: r.courier_name || 'Bilinmiyor',
+                        delivered: parseInt(r.delivered) || 0,
+                        cancelled: parseInt(r.cancelled) || 0,
+                        earnings: parseFloat(r.earnings) || 0
+                    })),
+                    note: courierRows.length >= MAX_BREAKDOWN_ROWS ? `İlk ${MAX_BREAKDOWN_ROWS} kurye listelendi.` : null
+                },
+                {
+                    name: 'Günlük Kırılım', heading: 'Günlük Sipariş & Ciro',
+                    columns: [
+                        { header: 'Tarih', key: 'day', width: 14, type: 'date' },
+                        { header: 'Sipariş', key: 'orders', width: 12, type: 'int' },
+                        { header: 'Teslim', key: 'delivered', width: 12, type: 'int' },
+                        { header: 'Ciro', key: 'revenue', width: 18, type: 'money' }
+                    ],
+                    rows: dailyRows.map(r => ({
+                        day: toDay(r.day),
+                        orders: parseInt(r.orders) || 0,
+                        delivered: parseInt(r.delivered) || 0,
+                        revenue: parseFloat(r.revenue) || 0
+                    }))
+                },
+                {
+                    name: 'Siparişler', heading: 'Sipariş Detayları',
+                    columns: [
+                        { header: 'Sipariş No', key: 'order_number', width: 20 },
+                        { header: 'Tarih', key: 'created_at', width: 18, type: 'datetime' },
+                        { header: 'Satıcı', key: 'shop_name', width: 22 },
+                        { header: 'Müşteri', key: 'customer_name', width: 20 },
+                        { header: 'Kurye', key: 'courier_name', width: 20 },
+                        { header: 'Tutar', key: 'total_amount', width: 14, type: 'money' },
+                        { header: 'Durum', key: 'status', width: 15, type: 'status' },
+                        { header: 'Ödeme', key: 'payment_method', width: 15 }
+                    ],
+                    rows: orderRows.map(o => ({
+                        order_number: o.order_number || o.id,
+                        created_at: o.created_at,
+                        shop_name: o.shop_name,
+                        customer_name: o.customer_name,
+                        courier_name: o.courier_name,
+                        total_amount: parseFloat(o.total_amount) || 0,
+                        status: o.status,
+                        payment_method: PAYMENT_TR[o.payment_method] || o.payment_method
+                    })),
+                    note: orderRows.length >= MAX_EXPORT_ROWS ? `Sipariş sayısı sınırı (${MAX_EXPORT_ROWS}) aşıldı, daha dar bir tarih aralığı seçin.` : null
+                }
+            ]
+        });
+    } catch (err) {
+        console.error("Admin reports export error:", err);
+        if (!res.headersSent) res.status(500).json({ success: false, message: "Rapor indirilemedi." });
     }
 });
 // --- ADMİN MENÜ KONTROL ---

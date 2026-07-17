@@ -5,6 +5,24 @@
     <%- include('../partials/sidebar') %>
     <main class="panel-content">
         <h1 class="panel-title">Raporlar</h1>
+        <div class="card reports-card" style="margin-bottom: 1.5rem;">
+            <div class="card-content">
+                <h3 class="checkout-card-title">📊 Rapor İndir</h3>
+                <p style="font-size:0.85rem; color: var(--text-color-light); margin: 0 0 1rem;">Seçtiğiniz tarih aralığı için tüm platformun (satıcı + kurye + sipariş) detaylı raporunu indirin. Tarih boş bırakılırsa son 30 gün alınır.</p>
+                <div style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;">
+                    <div>
+                        <label for="export-start-date" style="display:block; font-size:0.85rem; margin-bottom:0.3rem;">Başlangıç</label>
+                        <input type="date" id="export-start-date" style="padding:0.5rem; border:1px solid var(--border-color,#ddd); border-radius:8px;">
+                    </div>
+                    <div>
+                        <label for="export-end-date" style="display:block; font-size:0.85rem; margin-bottom:0.3rem;">Bitiş</label>
+                        <input type="date" id="export-end-date" style="padding:0.5rem; border:1px solid var(--border-color,#ddd); border-radius:8px;">
+                    </div>
+                    <button type="button" id="export-excel-btn" class="btn btn-primary">📥 Rapor İndir</button>
+                    <span id="export-status" style="font-size:0.85rem; color: var(--text-color-light);"></span>
+                </div>
+            </div>
+        </div>
         <div class="card reports-card">
             <div class="card-content">
                 <h3 class="checkout-card-title">Özet İstatistikler</h3>
@@ -133,8 +151,51 @@
         load();
         loadChart();
     }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadAll);
-    else loadAll();
+    function filenameFromCD(cd, fallback) {
+        cd = cd || '';
+        let m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+        if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+        m = cd.match(/filename="?([^";]+)"?/i);
+        return (m && m[1]) || fallback;
+    }
+    function initExport() {
+        const btn = document.getElementById('export-excel-btn');
+        const statusEl = document.getElementById('export-status');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            const sd = document.getElementById('export-start-date').value;
+            const ed = document.getElementById('export-end-date').value;
+            const params = new URLSearchParams();
+            if (sd) params.append('startDate', sd);
+            if (ed) params.append('endDate', ed);
+            statusEl.textContent = 'Hazırlanıyor...';
+            btn.disabled = true;
+            try {
+                const res = await fetch(baseUrl + '/api/admin/reports/export?' + params.toString(), { credentials: 'include' });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.message || 'Rapor indirilemedi.');
+                }
+                const filename = filenameFromCD(res.headers.get('Content-Disposition'), 'Ev-Lezzetleri-Genel-Rapor.xlsx');
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                const objUrl = URL.createObjectURL(blob);
+                a.href = objUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(objUrl);
+                statusEl.textContent = '';
+            } catch (err) {
+                statusEl.textContent = err.message || 'Rapor indirilirken hata oluştu.';
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { loadAll(); initExport(); });
+    else { loadAll(); initExport(); }
 })();
 </script>
 

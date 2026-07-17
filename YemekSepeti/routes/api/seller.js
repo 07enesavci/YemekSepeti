@@ -8,6 +8,9 @@ const Sequelize = require("sequelize");
 const { createNotification } = require("../../lib/notificationHelper");
 const { getCityCoordinates } = require("../../data/turkey-coordinates");
 const { sendVerificationCode } = require("../../config/email");
+const { exportLimiter } = require("../../middleware/security");
+const { parseExportDateRange, writeReport } = require("../../lib/excelExport");
+const { buildSellerReport } = require("../../lib/reportBuilders");
 
 router.use(requireRole('seller'), requireSellerApproved);
 
@@ -1209,6 +1212,29 @@ router.get("/reports/summary", async (req, res) => {
     } catch (e) {
         console.error('Reports summary error:', e);
         res.status(500).json({ success: false, message: "Rapor yüklenemedi." });
+    }
+});
+
+// --- Raporlar: Excel indirme (kendi siparişleri) ---
+// Tarih aralığı sınırlı (parseExportDateRange) + satır sayısı MAX_EXPORT_ROWS ile sınırlı;
+// içerik admin'in gördüğü satıcı raporuyla aynı yapıcıdan (buildSellerReport) üretilir.
+router.get("/reports/export", exportLimiter, async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const seller = await Seller.findOne({ where: { user_id: userId }, attributes: ['id', 'shop_name'] });
+        if (!seller) return res.status(404).json({ success: false, message: "Satıcı bulunamadı." });
+
+        const range = parseExportDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { start, end } = range;
+
+        const report = await buildSellerReport(sequelize, {
+            sellerId: seller.id, shopName: seller.shop_name, start, end
+        });
+        await writeReport(res, report);
+    } catch (e) {
+        console.error('Reports export error:', e);
+        if (!res.headersSent) res.status(500).json({ success: false, message: "Rapor indirilemedi." });
     }
 });
 

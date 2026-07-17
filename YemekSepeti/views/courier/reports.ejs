@@ -446,6 +446,10 @@
             <div>
                 <button type="submit" class="btn btn-primary">Filtrele</button>
             </div>
+            <div>
+                <button type="button" id="export-excel-btn" class="btn btn-secondary">📥 Rapor İndir</button>
+                <span id="export-status" style="font-size:0.85rem; color: var(--text-color-light); display:block; margin-top:0.3rem;"></span>
+            </div>
         </form>
 
         <div class="reports-table-container">
@@ -752,6 +756,48 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         loadReports(startDateInput.value, endDateInput.value);
     });
+
+    // Rapor indir
+    function filenameFromCD(cd, fallback) {
+        cd = cd || '';
+        let m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+        if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+        m = cd.match(/filename="?([^";]+)"?/i);
+        return (m && m[1]) || fallback;
+    }
+    const exportBtn = document.getElementById('export-excel-btn');
+    const exportStatus = document.getElementById('export-status');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+            const params = new URLSearchParams();
+            if (startDateInput.value) params.append('startDate', startDateInput.value);
+            if (endDateInput.value) params.append('endDate', endDateInput.value);
+            exportStatus.textContent = 'Hazırlanıyor...';
+            exportBtn.disabled = true;
+            try {
+                const res = await fetch(`/api/courier/reports/export?${params.toString()}`, { credentials: 'include' });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.message || 'Rapor indirilemedi.');
+                }
+                const filename = filenameFromCD(res.headers.get('Content-Disposition'), 'Ev-Lezzetleri-Kurye-Raporu.xlsx');
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                const objUrl = URL.createObjectURL(blob);
+                a.href = objUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(objUrl);
+                exportStatus.textContent = '';
+            } catch (err) {
+                exportStatus.textContent = err.message || 'Rapor indirilirken hata oluştu.';
+            } finally {
+                exportBtn.disabled = false;
+            }
+        });
+    }
 });
 </script>
 

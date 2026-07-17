@@ -9,6 +9,9 @@ const { Op, Sequelize, QueryTypes } = require("sequelize");
 const { sequelize } = require("../../config/database");
 const { createNotification } = require("../../lib/notificationHelper");
 const { sendInvoiceEmail } = require("../../config/email");
+const { exportLimiter } = require("../../middleware/security");
+const { parseExportDateRange, writeReport } = require("../../lib/excelExport");
+const { buildCourierReport } = require("../../lib/reportBuilders");
 
 function getDistance(lat1, lon1, lat2, lon2) {
     if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
@@ -1000,6 +1003,29 @@ router.get("/reports/shops", async (req, res) => {
     } catch (error) {
         console.error("Rapor hatası:", error);
         res.status(500).json({ success: false, message: "Rapor alınamadı." });
+    }
+});
+
+// Kuryenin kendi teslimat raporunu Excel olarak indir.
+// İçerik admin'in gördüğü kurye raporuyla aynı yapıcıdan (buildCourierReport) üretilir;
+// böylece iki panelde de aynı sayılar görünür. Tüm sorgular tarih aralığı + LIMIT ile sınırlı.
+router.get("/reports/export", exportLimiter, async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const courier = await Courier.findOne({ where: { user_id: userId }, attributes: ['id'] });
+        if (!courier) return res.status(404).json({ success: false, message: "Kurye bulunamadı" });
+
+        const range = parseExportDateRange(req.query);
+        if (range.error) return res.status(400).json({ success: false, message: range.error });
+        const { start, end } = range;
+
+        const report = await buildCourierReport(sequelize, {
+            userId, courierName: req.session.user.fullname || 'Kurye', start, end
+        });
+        await writeReport(res, report);
+    } catch (error) {
+        console.error("Rapor export hatası:", error);
+        if (!res.headersSent) res.status(500).json({ success: false, message: "Rapor indirilemedi." });
     }
 });
 

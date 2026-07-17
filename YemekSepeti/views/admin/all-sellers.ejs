@@ -170,6 +170,8 @@
                 </div>
                 <button type="button" id="modal-filter-btn" class="btn btn-primary btn-sm" style="padding: 0.6rem 1.2rem; height: fit-content;">📊 Filtrele</button>
                 <button type="button" id="modal-clear-filter-btn" class="btn btn-secondary btn-sm" style="padding: 0.6rem 1.2rem; height: fit-content;">Tümü</button>
+                <button type="button" id="modal-export-btn" class="btn btn-secondary btn-sm" style="padding: 0.6rem 1.2rem; height: fit-content;">📥 Rapor İndir</button>
+                <span id="modal-export-status" style="font-size: 0.8rem; color: var(--text-color-light);"></span>
             </div>
             <div class="stats-grid">
                 <div class="stat-box">
@@ -741,6 +743,49 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentModalSellerId) return;
         openDetailsModal(currentModalSellerId, null, null, true);
     });
+
+    document.getElementById('modal-export-btn').addEventListener('click', async () => {
+        if (!currentModalSellerId) return;
+        const sd = document.getElementById('modal-start-date').value;
+        const ed = document.getElementById('modal-end-date').value;
+        const statusEl = document.getElementById('modal-export-status');
+        const btn = document.getElementById('modal-export-btn');
+        const queryParams = new URLSearchParams();
+        if (sd) queryParams.append('startDate', sd);
+        if (ed) queryParams.append('endDate', ed);
+        statusEl.textContent = 'Hazırlanıyor...';
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${baseUrl}/api/admin/seller-stats/${currentModalSellerId}/export?${queryParams.toString()}`, { credentials: 'include' });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || 'Rapor indirilemedi.');
+            }
+            const filename = filenameFromCD(res.headers.get('Content-Disposition'), 'Ev-Lezzetleri-Satis-Raporu.xlsx');
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            const objUrl = URL.createObjectURL(blob);
+            a.href = objUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(objUrl);
+            statusEl.textContent = '';
+        } catch (err) {
+            statusEl.textContent = err.message || 'Rapor indirilirken hata oluştu.';
+        } finally {
+            btn.disabled = false;
+        }
+    });
 });
+
+function filenameFromCD(cd, fallback) {
+    cd = cd || '';
+    let m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+    if (m) { try { return decodeURIComponent(m[1]); } catch (e) {} }
+    m = cd.match(/filename="?([^";]+)"?/i);
+    return (m && m[1]) || fallback;
+}
 </script>
 

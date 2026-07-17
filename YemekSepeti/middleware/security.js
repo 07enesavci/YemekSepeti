@@ -66,6 +66,20 @@ const strictLimiter = rateLimit({
     skip: (req) => req.method === 'OPTIONS'
 });
 
+// Excel export endpoint'leri: her biri DB'de ağır bir sorgu + dosya üretimi tetikler.
+// 5 dakikada 10 istekle sınırlandırarak art arda tetiklenen export'ların sunucuyu
+// (DB bağlantı havuzu + CPU) zorlamasının önüne geçer.
+const exportLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 10,
+    keyGenerator: socketIpKey,
+    message: { success: false, message: 'Çok fazla rapor indirme isteği. Lütfen birkaç dakika bekleyin.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: false,
+    skip: (req) => req.method === 'OPTIONS'
+});
+
 // CSRF token oluştur ve doğrula (Double-Submit Cookie pattern)
 function generateCsrfToken() {
     return crypto.randomBytes(32).toString('hex');
@@ -209,6 +223,7 @@ module.exports = {
     apiLimiter,
     authLimiter,
     strictLimiter,
+    exportLimiter,
     csrfProtection,
     csrfTokenRoute,
     helmetMiddleware,
